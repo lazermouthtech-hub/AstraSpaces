@@ -82,6 +82,11 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
       dist = 14;
     }
 
+    if (state.modelId === 'studio' && currentPerspective === 'living-lounge') {
+      onPerspectiveChange('bedroom-suite');
+      return;
+    }
+
     switch (currentPerspective) {
       case 'exterior-iso':
         targetCamPosRef.current.set(dist * 0.75, dist * 0.5, dist * 0.85);
@@ -96,9 +101,47 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
         targetLookAtRef.current.set(0, 0, 0);
         break;
       case 'interior-walkthrough':
-        targetCamPosRef.current.set(0, 1.4, 1.8);
-        targetLookAtRef.current.set(0, 1.2, -1.0);
+        targetCamPosRef.current.set(
+          state.modelId === 'studio' ? 0.6 : (state.modelId === 'one-bedroom' ? 0.8 : 1.1),
+          1.42,
+          1.8
+        );
+        targetLookAtRef.current.set(
+          state.modelId === 'studio' ? -0.5 : (state.modelId === 'one-bedroom' ? -1.3 : -2.1),
+          1.05,
+          -1.1
+        );
         break;
+      case 'bedroom-suite': {
+        const cabinLen = state.modelId === 'studio' ? 6.0 : (state.modelId === 'one-bedroom' ? 8.8 : 11.8);
+        const cabinDep = state.modelId === 'studio' ? 3.6 : (state.modelId === 'one-bedroom' ? 4.2 : 4.6);
+        targetCamPosRef.current.set(
+          cabinLen / 2 - 2.5,
+          1.45,
+          -cabinDep / 2 + 2.05
+        );
+        targetLookAtRef.current.set(
+          cabinLen / 2 - 1.1,
+          0.72,
+          -cabinDep / 2 + 1.05
+        );
+        break;
+      }
+      case 'living-lounge': {
+        const cabinLen = state.modelId === 'studio' ? 6.0 : (state.modelId === 'one-bedroom' ? 8.8 : 11.8);
+        const lX = state.modelId === 'studio' ? -0.35 : (state.modelId === 'one-bedroom' ? -cabinLen * 0.2 : 0.0);
+        targetCamPosRef.current.set(
+          lX + 1.55,
+          1.38,
+          1.85
+        );
+        targetLookAtRef.current.set(
+          lX,
+          0.52,
+          0.65
+        );
+        break;
+      }
       case 'back-patio':
         targetCamPosRef.current.set(-dist * 0.6, dist * 0.4, -dist * 0.8);
         targetLookAtRef.current.set(0, 1.2, 0);
@@ -381,7 +424,10 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
       className="relative w-full h-full min-h-[440px] bg-gradient-to-br from-blue-50/40 via-white to-gray-50/80 flex flex-col justify-between overflow-hidden select-none"
     >
       {/* Three.js Canvas */}
-      <canvas ref={canvasRef} className="absolute inset-0 z-0 w-full h-full block cursor-grab active:cursor-grabbing outline-none" />
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 z-0 w-full h-full block cursor-grab active:cursor-grabbing outline-none touch-none transition-all duration-700 will-change-transform drop-shadow-[0_20px_50px_rgba(0,0,0,0.12)] select-none filter contrast-[1.02] brightness-[1.01]"
+      />
 
       {/* Bento Floating Top Action Layer */}
       <div className="absolute top-4 sm:top-5 left-4 sm:left-5 right-4 sm:right-5 flex items-start justify-between pointer-events-none gap-2 z-10">
@@ -509,7 +555,11 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
               Roof & Solar
             </button>
             <button
-              onClick={() => onSelectCategory('Cabinetry')}
+              onClick={() => {
+                onSelectCategory('Cabinetry');
+                if (!cutawayMode) onCutawayModeToggle();
+                onPerspectiveChange('interior-walkthrough');
+              }}
               className="px-3 py-1 bg-white/90 hover:bg-white border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-wider text-gray-700 shadow-xs flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-slate-800" />
@@ -522,6 +572,30 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
               <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
               Pods & Modules
             </button>
+            <button
+              onClick={() => {
+                onSelectCategory('Interior Modules');
+                if (!cutawayMode) onCutawayModeToggle();
+                onPerspectiveChange('bedroom-suite');
+              }}
+              className="px-3 py-1 bg-white/90 hover:bg-white border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-wider text-gray-700 shadow-xs flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+              Bed Suite
+            </button>
+            {state.modelId !== 'studio' && (
+              <button
+                onClick={() => {
+                  onSelectCategory('Interior Modules');
+                  if (!cutawayMode) onCutawayModeToggle();
+                  onPerspectiveChange('living-lounge');
+                }}
+                className="px-3 py-1 bg-white/90 hover:bg-white border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-wider text-gray-700 shadow-xs flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                Living Lounge
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -540,7 +614,11 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
                 : currentPerspective === 'top-down-floorplan'
                 ? 'Top Plan'
                 : currentPerspective === 'interior-walkthrough'
-                ? 'Interior'
+                ? 'Kitchen Suite'
+                : currentPerspective === 'bedroom-suite'
+                ? 'Master Bedroom'
+                : currentPerspective === 'living-lounge'
+                ? 'Living Lounge'
                 : 'South-Facing'}
             </p>
           </div>
@@ -616,8 +694,36 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
                   : 'hover:text-gray-900 hover:bg-gray-200/60'
               }`}
             >
-              Interior
+              Kitchen
             </button>
+            <button
+              onClick={() => {
+                onPerspectiveChange('bedroom-suite');
+                if (!cutawayMode) onCutawayModeToggle();
+              }}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                currentPerspective === 'bedroom-suite'
+                  ? 'bg-black text-white shadow-xs'
+                  : 'hover:text-gray-900 hover:bg-gray-200/60'
+              }`}
+            >
+              Bedroom
+            </button>
+            {state.modelId !== 'studio' && (
+              <button
+                onClick={() => {
+                  onPerspectiveChange('living-lounge');
+                  if (!cutawayMode) onCutawayModeToggle();
+                }}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  currentPerspective === 'living-lounge'
+                    ? 'bg-black text-white shadow-xs'
+                    : 'hover:text-gray-900 hover:bg-gray-200/60'
+                }`}
+              >
+                Lounge
+              </button>
+            )}
           </div>
 
           {/* Cutaway & Roof Lift Tools */}

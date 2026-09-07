@@ -29,25 +29,31 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
   const markupFactor = 1 + ((config.markup || 0) / 100);
 
   const currentModel =
-    BASE_MODELS.find((m) => m.id === state.modelId) || BASE_MODELS[0];
+    config.models?.find((m: any) => m.id === state.modelId) || config.models?.[0] || BASE_MODELS[0];
 
   const wallOpt =
-    WALL_CLADDING_OPTIONS.find((o) => o.id === state.wallCladding) ||
-    WALL_CLADDING_OPTIONS[0];
+    config.wallOptions?.find((o: any) => o.id === state.wallCladding) ||
+    config.wallOptions?.[0] || WALL_CLADDING_OPTIONS[0];
   const glassOpt =
-    GLAZING_OPTIONS.find((o) => o.id === state.glazing) || GLAZING_OPTIONS[0];
+    config.glazingOptions?.find((o: any) => o.id === state.glazing) ||
+    config.glazingOptions?.[0] || GLAZING_OPTIONS[0];
   const lightOpt =
-    LIGHTING_OPTIONS.find((o) => o.id === state.lightingPackage) ||
-    LIGHTING_OPTIONS[0];
+    config.lightingOptions?.find((o: any) => o.id === state.lightingPackage) ||
+    config.lightingOptions?.[0] || LIGHTING_OPTIONS[0];
   const elecOpt =
-    ELECTRICAL_OPTIONS.find((o) => o.id === state.electricalTier) ||
-    ELECTRICAL_OPTIONS[0];
+    config.electricalOptions?.find((o: any) => o.id === state.electricalTier) ||
+    config.electricalOptions?.[0] || ELECTRICAL_OPTIONS[0];
   const floorOpt =
-    FLOORING_OPTIONS.find((o) => o.id === state.flooring) || FLOORING_OPTIONS[0];
+    config.flooringOptions?.find((o: any) => o.id === state.flooring) ||
+    config.flooringOptions?.[0] || FLOORING_OPTIONS[0];
   const roofOpt =
-    ROOF_OPTIONS.find((o) => o.id === state.roofOption) || ROOF_OPTIONS[0];
+    config.roofOptions?.find((o: any) => o.id === state.roofOption) ||
+    config.roofOptions?.[0] || ROOF_OPTIONS[0];
+  const cabOpt =
+    config.cabinetryOptions?.find((o: any) => o.id === state.cabinetry) ||
+    config.cabinetryOptions?.[0] || null;
 
-  const activeAddons = MODULAR_ADDONS.filter((addon) => state[addon.id]);
+  const activeAddons = (config.addons || MODULAR_ADDONS).filter((addon: any) => state[addon.id]);
 
   const handlePrint = () => {
     window.print();
@@ -214,6 +220,18 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
                   {floorOpt.price === 0 ? 'Included' : formatCurrency(floorOpt.price * markupFactor, config.currency, { showPlus: true })}
                 </span>
               </div>
+
+              {cabOpt && (
+                <div className="py-2.5 flex items-start justify-between">
+                  <div>
+                    <div className="font-bold text-slate-900">Kitchen Cabinetry: {cabOpt.name}</div>
+                    <div className="text-slate-500">{cabOpt.description}</div>
+                  </div>
+                  <span className="font-mono font-bold text-slate-900 shrink-0 ml-4">
+                    {cabOpt.price === 0 ? 'Included' : formatCurrency(cabOpt.price * markupFactor, config.currency, { showPlus: true })}
+                  </span>
+                </div>
+              )}
 
               <div className="py-2.5 flex items-start justify-between">
                 <div>

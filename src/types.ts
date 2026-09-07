@@ -74,5 +74,5 @@ export interface AddonOptionItem {
   specDetail: string;
 }
 
-export type ViewPerspective = 'exterior-iso' | 'front-elevation' | 'top-down-floorplan' | 'interior-walkthrough' | 'back-patio';
+export type ViewPerspective = 'exterior-iso' | 'front-elevation' | 'top-down-floorplan' | 'interior-walkthrough' | 'bedroom-suite' | 'living-lounge' | 'back-patio';
 export type LightingMode = 'daylight' | 'golden-hour' | 'night-ambient';
