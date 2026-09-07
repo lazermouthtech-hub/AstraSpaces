@@ -1,0 +1,6 @@
+{
+  "name": "Boxabl 3D Prefab Home Configurator",
+  "description": "Interactive 3D architectural configurator for modular prefabricated homes with real-time component customization and dynamic cost buildup.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
