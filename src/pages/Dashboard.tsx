@@ -182,7 +182,7 @@ export default function Dashboard() {
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Base Price</label>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Base Price ({baseCurrency})</label>
                         <input
                           type="number"
                           value={model.basePrice}
@@ -378,7 +378,7 @@ export default function Dashboard() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Price</label>
+                                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Price ({baseCurrency})</label>
                                 <input
                                 type="number"
                                 value={addon.price}
@@ -459,7 +459,7 @@ export default function Dashboard() {
                       <h3 className="font-bold text-gray-900 mb-4">Logistics & Fees</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Flat Freight Estimate</label>
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Flat Freight Estimate ({baseCurrency})</label>
                             <input
                                 type="number"
                                 value={logistics.freightCost}
@@ -468,7 +468,7 @@ export default function Dashboard() {
                             />
                         </div>
                         <div>
-                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Site Prep Baseline</label>
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Site Prep Baseline ({baseCurrency})</label>
                             <input
                                 type="number"
                                 value={logistics.sitePrepCost}
@@ -541,7 +541,7 @@ export default function Dashboard() {
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Reservation Fee Amount</label>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Reservation Fee Amount ({baseCurrency})</label>
                         <input
                             type="number"
                             value={branding.reservationFee}

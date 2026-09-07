@@ -1,7 +1,8 @@
 import React from 'react';
 import { HomeModelId } from '../types';
-import { FileText, RotateCcw, Share2 } from 'lucide-react';
+import { FileText, RotateCcw, Share2, DollarSign, Globe } from 'lucide-react';
 import { useAppConfig } from '../context/AppConfigContext';
+import { formatCurrency, normalizeCurrency, SUPPORTED_CURRENCIES } from '../utils/currency';
 
 interface HeaderProps {
   selectedModelId: HomeModelId;
@@ -20,7 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
   totalPrice,
   onOpenReserve,
 }) => {
-  const { config } = useAppConfig();
+  const { config, updateConfig, setCurrency } = useAppConfig();
   const currentModel = config.models.find((m: any) => m.id === selectedModelId) || config.models[0];
 
   const handleShare = () => {
@@ -28,14 +29,6 @@ export const Header: React.FC<HeaderProps> = ({
       navigator.clipboard.writeText(window.location.href);
       alert('Configuration link copied to clipboard!');
     }
-  };
-
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: config.currency || 'USD',
-      maximumFractionDigits: 0,
-    }).format(val);
   };
 
   return (
@@ -110,13 +103,41 @@ export const Header: React.FC<HeaderProps> = ({
           <RotateCcw className="w-4 h-4" />
         </button>
 
+        {/* Currency Switcher */}
+        <div className="flex items-center gap-1 border-l border-gray-200 pl-3">
+          <Globe className="w-3.5 h-3.5 text-gray-400 hidden lg:block" />
+          <select
+            value={normalizeCurrency(config.currency)}
+            onChange={(e) => {
+              if (setCurrency) {
+                setCurrency(e.target.value);
+              } else {
+                updateConfig({ ...config, currency: e.target.value });
+              }
+            }}
+            className="text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200/80 border border-gray-200 rounded-lg px-2 py-1 cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500"
+            title="Select Main Currency"
+            aria-label="Main Currency Selector"
+          >
+            <option value="GHS">GH₵ (Cedis)</option>
+            <option value="USD">$ (USD)</option>
+            <option value="EUR">€ (EUR)</option>
+            <option value="GBP">£ (GBP)</option>
+            <option value="CAD">CA$ (CAD)</option>
+            <option value="AUD">A$ (AUD)</option>
+            <option value="NGN">₦ (NGN)</option>
+            <option value="ZAR">R (ZAR)</option>
+            <option value="KES">KSh (KES)</option>
+          </select>
+        </div>
+
         {/* Live Total Price */}
-        <div className="pl-3 border-l border-gray-200 hidden sm:block">
+        <div className="pl-2 border-l border-gray-200 hidden sm:block">
           <div className="text-[9px] uppercase font-bold text-gray-400 tracking-wider">
             Total Price
           </div>
           <div className="text-base font-extrabold text-gray-900 font-mono leading-none">
-            {formatCurrency(totalPrice)}
+            {formatCurrency(totalPrice, config.currency)}
           </div>
         </div>
 

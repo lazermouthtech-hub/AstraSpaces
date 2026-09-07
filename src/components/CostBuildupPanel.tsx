@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CustomizationState } from '../types';
 import { useAppConfig } from '../context/AppConfigContext';
+import { formatCurrency as formatCurrencyUtil } from '../utils/currency';
 import {
   DollarSign,
   Calendar,
@@ -91,12 +92,8 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
       (Math.pow(1 + monthlyRate, nMonths) - 1)
   );
 
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: config.currency || 'USD',
-      maximumFractionDigits: 0,
-    }).format(val);
+  const formatCurrency = (val: number, opts?: { showPlus?: boolean }) => {
+    return formatCurrencyUtil(val, config.currency, opts);
   };
 
   return (
@@ -468,7 +465,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
             <li>50-Year Structural Steel Frame Warranty</li>
             <li>Class-A Fire Prevention & 40dB Sound Isolation</li>
             <li>Category 5 Hurricane / Level 12 Typhoon Resistance</li>
-            <li>${config.branding.reservationFee} Fully Refundable Reservation Slot</li>
+            <li>{formatCurrency(config.branding.reservationFee || 250)} Fully Refundable Reservation Slot</li>
           </ul>
           {config.branding.supportEmail && (
             <div className="mt-2 pt-2 border-t border-gray-200 text-[10px]">
@@ -486,7 +483,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
           className="w-full py-3.5 px-4 hover:opacity-90 text-white rounded-2xl font-bold text-xs uppercase tracking-wider transition-all shadow-sm flex items-center justify-center gap-2 hover:shadow-md cursor-pointer"
         >
           <CreditCard className="w-4 h-4" />
-          <span>{config.branding.ctaText} (${config.branding.reservationFee} Deposit)</span>
+          <span>{config.branding.ctaText} ({formatCurrency(config.branding.reservationFee || 250)} Deposit)</span>
         </button>
 
         <button

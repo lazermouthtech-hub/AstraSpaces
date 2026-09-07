@@ -3,6 +3,8 @@ import confetti from 'canvas-confetti';
 import { CustomizationState } from '../types';
 import { BASE_MODELS } from '../data/models';
 import { X, CheckCircle2, ShieldCheck, CreditCard, Sparkles, MapPin, Truck } from 'lucide-react';
+import { useAppConfig } from '../context/AppConfigContext';
+import { formatCurrency } from '../utils/currency';
 
 interface ReserveModalProps {
   state: CustomizationState;
@@ -15,6 +17,7 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
   totalPrice,
   onClose,
 }) => {
+  const { config } = useAppConfig();
   const [step, setStep] = useState<'form' | 'success'>('form');
   const [formData, setFormData] = useState({
     fullName: '',
@@ -24,6 +27,9 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
     landStatus: 'own-land',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const reservationFee = config.branding?.reservationFee || 250;
+  const primaryColor = config.branding?.primaryColor || '#ea580c';
 
   const currentModel =
     BASE_MODELS.find((m) => m.id === state.modelId) || BASE_MODELS[0];
@@ -49,15 +55,18 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
         {/* Modal Header */}
         <div className="bg-[#FAFAFC] border-b border-gray-100 p-5 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-orange-600 text-white font-black rounded-xl flex items-center justify-center text-base">
-              B
+            <div
+              className="w-8 h-8 text-white font-black rounded-xl flex items-center justify-center text-base"
+              style={{ backgroundColor: primaryColor }}
+            >
+              {config.branding?.brandName?.charAt(0) || 'A'}
             </div>
             <div>
               <h3 className="font-extrabold text-sm tracking-tight text-gray-900">
                 RESERVE PRODUCTION SLOT
               </h3>
               <p className="text-[11px] text-gray-500">
-                $250 Fully Refundable Deposit • Priority Manufacturing Queue
+                {formatCurrency(reservationFee, config.currency)} Fully Refundable Deposit • Priority Manufacturing Queue
               </p>
             </div>
           </div>
@@ -77,11 +86,18 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
               <div>
                 <span className="font-bold text-gray-900">{currentModel.name}</span>
                 <span className="text-gray-500 block text-[11px]">
-                  Estimated Total: ${totalPrice.toLocaleString()}
+                  Estimated Total: {formatCurrency(totalPrice, config.currency)}
                 </span>
               </div>
-              <span className="font-mono font-extrabold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-xl border border-orange-200">
-                $250 Deposit Due
+              <span
+                className="font-mono font-extrabold px-2.5 py-1 rounded-xl border"
+                style={{
+                  color: primaryColor,
+                  backgroundColor: `${primaryColor}15`,
+                  borderColor: `${primaryColor}30`,
+                }}
+              >
+                {formatCurrency(reservationFee, config.currency)} Deposit Due
               </span>
             </div>
 
@@ -175,7 +191,7 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
             <div className="p-3.5 bg-orange-50/70 border border-orange-200/80 rounded-2xl flex items-start gap-2 text-[11px] text-orange-950">
               <ShieldCheck className="w-4 h-4 text-orange-600 shrink-0 mt-0.5" />
               <div>
-                <span className="font-bold">100% Risk-Free Guarantee:</span> Your $250
+                <span className="font-bold">100% Risk-Free Guarantee:</span> Your {formatCurrency(reservationFee, config.currency)}{' '}
                 reservation fee holds your factory production queue spot and locks in
                 your configuration pricing. Cancel anytime before manufacturing for a
                 prompt, full refund.
@@ -185,13 +201,14 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-3.5 px-4 bg-orange-600 hover:bg-orange-700 text-white font-extrabold rounded-2xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-xs"
+              style={{ backgroundColor: primaryColor }}
+              className="w-full py-3.5 px-4 hover:opacity-95 text-white font-extrabold rounded-2xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-xs"
             >
               <CreditCard className="w-4 h-4" />
               <span>
                 {isSubmitting
                   ? 'Securing Production Queue...'
-                  : 'Place $250 Fully Refundable Deposit'}
+                  : `Place ${formatCurrency(reservationFee, config.currency)} Fully Refundable Deposit`}
               </span>
             </button>
           </form>

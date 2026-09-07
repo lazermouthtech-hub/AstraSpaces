@@ -11,6 +11,8 @@ import {
   MODULAR_ADDONS,
 } from '../data/options';
 import { X, Printer, Download, ShieldCheck, Check, FileText } from 'lucide-react';
+import { useAppConfig } from '../context/AppConfigContext';
+import { formatCurrency } from '../utils/currency';
 
 interface SpecSheetModalProps {
   state: CustomizationState;
@@ -23,6 +25,9 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
   onClose,
   totalPrice,
 }) => {
+  const { config } = useAppConfig();
+  const markupFactor = 1 + ((config.markup || 0) / 100);
+
   const currentModel =
     BASE_MODELS.find((m) => m.id === state.modelId) || BASE_MODELS[0];
 
@@ -156,7 +161,7 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
                   <div className="text-slate-500">{currentModel.description}</div>
                 </div>
                 <span className="font-mono font-bold text-slate-900 shrink-0 ml-4">
-                  ${currentModel.basePrice.toLocaleString()}
+                  {formatCurrency(currentModel.basePrice * markupFactor, config.currency)}
                 </span>
               </div>
 
@@ -166,7 +171,7 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
                   <div className="text-slate-500">{wallOpt.specDetail}</div>
                 </div>
                 <span className="font-mono font-bold text-slate-900 shrink-0 ml-4">
-                  {wallOpt.price === 0 ? 'Included' : `+$${wallOpt.price.toLocaleString()}`}
+                  {wallOpt.price === 0 ? 'Included' : formatCurrency(wallOpt.price * markupFactor, config.currency, { showPlus: true })}
                 </span>
               </div>
 
@@ -176,7 +181,7 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
                   <div className="text-slate-500">{glassOpt.specDetail}</div>
                 </div>
                 <span className="font-mono font-bold text-slate-900 shrink-0 ml-4">
-                  {glassOpt.price === 0 ? 'Included' : `+$${glassOpt.price.toLocaleString()}`}
+                  {glassOpt.price === 0 ? 'Included' : formatCurrency(glassOpt.price * markupFactor, config.currency, { showPlus: true })}
                 </span>
               </div>
 
@@ -186,7 +191,7 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
                   <div className="text-slate-500">{lightOpt.specDetail}</div>
                 </div>
                 <span className="font-mono font-bold text-slate-900 shrink-0 ml-4">
-                  {lightOpt.price === 0 ? 'Included' : `+$${lightOpt.price.toLocaleString()}`}
+                  {lightOpt.price === 0 ? 'Included' : formatCurrency(lightOpt.price * markupFactor, config.currency, { showPlus: true })}
                 </span>
               </div>
 
@@ -196,7 +201,7 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
                   <div className="text-slate-500">{elecOpt.specDetail}</div>
                 </div>
                 <span className="font-mono font-bold text-slate-900 shrink-0 ml-4">
-                  {elecOpt.price === 0 ? 'Included' : `+$${elecOpt.price.toLocaleString()}`}
+                  {elecOpt.price === 0 ? 'Included' : formatCurrency(elecOpt.price * markupFactor, config.currency, { showPlus: true })}
                 </span>
               </div>
 
@@ -206,7 +211,7 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
                   <div className="text-slate-500">{floorOpt.specDetail}</div>
                 </div>
                 <span className="font-mono font-bold text-slate-900 shrink-0 ml-4">
-                  {floorOpt.price === 0 ? 'Included' : `+$${floorOpt.price.toLocaleString()}`}
+                  {floorOpt.price === 0 ? 'Included' : formatCurrency(floorOpt.price * markupFactor, config.currency, { showPlus: true })}
                 </span>
               </div>
 
@@ -216,7 +221,7 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
                   <div className="text-slate-500">{roofOpt.specDetail}</div>
                 </div>
                 <span className="font-mono font-bold text-slate-900 shrink-0 ml-4">
-                  {roofOpt.price === 0 ? 'Included' : `+$${roofOpt.price.toLocaleString()}`}
+                  {roofOpt.price === 0 ? 'Included' : formatCurrency(roofOpt.price * markupFactor, config.currency, { showPlus: true })}
                 </span>
               </div>
 
@@ -227,7 +232,7 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
                     <div className="text-slate-500">{addon.specDetail}</div>
                   </div>
                   <span className="font-mono font-bold text-slate-900 shrink-0 ml-4">
-                    +${addon.price.toLocaleString()}
+                    {formatCurrency(addon.price * markupFactor, config.currency, { showPlus: true })}
                   </span>
                 </div>
               ))}
@@ -243,7 +248,7 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
               </div>
             </div>
             <div className="text-2xl font-extrabold font-mono text-gray-950">
-              ${totalPrice.toLocaleString()}
+              {formatCurrency(totalPrice, config.currency)}
             </div>
           </div>
         </div>

@@ -9,6 +9,7 @@ import {
   RoofOptionId,
 } from '../types';
 import { useAppConfig } from '../context/AppConfigContext';
+import { formatCurrency } from '../utils/currency';
 import {
   Layers,
   Sparkles,
@@ -37,6 +38,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
   onSelectCategory,
 }) => {
   const { config } = useAppConfig();
+  const markupFactor = 1 + ((config.markup || 0) / 100);
   const categories = [
     { id: 'Wall Panels', label: 'Wall Panels', icon: Layers, count: 5 },
     { id: 'Glazing & Windows', label: 'Glazing & Glass', icon: Grid, count: 4 },
@@ -135,7 +137,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold font-mono text-gray-900">
-                          {opt.price === 0 ? 'Included' : `+$${opt.price.toLocaleString()}`}
+                          {opt.price === 0 ? 'Included' : formatCurrency(opt.price * markupFactor, config.currency, { showPlus: true })}
                         </span>
                         {isSelected ? (
                           <div className="w-5 h-5 rounded-full bg-[var(--primary)] flex items-center justify-center shrink-0">
@@ -212,7 +214,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold font-mono text-gray-900">
-                          {opt.price === 0 ? 'Included' : `+$${opt.price.toLocaleString()}`}
+                          {opt.price === 0 ? 'Included' : formatCurrency(opt.price * markupFactor, config.currency, { showPlus: true })}
                         </span>
                         {isSelected ? (
                           <div className="w-5 h-5 rounded-full bg-[var(--primary)] flex items-center justify-center shrink-0">
@@ -263,7 +265,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                   </div>
                 </div>
                 <span className="text-xs font-bold font-mono text-gray-900 shrink-0">
-                  +$1,850
+                  {formatCurrency(1850 * markupFactor, config.currency, { showPlus: true })}
                 </span>
               </label>
             </div>
@@ -316,7 +318,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                           <span className="text-xs font-bold font-mono text-gray-900">
                             {opt.price === 0
                               ? 'Included'
-                              : `+$${opt.price.toLocaleString()}`}
+                              : formatCurrency(opt.price * markupFactor, config.currency, { showPlus: true })}
                           </span>
                           {isSelected ? (
                             <div className="w-5 h-5 rounded-full bg-[var(--primary)] flex items-center justify-center shrink-0">
@@ -378,7 +380,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                           <span className="text-xs font-bold font-mono text-gray-900">
                             {opt.price === 0
                               ? 'Included'
-                              : `+$${opt.price.toLocaleString()}`}
+                              : formatCurrency(opt.price * markupFactor, config.currency, { showPlus: true })}
                           </span>
                           {isSelected ? (
                             <div className="w-5 h-5 rounded-full bg-[var(--primary)] flex items-center justify-center shrink-0">
@@ -449,7 +451,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold font-mono text-gray-900">
-                          {opt.price === 0 ? 'Included' : `+$${opt.price.toLocaleString()}`}
+                          {opt.price === 0 ? 'Included' : formatCurrency(opt.price * markupFactor, config.currency, { showPlus: true })}
                         </span>
                         {isSelected ? (
                           <div className="w-5 h-5 rounded-full bg-[var(--primary)] flex items-center justify-center shrink-0">
@@ -522,7 +524,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold font-mono text-gray-900">
-                          {opt.price === 0 ? 'Included' : `+$${opt.price.toLocaleString()}`}
+                          {opt.price === 0 ? 'Included' : formatCurrency(opt.price * markupFactor, config.currency, { showPlus: true })}
                         </span>
                         {isSelected ? (
                           <div className="w-5 h-5 rounded-full bg-[var(--primary)] flex items-center justify-center shrink-0">
@@ -599,7 +601,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold font-mono text-gray-900">
-                          {opt.price === 0 ? 'Included' : `+$${opt.price.toLocaleString()}`}
+                          {opt.price === 0 ? 'Included' : formatCurrency(opt.price * markupFactor, config.currency, { showPlus: true })}
                         </span>
                         {isSelected ? (
                           <div className="w-5 h-5 rounded-full bg-[var(--primary)] flex items-center justify-center shrink-0">
@@ -673,7 +675,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                           {addon.name}
                         </span>
                         <span className="text-xs font-bold font-mono text-gray-900">
-                          +${addon.price.toLocaleString()}
+                          {formatCurrency(addon.price * markupFactor, config.currency, { showPlus: true })}
                         </span>
                       </div>
                       <p className="text-[11px] text-gray-500 leading-relaxed">

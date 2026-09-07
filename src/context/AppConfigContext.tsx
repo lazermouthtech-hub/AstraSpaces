@@ -53,8 +53,15 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('boxabl_app_config', JSON.stringify(newConfig));
   };
 
+  const setCurrency = (newCurrency: string) => {
+    updateConfig({
+      ...config,
+      currency: newCurrency,
+    });
+  };
+
   return (
-    <AppConfigContext.Provider value={{ config, updateConfig }}>
+    <AppConfigContext.Provider value={{ config, updateConfig, setCurrency }}>
       {children}
     </AppConfigContext.Provider>
   );
