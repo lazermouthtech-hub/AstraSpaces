@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppConfig } from '../context/AppConfigContext';
 import { LogOut, Home, Palette, DollarSign, Settings, Save, Plus, Trash2, Box, Eye, Edit3 } from 'lucide-react';
-import { v4 as uuidv4 } from 'uuid';
 
 export default function Dashboard() {
   const navigate = useNavigate();

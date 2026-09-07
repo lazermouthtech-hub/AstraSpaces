@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CustomizationState, LightingMode } from '../../types';
+import { CustomizationState, LightingMode, ModelSpecification } from '../../types';
 import { MaterialLibrary } from './materials';
 
 export interface BuiltHomeModel {
@@ -25,7 +25,8 @@ export interface BuiltHomeModel {
 export function buildHomeModel(
   state: CustomizationState,
   materials: MaterialLibrary,
-  lightingMode: LightingMode
+  lightingMode: LightingMode,
+  currentModelSpec?: ModelSpecification | any
 ): BuiltHomeModel {
   const rootGroup = new THREE.Group();
   const roofGroup = new THREE.Group();
