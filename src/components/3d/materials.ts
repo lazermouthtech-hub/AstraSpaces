@@ -223,6 +223,11 @@ export interface MaterialLibrary {
   solarConduitMaterial: THREE.MeshStandardMaterial;
   solarStatusLedMaterial: THREE.MeshStandardMaterial;
   solarDecalMaterial: THREE.MeshStandardMaterial;
+  telescopeBodyMaterial: THREE.MeshStandardMaterial;
+  stairTreadMaterial: THREE.MeshStandardMaterial;
+  terraceLightMaterial: THREE.MeshStandardMaterial;
+  terraceFabricMaterial: THREE.MeshStandardMaterial;
+  terraceTableMaterial: THREE.MeshStandardMaterial;
 }
 
 export function createMaterialLibrary(
@@ -565,6 +570,32 @@ export function createMaterialLibrary(
       color: new THREE.Color('#eab308'),
       roughness: 0.5,
       metalness: 0.1,
+    }),
+    telescopeBodyMaterial: new THREE.MeshStandardMaterial({
+      color: new THREE.Color('#0f172a'),
+      roughness: 0.22,
+      metalness: 0.85,
+    }),
+    stairTreadMaterial: new THREE.MeshStandardMaterial({
+      color: new THREE.Color('#1e293b'),
+      roughness: 0.45,
+      metalness: 0.60,
+    }),
+    terraceLightMaterial: new THREE.MeshStandardMaterial({
+      color: new THREE.Color('#fef08a'),
+      emissive: new THREE.Color('#f59e0b'),
+      emissiveIntensity: 2.2,
+      roughness: 0.1,
+    }),
+    terraceFabricMaterial: new THREE.MeshStandardMaterial({
+      color: new THREE.Color('#475569'),
+      roughness: 0.85,
+      metalness: 0.05,
+    }),
+    terraceTableMaterial: new THREE.MeshStandardMaterial({
+      color: new THREE.Color('#d1d5db'),
+      roughness: 0.5,
+      metalness: 0.2,
     }),
   };
 }

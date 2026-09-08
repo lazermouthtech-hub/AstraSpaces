@@ -146,6 +146,22 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
         targetCamPosRef.current.set(-dist * 0.6, dist * 0.4, -dist * 0.8);
         targetLookAtRef.current.set(0, 1.2, 0);
         break;
+      case 'rooftop-observatory':
+      case 'rooftop-terrace': {
+        const cabinLen = state.modelId === 'studio' ? 6.0 : (state.modelId === 'one-bedroom' ? 8.8 : 11.8);
+        const cabinDep = state.modelId === 'studio' ? 3.6 : (state.modelId === 'one-bedroom' ? 4.2 : 4.6);
+        targetCamPosRef.current.set(
+          -cabinLen * 0.45,
+          3.95,
+          cabinDep * 0.68 + 2.0
+        );
+        targetLookAtRef.current.set(
+          0.05,
+          2.92,
+          0.0
+        );
+        break;
+      }
     }
   }, [currentPerspective, state.modelId]);
 
@@ -548,11 +564,16 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
               Lighting
             </button>
             <button
-              onClick={() => onSelectCategory('Roof & Energy')}
+              onClick={() => {
+                onSelectCategory('Roof & Energy');
+                if (cutawayMode) onCutawayModeToggle();
+                if (roofLiftPercent > 0) onRoofLiftChange(0);
+                onPerspectiveChange('rooftop-observatory');
+              }}
               className="px-3 py-1 bg-white/90 hover:bg-white border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-wider text-gray-700 shadow-xs flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              Roof & Solar
+              Roof & Observatory
             </button>
             <button
               onClick={() => {
@@ -613,6 +634,8 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
                 ? 'Front Facade'
                 : currentPerspective === 'top-down-floorplan'
                 ? 'Top Plan'
+                : currentPerspective === 'rooftop-observatory' || currentPerspective === 'rooftop-terrace'
+                ? 'Rooftop Observatory'
                 : currentPerspective === 'interior-walkthrough'
                 ? 'Kitchen Suite'
                 : currentPerspective === 'bedroom-suite'
@@ -682,6 +705,21 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
               }`}
             >
               Plan
+            </button>
+            <button
+              onClick={() => {
+                onPerspectiveChange('rooftop-observatory');
+                if (cutawayMode) onCutawayModeToggle();
+                if (roofLiftPercent > 0) onRoofLiftChange(0);
+              }}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                currentPerspective === 'rooftop-observatory' || currentPerspective === 'rooftop-terrace'
+                  ? 'bg-black text-white shadow-xs'
+                  : 'hover:text-gray-900 hover:bg-gray-200/60'
+              }`}
+              title="View Rooftop Observatory & Side Stairs"
+            >
+              Observatory
             </button>
             <button
               onClick={() => {

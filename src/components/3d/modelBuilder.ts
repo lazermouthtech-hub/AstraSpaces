@@ -225,60 +225,764 @@ export function buildHomeModel(
     roofGroup.add(soffitMeshFront);
   }
 
-  // 6. ROOF OPTIONS: SOLAR ARRAY & ROOFTOP TERRACE
-  if (state.roofOption === 'solar-array-3kw' || state.roofOption === 'solar-deck-combo') {
-    const solarCount = state.modelId === 'two-bedroom' ? 6 : state.modelId === 'one-bedroom' ? 4 : 2;
-    const panelW = 1.1;
-    const panelL = 1.6;
-    const panelGeo = new THREE.BoxGeometry(panelW, 0.04, panelL);
+  // 6. ROOF OPTIONS: ARCHITECTURAL SOLAR ARRAY, OBSERVATORY TERRACE & SPIRAL STAIRS
+  const roofBaseY = height + 0.15 + roofThickness;
 
-    for (let i = 0; i < solarCount; i++) {
-      const panelMesh = new THREE.Mesh(panelGeo, materials.solarMaterial);
-      const spacingX = panelW + 0.15;
-      const startX = -((solarCount - 1) * spacingX) / 2;
-      panelMesh.position.set(startX + i * spacingX, height + 0.15 + roofThickness + 0.04, -depth * 0.1);
-      panelMesh.rotation.x = -0.05; // slight sun tilt
-      panelMesh.castShadow = true;
-      solarGroup.add(panelMesh);
+  // Helper: Detailed Architectural Monocrystalline Solar Array
+  const createDetailedSolarArray = (solarCount: number, arrayCenterX: number, arrayCenterZ: number) => {
+    const group = new THREE.Group();
+    const panelW = 1.08;
+    const panelL = 1.72;
+    const tiltAngle = 0.18; // ~10.3° sun-optimized tilt
+    const panelSpacingX = panelW + 0.05;
+    const totalArrayW = (solarCount - 1) * panelSpacingX + panelW;
+    const startX = -((solarCount - 1) * panelSpacingX) / 2;
+
+    // Structural Aluminum Unistrut Mounting Rails
+    const railLen = totalArrayW + 0.22;
+    const railOffsetZ = (panelL * 0.28) * Math.cos(tiltAngle);
+
+    const railGeo = new THREE.BoxGeometry(railLen, 0.038, 0.04);
+    // Front rail
+    const frontRail = new THREE.Mesh(railGeo, materials.solarRailMaterial);
+    frontRail.position.set(arrayCenterX, roofBaseY + 0.045, arrayCenterZ + railOffsetZ);
+    frontRail.castShadow = true;
+    group.add(frontRail);
+
+    // Rear rail (elevated to create sun tilt)
+    const rearRailH = 0.045 + (panelL * 0.56) * Math.sin(tiltAngle);
+    const rearRail = new THREE.Mesh(railGeo, materials.solarRailMaterial);
+    rearRail.position.set(arrayCenterX, roofBaseY + rearRailH, arrayCenterZ - railOffsetZ);
+    rearRail.castShadow = true;
+    group.add(rearRail);
+
+    // Structural Stanchions & L-Feet Brackets along the rails
+    const stanchionCount = Math.max(3, solarCount + 1);
+    const stanchionStepX = totalArrayW / (stanchionCount - 1);
+    for (let s = 0; s < stanchionCount; s++) {
+      const sx = arrayCenterX - totalArrayW / 2 + s * stanchionStepX;
+      // Front L-foot
+      const footGeo = new THREE.BoxGeometry(0.06, 0.01, 0.06);
+      const footFront = new THREE.Mesh(footGeo, materials.solarRailMaterial);
+      footFront.position.set(sx, roofBaseY + 0.005, arrayCenterZ + railOffsetZ);
+      group.add(footFront);
+
+      const postFrontGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.04, 8);
+      const postFront = new THREE.Mesh(postFrontGeo, materials.solarRailMaterial);
+      postFront.position.set(sx, roofBaseY + 0.025, arrayCenterZ + railOffsetZ);
+      group.add(postFront);
+
+      // Rear L-foot & angled riser strut
+      const footRear = new THREE.Mesh(footGeo, materials.solarRailMaterial);
+      footRear.position.set(sx, roofBaseY + 0.005, arrayCenterZ - railOffsetZ);
+      group.add(footRear);
+
+      const postRearGeo = new THREE.CylinderGeometry(0.014, 0.014, rearRailH, 8);
+      const postRear = new THREE.Mesh(postRearGeo, materials.solarRailMaterial);
+      postRear.position.set(sx, roofBaseY + rearRailH / 2, arrayCenterZ - railOffsetZ);
+      group.add(postRear);
     }
-  }
 
-  if (state.roofOption === 'rooftop-terrace-deck' || state.roofOption === 'solar-deck-combo') {
-    // Walkable composite decking
-    const deckGeo = new THREE.BoxGeometry(length * 0.75, 0.03, depth * 0.8);
-    const deckMesh = new THREE.Mesh(deckGeo, materials.woodDeckMaterial);
-    deckMesh.position.set(0, height + 0.15 + roofThickness + 0.02, 0);
-    terraceGroup.add(deckMesh);
+    // Individual High-Efficiency PV Modules
+    for (let i = 0; i < solarCount; i++) {
+      const px = arrayCenterX + startX + i * panelSpacingX;
+      const py = roofBaseY + 0.045 + (rearRailH - 0.045) / 2 + 0.025;
+      const pz = arrayCenterZ;
 
-    // Aluminum safety railing posts & top rail
-    const railHeight = 0.9;
-    const railPostMat = materials.chassisMaterial;
-    const railGlassMat = materials.glassMaterial;
+      const panelSub = new THREE.Group();
+      panelSub.position.set(px, py, pz);
+      panelSub.rotation.x = -tiltAngle;
 
-    const deckW = length * 0.75;
-    const deckD = depth * 0.8;
+      // 1. Extruded Matte Black Anodized Aluminum Perimeter Frame
+      const frameThick = 0.032;
+      const frameHeight = 0.035;
 
-    // Glass safety guard panels
-    const railFrontGeo = new THREE.BoxGeometry(deckW, railHeight, 0.02);
-    const railFront = new THREE.Mesh(railFrontGeo, railGlassMat);
-    railFront.position.set(0, height + 0.15 + roofThickness + railHeight / 2, deckD / 2);
-    terraceGroup.add(railFront);
+      // Left & right frame channels
+      const sideFrameGeo = new THREE.BoxGeometry(frameThick, frameHeight, panelL);
+      const leftFrame = new THREE.Mesh(sideFrameGeo, materials.solarFrameMaterial);
+      leftFrame.position.set(-panelW / 2 + frameThick / 2, 0, 0);
+      leftFrame.castShadow = true;
+      panelSub.add(leftFrame);
 
-    const railBack = new THREE.Mesh(railFrontGeo, railGlassMat);
-    railBack.position.set(0, height + 0.15 + roofThickness + railHeight / 2, -deckD / 2);
-    terraceGroup.add(railBack);
+      const rightFrame = new THREE.Mesh(sideFrameGeo, materials.solarFrameMaterial);
+      rightFrame.position.set(panelW / 2 - frameThick / 2, 0, 0);
+      rightFrame.castShadow = true;
+      panelSub.add(rightFrame);
 
-    // Top Handrail
-    const handrailGeo = new THREE.BoxGeometry(deckW, 0.04, 0.06);
-    const handrailFront = new THREE.Mesh(handrailGeo, railPostMat);
-    handrailFront.position.set(0, height + 0.15 + roofThickness + railHeight, deckD / 2);
-    terraceGroup.add(handrailFront);
+      // Top & bottom frame channels
+      const endFrameGeo = new THREE.BoxGeometry(panelW - frameThick * 2, frameHeight, frameThick);
+      const topFrame = new THREE.Mesh(endFrameGeo, materials.solarFrameMaterial);
+      topFrame.position.set(0, 0, -panelL / 2 + frameThick / 2);
+      topFrame.castShadow = true;
+      panelSub.add(topFrame);
 
-    // Exterior spiral ladder access
-    const ladderGeo = new THREE.CylinderGeometry(0.04, 0.04, height + 0.2, 8);
-    const ladderPole = new THREE.Mesh(ladderGeo, railPostMat);
-    ladderPole.position.set(-length / 2 - 0.25, (height + 0.2) / 2, 0);
-    terraceGroup.add(ladderPole);
+      const botFrame = new THREE.Mesh(endFrameGeo, materials.solarFrameMaterial);
+      botFrame.position.set(0, 0, panelL / 2 - frameThick / 2);
+      botFrame.castShadow = true;
+      panelSub.add(botFrame);
+
+      // 2. Recessed Monocrystalline Photovoltaic Silicon Glass Face
+      const glassGeo = new THREE.BoxGeometry(panelW - frameThick * 1.5, 0.008, panelL - frameThick * 1.5);
+      const glassMesh = new THREE.Mesh(glassGeo, materials.solarMaterial);
+      glassMesh.position.set(0, 0.01, 0);
+      glassMesh.castShadow = true;
+      glassMesh.receiveShadow = true;
+      panelSub.add(glassMesh);
+
+      // Composite weatherproof backsheet
+      const backGeo = new THREE.BoxGeometry(panelW - frameThick * 1.5, 0.004, panelL - frameThick * 1.5);
+      const backMesh = new THREE.Mesh(backGeo, materials.solarFrameMaterial);
+      backMesh.position.set(0, 0.002, 0);
+      panelSub.add(backMesh);
+
+      // 3. Balance of System: Underside Microinverter Unit
+      const inverterGeo = new THREE.BoxGeometry(0.18, 0.038, 0.12);
+      const inverterMesh = new THREE.Mesh(inverterGeo, materials.solarMicroinverterMaterial);
+      inverterMesh.position.set(0, -0.032, 0);
+      panelSub.add(inverterMesh);
+
+      // Microinverter status LED (glowing green operational indicator)
+      const ledGeo = new THREE.SphereGeometry(0.006, 8, 8);
+      const ledMesh = new THREE.Mesh(ledGeo, materials.solarStatusLedMaterial);
+      ledMesh.position.set(0.07, -0.048, 0.035);
+      panelSub.add(ledMesh);
+
+      // DC wire conduit leads
+      const wireGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.12, 6);
+      const wireMesh1 = new THREE.Mesh(wireGeo, materials.solarConduitMaterial);
+      wireMesh1.position.set(-0.04, -0.025, 0.05);
+      wireMesh1.rotation.x = 0.4;
+      panelSub.add(wireMesh1);
+
+      const wireMesh2 = new THREE.Mesh(wireGeo, materials.solarConduitMaterial);
+      wireMesh2.position.set(0.04, -0.025, 0.05);
+      wireMesh2.rotation.x = 0.4;
+      panelSub.add(wireMesh2);
+
+      group.add(panelSub);
+
+      // Fasteners: Mid-Clamps and End-Clamps
+      if (i < solarCount - 1) {
+        // Mid-clamps between adjacent panels (front & rear rails)
+        const midClampGeo = new THREE.BoxGeometry(0.028, 0.02, 0.045);
+        const mcFront = new THREE.Mesh(midClampGeo, materials.solarClampMaterial);
+        mcFront.position.set(px + panelSpacingX / 2, py + 0.015, pz + railOffsetZ);
+        mcFront.rotation.x = -tiltAngle;
+        group.add(mcFront);
+
+        const mcRear = new THREE.Mesh(midClampGeo, materials.solarClampMaterial);
+        mcRear.position.set(px + panelSpacingX / 2, py + 0.015, pz - railOffsetZ);
+        mcRear.rotation.x = -tiltAngle;
+        group.add(mcRear);
+      }
+    }
+
+    // Rooftop Electrical Combiner / Transition Box
+    const jboxGeo = new THREE.BoxGeometry(0.18, 0.14, 0.12);
+    const jboxMesh = new THREE.Mesh(jboxGeo, materials.solarConduitMaterial);
+    const jboxX = arrayCenterX - totalArrayW / 2 - 0.22;
+    const jboxZ = arrayCenterZ - railOffsetZ;
+    jboxMesh.position.set(jboxX, roofBaseY + 0.08, jboxZ);
+    jboxMesh.castShadow = true;
+    group.add(jboxMesh);
+
+    // Yellow Caution Placard
+    const placardGeo = new THREE.BoxGeometry(0.09, 0.055, 0.004);
+    const placardMesh = new THREE.Mesh(placardGeo, materials.solarDecalMaterial);
+    placardMesh.position.set(jboxX, roofBaseY + 0.08, jboxZ + 0.062);
+    group.add(placardMesh);
+
+    // Weatherproof roof conduit penetration boot
+    const bootGeo = new THREE.CylinderGeometry(0.03, 0.05, 0.04, 12);
+    const bootMesh = new THREE.Mesh(bootGeo, materials.solarConduitMaterial);
+    bootMesh.position.set(jboxX, roofBaseY + 0.02, jboxZ);
+    group.add(bootMesh);
+
+    // Conduit tube from junction box to rail
+    const conduitGeo = new THREE.CylinderGeometry(0.01, 0.01, totalArrayW + 0.3, 8);
+    const conduitMesh = new THREE.Mesh(conduitGeo, materials.solarConduitMaterial);
+    conduitMesh.position.set(arrayCenterX, roofBaseY + 0.035, jboxZ);
+    conduitMesh.rotation.z = Math.PI / 2;
+    group.add(conduitMesh);
+
+    return group;
+  };
+
+  // Helper: Detailed Rooftop Observatory Terrace & Glass Balustrade
+  const createDetailedRooftopObservatory = (
+    deckW: number,
+    deckD: number,
+    deckCenterX: number,
+    deckCenterZ: number,
+    stairSide: 'left' | 'right'
+  ) => {
+    const group = new THREE.Group();
+
+    // 1. Walkable Hardwood/Teak Grooved Decking with Perimeter Facia
+    const faciaGeo = new THREE.BoxGeometry(deckW + 0.04, 0.06, deckD + 0.04);
+    const faciaMesh = new THREE.Mesh(faciaGeo, materials.chassisMaterial);
+    faciaMesh.position.set(deckCenterX, roofBaseY + 0.01, deckCenterZ);
+    faciaMesh.castShadow = true;
+    group.add(faciaMesh);
+
+    // Realistic Individual Decking Boards with shadow reveals
+    const boardCount = 9;
+    const boardZSpan = (deckD - 0.05) / boardCount;
+    for (let b = 0; b < boardCount; b++) {
+      const bz = deckCenterZ - deckD / 2 + 0.025 + b * boardZSpan + boardZSpan / 2;
+      const boardGeo = new THREE.BoxGeometry(deckW - 0.02, 0.024, boardZSpan - 0.008);
+      const boardMesh = new THREE.Mesh(boardGeo, materials.woodDeckMaterial);
+      boardMesh.position.set(deckCenterX, roofBaseY + 0.032, bz);
+      boardMesh.receiveShadow = true;
+      group.add(boardMesh);
+    }
+
+    // Flush-mount perimeter LED deck puck lights
+    const puckPositions = [
+      [deckCenterX - deckW / 2 + 0.25, deckCenterZ + deckD / 2 - 0.25],
+      [deckCenterX + deckW / 2 - 0.25, deckCenterZ + deckD / 2 - 0.25],
+      [deckCenterX - deckW / 2 + 0.25, deckCenterZ - deckD / 2 + 0.25],
+      [deckCenterX + deckW / 2 - 0.25, deckCenterZ - deckD / 2 + 0.25],
+    ];
+    puckPositions.forEach(([px, pz]) => {
+      const puckGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.006, 12);
+      const puckMesh = new THREE.Mesh(puckGeo, materials.terraceLightMaterial);
+      puckMesh.position.set(px, roofBaseY + 0.046, pz);
+      group.add(puckMesh);
+    });
+
+    // 2. Architectural Frameless Tempered Glass & Modular Balustrade System
+    const railHeight = 0.96;
+    const shoeHeight = 0.05;
+    const shoeThick = 0.038;
+    const capHeight = 0.036;
+    const capWidth = 0.052;
+
+    // Helper: Build segmented glass panels with spigot clamps and top cap channel
+    const createSegmentedGlassLine = (
+      startX: number,
+      startZ: number,
+      endX: number,
+      endZ: number,
+      panelMaxSpan = 1.05
+    ) => {
+      const subGroup = new THREE.Group();
+      const dx = endX - startX;
+      const dz = endZ - startZ;
+      const totalLen = Math.hypot(dx, dz);
+      const angle = Math.atan2(dz, dx);
+      const panelCount = Math.max(1, Math.round(totalLen / panelMaxSpan));
+      const panelSpan = totalLen / panelCount;
+      const jointGap = 0.022; // 22mm architectural expansion gap
+
+      // Base shoe mounting channel
+      const shoeGeo = new THREE.BoxGeometry(totalLen, shoeHeight, shoeThick);
+      const shoeMesh = new THREE.Mesh(shoeGeo, materials.chassisMaterial);
+      shoeMesh.position.set((startX + endX) / 2, roofBaseY + 0.045 + shoeHeight / 2, (startZ + endZ) / 2);
+      shoeMesh.rotation.y = -angle;
+      subGroup.add(shoeMesh);
+
+      // Continuous top cap rail
+      const capGeo = new THREE.BoxGeometry(totalLen, capHeight, capWidth);
+      const capMesh = new THREE.Mesh(capGeo, materials.chassisMaterial);
+      capMesh.position.set((startX + endX) / 2, roofBaseY + 0.045 + railHeight, (startZ + endZ) / 2);
+      capMesh.rotation.y = -angle;
+      capMesh.castShadow = true;
+      subGroup.add(capMesh);
+
+      // Discrete tempered glass panels & stainless steel spigots
+      for (let p = 0; p < panelCount; p++) {
+        const segDist = (p + 0.5) * panelSpan;
+        const px = startX + Math.cos(angle) * segDist;
+        const pz = startZ + Math.sin(angle) * segDist;
+        const effectiveGlassW = Math.max(0.15, panelSpan - jointGap);
+
+        const glassGeo = new THREE.BoxGeometry(effectiveGlassW, railHeight, 0.016);
+        const glassMesh = new THREE.Mesh(glassGeo, materials.glassMaterial);
+        glassMesh.position.set(px, roofBaseY + 0.045 + railHeight / 2, pz);
+        glassMesh.rotation.y = -angle;
+        subGroup.add(glassMesh);
+
+        // Stainless steel spigot clamps (2 per panel)
+        [-effectiveGlassW * 0.32, effectiveGlassW * 0.32].forEach((spigotOffset) => {
+          const sx = px + Math.cos(angle) * spigotOffset;
+          const sz = pz + Math.sin(angle) * spigotOffset;
+          const spigotGeo = new THREE.BoxGeometry(0.04, 0.09, 0.04);
+          const spigotMesh = new THREE.Mesh(spigotGeo, materials.chassisMaterial);
+          spigotMesh.position.set(sx, roofBaseY + 0.045 + 0.045, sz);
+          spigotMesh.rotation.y = -angle;
+          subGroup.add(spigotMesh);
+        });
+      }
+
+      return subGroup;
+    };
+
+    // Front Balustrade Line
+    group.add(
+      createSegmentedGlassLine(
+        deckCenterX - deckW / 2,
+        deckCenterZ + deckD / 2 - shoeThick / 2,
+        deckCenterX + deckW / 2,
+        deckCenterZ + deckD / 2 - shoeThick / 2
+      )
+    );
+
+    // Rear Balustrade Line
+    group.add(
+      createSegmentedGlassLine(
+        deckCenterX - deckW / 2,
+        deckCenterZ - deckD / 2 + shoeThick / 2,
+        deckCenterX + deckW / 2,
+        deckCenterZ - deckD / 2 + shoeThick / 2
+      )
+    );
+
+    // Side Railings: Non-stair side is closed; stair side features a dedicated 0.90m portal opening!
+    const nonStairSign = stairSide === 'left' ? 1 : -1;
+    const stairSign = -nonStairSign;
+    const portalCenterZ = -deckD * 0.12;
+    const portalW = 0.90;
+
+    // Closed side railing
+    const closedSideX = deckCenterX + (nonStairSign * deckW) / 2;
+    group.add(
+      createSegmentedGlassLine(
+        closedSideX,
+        deckCenterZ - deckD / 2 + shoeThick / 2,
+        closedSideX,
+        deckCenterZ + deckD / 2 - shoeThick / 2
+      )
+    );
+
+    // Stair side railing with intentional 0.90m portal opening
+    const stairSideX = deckCenterX + (stairSign * deckW) / 2;
+    const frontPortZ = portalCenterZ + portalW / 2;
+    const rearPortZ = portalCenterZ - portalW / 2;
+    const frontDeckZ = deckCenterZ + deckD / 2 - shoeThick / 2;
+    const rearDeckZ = deckCenterZ - deckD / 2 + shoeThick / 2;
+
+    // Front section before portal
+    if (frontDeckZ - frontPortZ > 0.25) {
+      group.add(createSegmentedGlassLine(stairSideX, frontPortZ, stairSideX, frontDeckZ));
+    }
+    // Rear section after portal
+    if (rearPortZ - rearDeckZ > 0.25) {
+      group.add(createSegmentedGlassLine(stairSideX, rearDeckZ, stairSideX, rearPortZ));
+    }
+
+    // Portal entry threshold reveal plate & safety baluster posts
+    const portalPostGeo = new THREE.BoxGeometry(0.045, railHeight + 0.04, 0.045);
+    const postFrontPortal = new THREE.Mesh(portalPostGeo, materials.chassisMaterial);
+    postFrontPortal.position.set(stairSideX, roofBaseY + 0.045 + (railHeight + 0.04) / 2, frontPortZ);
+    group.add(postFrontPortal);
+
+    const postRearPortal = new THREE.Mesh(portalPostGeo, materials.chassisMaterial);
+    postRearPortal.position.set(stairSideX, roofBaseY + 0.045 + (railHeight + 0.04) / 2, rearPortZ);
+    group.add(postRearPortal);
+
+    // Perimeter Corner Posts
+    const cornerPosts = [
+      [deckCenterX - deckW / 2, deckCenterZ - deckD / 2],
+      [deckCenterX + deckW / 2, deckCenterZ - deckD / 2],
+      [deckCenterX - deckW / 2, deckCenterZ + deckD / 2],
+      [deckCenterX + deckW / 2, deckCenterZ + deckD / 2],
+    ];
+    cornerPosts.forEach(([cx, cz]) => {
+      const postGeo = new THREE.BoxGeometry(0.048, railHeight + 0.04, 0.048);
+      const postMesh = new THREE.Mesh(postGeo, materials.chassisMaterial);
+      postMesh.position.set(cx, roofBaseY + 0.045 + (railHeight + 0.04) / 2, cz);
+      group.add(postMesh);
+    });
+
+    // 3. Astronomical Stargazing Telescope Assembly
+    const teleGroup = new THREE.Group();
+    const teleX = deckCenterX - deckW * 0.20;
+    const teleZ = deckCenterZ + deckD * 0.18;
+    teleGroup.position.set(teleX, roofBaseY + 0.045, teleZ);
+
+    // Heavy-duty cast tripod legs with anti-vibration foot pads
+    const legGeo = new THREE.CylinderGeometry(0.018, 0.014, 0.88, 8);
+    for (let i = 0; i < 3; i++) {
+      const angle = (i * Math.PI * 2) / 3;
+      const legMesh = new THREE.Mesh(legGeo, materials.chassisMaterial);
+      legMesh.position.set(Math.cos(angle) * 0.24, 0.42, Math.sin(angle) * 0.24);
+      legMesh.rotation.z = Math.cos(angle) * 0.28;
+      legMesh.rotation.x = -Math.sin(angle) * 0.28;
+      legMesh.castShadow = true;
+      teleGroup.add(legMesh);
+
+      // Anti-vibration rubber foot pad
+      const footGeo = new THREE.CylinderGeometry(0.024, 0.028, 0.018, 8);
+      const footMesh = new THREE.Mesh(footGeo, materials.chassisMaterial);
+      footMesh.position.set(Math.cos(angle) * 0.40, 0.01, Math.sin(angle) * 0.40);
+      teleGroup.add(footMesh);
+    }
+
+    // Tripod accessory spreader tray
+    const trayGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.015, 6);
+    const trayMesh = new THREE.Mesh(trayGeo, materials.chassisMaterial);
+    trayMesh.position.set(0, 0.38, 0);
+    teleGroup.add(trayMesh);
+
+    // Central mounting column & motorized equatorial mount head
+    const colGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.48, 12);
+    const colMesh = new THREE.Mesh(colGeo, materials.chassisMaterial);
+    colMesh.position.set(0, 0.82, 0);
+    teleGroup.add(colMesh);
+
+    const headGeo = new THREE.SphereGeometry(0.058, 12, 12);
+    const headMesh = new THREE.Mesh(headGeo, materials.brassHandleMaterial);
+    headMesh.position.set(0, 1.06, 0);
+    teleGroup.add(headMesh);
+
+    // Counterweight shaft & balancing weights
+    const shaftGeo = new THREE.CylinderGeometry(0.01, 0.01, 0.34, 8);
+    const shaftMesh = new THREE.Mesh(shaftGeo, materials.brassHandleMaterial);
+    shaftMesh.position.set(0.13, 0.98, 0);
+    shaftMesh.rotation.z = Math.PI / 3;
+    teleGroup.add(shaftMesh);
+
+    const weightGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.07, 12);
+    const weightMesh = new THREE.Mesh(weightGeo, materials.chassisMaterial);
+    weightMesh.position.set(0.22, 0.92, 0);
+    weightMesh.rotation.z = Math.PI / 3;
+    teleGroup.add(weightMesh);
+
+    // Main Optical Barrel Tube (angled 40° toward the night sky)
+    const barrelGeo = new THREE.CylinderGeometry(0.068, 0.058, 0.92, 16);
+    const barrelMesh = new THREE.Mesh(barrelGeo, materials.telescopeBodyMaterial);
+    barrelMesh.position.set(-0.08, 1.27, 0.08);
+    barrelMesh.rotation.z = -Math.PI / 4.4;
+    barrelMesh.rotation.y = 0.45;
+    barrelMesh.castShadow = true;
+    teleGroup.add(barrelMesh);
+
+    // Dual Brass Retention Rings around Optical Barrel
+    [-0.14, 0.14].forEach((rz) => {
+      const ringGeo = new THREE.CylinderGeometry(0.074, 0.074, 0.024, 16);
+      const ringMesh = new THREE.Mesh(ringGeo, materials.brassHandleMaterial);
+      ringMesh.position.set(-0.08 + rz * 0.45, 1.27 - rz * 0.55, 0.08 + rz * 0.25);
+      ringMesh.rotation.z = -Math.PI / 4.4;
+      ringMesh.rotation.y = 0.45;
+      teleGroup.add(ringMesh);
+    });
+
+    // Front dew shield & optical objective glass element
+    const dewGeo = new THREE.CylinderGeometry(0.075, 0.075, 0.18, 16);
+    const dewMesh = new THREE.Mesh(dewGeo, materials.chassisMaterial);
+    dewMesh.position.set(-0.36, 1.55, 0.23);
+    dewMesh.rotation.z = -Math.PI / 4.4;
+    dewMesh.rotation.y = 0.45;
+    teleGroup.add(dewMesh);
+
+    const lensGeo = new THREE.CylinderGeometry(0.065, 0.065, 0.006, 16);
+    const lensMesh = new THREE.Mesh(lensGeo, materials.glassMaterial);
+    lensMesh.position.set(-0.39, 1.58, 0.25);
+    lensMesh.rotation.z = -Math.PI / 4.4;
+    lensMesh.rotation.y = 0.45;
+    teleGroup.add(lensMesh);
+
+    // Brass dual-eyepiece focuser & optical star diagonal
+    const focuserGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.13, 12);
+    const focuserMesh = new THREE.Mesh(focuserGeo, materials.brassHandleMaterial);
+    focuserMesh.position.set(0.19, 0.99, -0.06);
+    focuserMesh.rotation.z = -Math.PI / 4.4;
+    focuserMesh.rotation.y = 0.45;
+    teleGroup.add(focuserMesh);
+
+    // Parallel optical finderscope with precision crosshair tube
+    const finderGeo = new THREE.CylinderGeometry(0.016, 0.014, 0.26, 8);
+    const finderMesh = new THREE.Mesh(finderGeo, materials.brassHandleMaterial);
+    finderMesh.position.set(-0.06, 1.36, 0.02);
+    finderMesh.rotation.z = -Math.PI / 4.4;
+    finderMesh.rotation.y = 0.45;
+    teleGroup.add(finderMesh);
+
+    group.add(teleGroup);
+
+    // 4. Modern Minimalist Rooftop Lounge Seating & Refreshment Table
+    const loungeGroup = new THREE.Group();
+    const loungeX = deckCenterX + deckW * 0.18;
+    const loungeZ = deckCenterZ - deckD * 0.10;
+    loungeGroup.position.set(loungeX, roofBaseY + 0.045, loungeZ);
+
+    // Teak lounge daybed frame
+    const seatW = 1.08;
+    const seatD = 0.70;
+    const seatBaseGeo = new THREE.BoxGeometry(seatW, 0.08, seatD);
+    const seatBase = new THREE.Mesh(seatBaseGeo, materials.woodDeckMaterial);
+    seatBase.position.set(0, 0.14, 0);
+    seatBase.castShadow = true;
+    loungeGroup.add(seatBase);
+
+    // Tapered powder-coated steel legs
+    const slegGeo = new THREE.CylinderGeometry(0.014, 0.01, 0.14, 8);
+    const legCoords = [
+      [-seatW / 2 + 0.06, -seatD / 2 + 0.06],
+      [seatW / 2 - 0.06, -seatD / 2 + 0.06],
+      [-seatW / 2 + 0.06, seatD / 2 - 0.06],
+      [seatW / 2 - 0.06, seatD / 2 - 0.06],
+    ];
+    legCoords.forEach(([lx, lz]) => {
+      const leg = new THREE.Mesh(slegGeo, materials.chassisMaterial);
+      leg.position.set(lx, 0.07, lz);
+      loungeGroup.add(leg);
+    });
+
+    // Deep tailored all-weather charcoal seat cushion
+    const cushionGeo = new THREE.BoxGeometry(seatW - 0.04, 0.11, seatD - 0.04);
+    const cushion = new THREE.Mesh(cushionGeo, materials.terraceFabricMaterial);
+    cushion.position.set(0, 0.23, 0);
+    cushion.castShadow = true;
+    loungeGroup.add(cushion);
+
+    // Angled backrest cushion
+    const backGeo = new THREE.BoxGeometry(seatW - 0.06, 0.26, 0.10);
+    const backCushion = new THREE.Mesh(backGeo, materials.terraceFabricMaterial);
+    backCushion.position.set(0, 0.38, -seatD / 2 + 0.08);
+    backCushion.rotation.x = 0.14;
+    backCushion.castShadow = true;
+    loungeGroup.add(backCushion);
+
+    // Cast stone / terrazzo side drinks table
+    const tableGeo = new THREE.CylinderGeometry(0.18, 0.22, 0.38, 16);
+    const tableMesh = new THREE.Mesh(tableGeo, materials.terraceTableMaterial);
+    tableMesh.position.set(-seatW / 2 - 0.26, 0.19, 0.08);
+    tableMesh.castShadow = true;
+    loungeGroup.add(tableMesh);
+
+    // Clear glass hurricane lantern with glowing warm amber candle
+    const lanternGeo = new THREE.CylinderGeometry(0.065, 0.065, 0.16, 12);
+    const lanternMesh = new THREE.Mesh(lanternGeo, materials.glassMaterial);
+    lanternMesh.position.set(-seatW / 2 - 0.26, 0.46, 0.08);
+    loungeGroup.add(lanternMesh);
+
+    const candleGeo = new THREE.CylinderGeometry(0.028, 0.028, 0.07, 10);
+    const candleMesh = new THREE.Mesh(candleGeo, materials.candleGlowMaterial);
+    candleMesh.position.set(-seatW / 2 - 0.26, 0.42, 0.08);
+    loungeGroup.add(candleMesh);
+
+    group.add(loungeGroup);
+
+    // 5. Architectural Linear Planter with Ornamental Grasses along rear deck edge
+    const planterW = deckW * 0.36;
+    const planterH = 0.24;
+    const planterD = 0.20;
+    const planterGeo = new THREE.BoxGeometry(planterW, planterH, planterD);
+    const planterMesh = new THREE.Mesh(planterGeo, materials.chassisMaterial);
+    planterMesh.position.set(deckCenterX, roofBaseY + 0.045 + planterH / 2, deckCenterZ - deckD / 2 + planterD / 2 + 0.04);
+    group.add(planterMesh);
+
+    // Foliage inside planter
+    const plantGrassMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color('#365314'),
+      roughness: 0.85,
+    });
+    for (let g = -3; g <= 3; g++) {
+      const grassGeo = new THREE.ConeGeometry(0.07, 0.28, 6);
+      const grassMesh = new THREE.Mesh(grassGeo, plantGrassMat);
+      grassMesh.position.set(
+        deckCenterX + (g / 4) * (planterW * 0.42),
+        roofBaseY + 0.045 + planterH + 0.10,
+        deckCenterZ - deckD / 2 + planterD / 2 + 0.04 + (g % 2 === 0 ? 0.02 : -0.02)
+      );
+      grassMesh.rotation.z = g * 0.06;
+      group.add(grassMesh);
+    }
+
+    return group;
+  };
+
+  // Helper: Architectural Helical Spiral Side Staircase (Ground to Roof) with Seamless Bridge Access
+  const createArchitecturalSpiralStaircase = (
+    stairX: number,
+    stairZ: number,
+    topY: number,
+    targetDeckEdgeX: number
+  ) => {
+    const stairGroup = new THREE.Group();
+
+    // 1. Central Tubular Structural Steel Mast
+    const mastH = topY + 1.05;
+    const mastGeo = new THREE.CylinderGeometry(0.068, 0.068, mastH, 16);
+    const mastMesh = new THREE.Mesh(mastGeo, materials.chassisMaterial);
+    mastMesh.position.set(stairX, mastH / 2, stairZ);
+    mastMesh.castShadow = true;
+    stairGroup.add(mastMesh);
+
+    // Top Mast Finial Weather Cap
+    const finialGeo = new THREE.CylinderGeometry(0.074, 0.068, 0.06, 16);
+    const finialMesh = new THREE.Mesh(finialGeo, materials.brassHandleMaterial);
+    finialMesh.position.set(stairX, mastH + 0.03, stairZ);
+    stairGroup.add(finialMesh);
+
+    // Ground Concrete Foundation Footing Pad with Anchor Baseplate
+    const footingGeo = new THREE.BoxGeometry(1.05, 0.08, 1.05);
+    const footingMesh = new THREE.Mesh(footingGeo, materials.stairTreadMaterial);
+    footingMesh.position.set(stairX, 0.04, stairZ);
+    footingMesh.receiveShadow = true;
+    stairGroup.add(footingMesh);
+
+    const basePlateGeo = new THREE.CylinderGeometry(0.24, 0.26, 0.03, 16);
+    const basePlate = new THREE.Mesh(basePlateGeo, materials.chassisMaterial);
+    basePlate.position.set(stairX, 0.09, stairZ);
+    stairGroup.add(basePlate);
+
+    // 2. Floating Cantilevered Steps spiraling upward
+    const stepCount = 16;
+    const stepRise = topY / stepCount;
+    const totalRotation = Math.PI * 1.75;
+    const stepAngle = totalRotation / (stepCount - 1);
+    const rotationDir = stairX > 0 ? -1 : 1;
+
+    for (let s = 0; s < stepCount; s++) {
+      const angle = rotationDir * s * stepAngle;
+      const stepY = s * stepRise + stepRise / 2;
+
+      // Cantilever step tread
+      const treadGeo = new THREE.BoxGeometry(0.74, 0.038, 0.24);
+      const treadMesh = new THREE.Mesh(treadGeo, materials.stairTreadMaterial);
+      treadMesh.position.set(stairX + Math.cos(angle) * 0.42, stepY, stairZ + Math.sin(angle) * 0.42);
+      treadMesh.rotation.y = -angle;
+      treadMesh.castShadow = true;
+      treadMesh.receiveShadow = true;
+      stairGroup.add(treadMesh);
+
+      // Anodized non-slip safety nosing strip
+      const nosingGeo = new THREE.BoxGeometry(0.74, 0.008, 0.02);
+      const nosingMesh = new THREE.Mesh(nosingGeo, materials.chassisMaterial);
+      nosingMesh.position.set(stairX + Math.cos(angle) * 0.42, stepY + 0.02, stairZ + Math.sin(angle) * 0.42 + 0.11);
+      nosingMesh.rotation.y = -angle;
+      stairGroup.add(nosingMesh);
+
+      // Welded structural support bracket arm
+      const armGeo = new THREE.BoxGeometry(0.70, 0.028, 0.05);
+      const armMesh = new THREE.Mesh(armGeo, materials.chassisMaterial);
+      armMesh.position.set(stairX + Math.cos(angle) * 0.40, stepY - 0.025, stairZ + Math.sin(angle) * 0.40);
+      armMesh.rotation.y = -angle;
+      stairGroup.add(armMesh);
+
+      // Outer safety baluster rod
+      const balusterGeo = new THREE.CylinderGeometry(0.011, 0.011, 0.90, 8);
+      const balusterMesh = new THREE.Mesh(balusterGeo, materials.chassisMaterial);
+      const bx = stairX + Math.cos(angle) * 0.74;
+      const bz = stairZ + Math.sin(angle) * 0.74;
+      balusterMesh.position.set(bx, stepY + 0.45, bz);
+      balusterMesh.castShadow = true;
+      stairGroup.add(balusterMesh);
+
+      // Under-tread warm LED step courtesy light
+      const stepLightGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.008, 8);
+      const stepLight = new THREE.Mesh(stepLightGeo, materials.terraceLightMaterial);
+      stepLight.position.set(stairX + Math.cos(angle) * 0.46, stepY - 0.022, stairZ + Math.sin(angle) * 0.46);
+      stairGroup.add(stepLight);
+
+      // Handrail segment linking to subsequent baluster
+      if (s < stepCount - 1) {
+        const nextAngle = rotationDir * (s + 1) * stepAngle;
+        const nextStepY = (s + 1) * stepRise + stepRise / 2;
+        const nbx = stairX + Math.cos(nextAngle) * 0.74;
+        const nbz = stairZ + Math.sin(nextAngle) * 0.74;
+
+        const hx = (bx + nbx) / 2;
+        const hy = (stepY + nextStepY) / 2 + 0.90;
+        const hz = (bz + nbz) / 2;
+        const dist = Math.hypot(nbx - bx, nextStepY - stepY, nbz - bz);
+
+        const railSegmentGeo = new THREE.CylinderGeometry(0.018, 0.018, dist, 8);
+        const railSegment = new THREE.Mesh(railSegmentGeo, materials.chassisMaterial);
+        railSegment.position.set(hx, hy, hz);
+        railSegment.lookAt(nbx, nextStepY + 0.90, nbz);
+        railSegment.rotateX(Math.PI / 2);
+        stairGroup.add(railSegment);
+      }
+    }
+
+    // 3. Cantilevered Top Roof Landing Platform Bridge seamlessly connecting to the Rooftop Observatory
+    const bridgeSpanX = Math.abs(targetDeckEdgeX - stairX);
+    const bridgeW = bridgeSpanX + 0.12;
+    const bridgeD = 0.88;
+    const bridgeGeo = new THREE.BoxGeometry(bridgeW, 0.045, bridgeD);
+    const bridgeMesh = new THREE.Mesh(bridgeGeo, materials.woodDeckMaterial);
+    const bridgeMidX = (stairX + targetDeckEdgeX) / 2;
+    bridgeMesh.position.set(bridgeMidX, topY + 0.022, stairZ);
+    bridgeMesh.castShadow = true;
+    stairGroup.add(bridgeMesh);
+
+    // Structural steel support beams underneath bridge
+    [-bridgeD / 2 + 0.06, bridgeD / 2 - 0.06].forEach((bz) => {
+      const bBeamGeo = new THREE.BoxGeometry(bridgeW, 0.07, 0.04);
+      const bBeam = new THREE.Mesh(bBeamGeo, materials.chassisMaterial);
+      bBeam.position.set(bridgeMidX, topY - 0.03, stairZ + bz);
+      bBeam.castShadow = true;
+      stairGroup.add(bBeam);
+    });
+
+    // Bridge Guardrails (Front and Back of the bridge)
+    [-bridgeD / 2, bridgeD / 2].forEach((bz) => {
+      const bGlassGeo = new THREE.BoxGeometry(bridgeW, 0.95, 0.016);
+      const bGlass = new THREE.Mesh(bGlassGeo, materials.glassMaterial);
+      bGlass.position.set(bridgeMidX, topY + 0.95 / 2 + 0.04, stairZ + bz);
+      stairGroup.add(bGlass);
+
+      const bCapGeo = new THREE.BoxGeometry(bridgeW, 0.038, 0.052);
+      const bCap = new THREE.Mesh(bCapGeo, materials.chassisMaterial);
+      bCap.position.set(bridgeMidX, topY + 0.95 + 0.04, stairZ + bz);
+      stairGroup.add(bCap);
+    });
+
+    // Wall tie-back anchors pinning mast to cabin side wall
+    const tieY1 = height * 0.45;
+    const tieY2 = height * 0.85;
+    [tieY1, tieY2].forEach((ty) => {
+      const tieGeo = new THREE.CylinderGeometry(0.02, 0.02, Math.abs(stairX) - length / 2, 8);
+      const tieMesh = new THREE.Mesh(tieGeo, materials.chassisMaterial);
+      const tieMidX = stairX > 0 ? (length / 2 + stairX) / 2 : (-length / 2 + stairX) / 2;
+      tieMesh.position.set(tieMidX, ty, stairZ);
+      tieMesh.rotation.z = Math.PI / 2;
+      stairGroup.add(tieMesh);
+    });
+
+    return stairGroup;
+  };
+
+  // Build the selected Roof Configurations
+  if (state.roofOption === 'solar-array-3kw') {
+    // Dedicated Solar Array (Full array centered on the roof)
+    const solarCount = state.modelId === 'two-bedroom' ? 6 : state.modelId === 'one-bedroom' ? 4 : 2;
+    const solarArray = createDetailedSolarArray(solarCount, 0, -depth * 0.06);
+    solarGroup.add(solarArray);
+  } else if (state.roofOption === 'rooftop-terrace-deck') {
+    // Full Rooftop Observatory Terrace & Access Stairs
+    const deckW = length * 0.78;
+    const deckD = depth * 0.82;
+    const terrace = createDetailedRooftopObservatory(deckW, deckD, 0, 0, 'left');
+    terraceGroup.add(terrace);
+
+    // Grounded Spiral Staircase leading to top terrace
+    const deckEdgeX = -deckW / 2;
+    const stairX = -length / 2 - 0.72;
+    const stairZ = -depth * 0.12;
+    const stairs = createArchitecturalSpiralStaircase(stairX, stairZ, roofBaseY, deckEdgeX);
+    rootGroup.add(stairs);
+  } else if (state.roofOption === 'solar-deck-combo') {
+    // Integrated Combo: Solar Array on Left + Observatory Terrace on Right + Spiral Stairs
+    const solarCount = state.modelId === 'two-bedroom' ? 4 : state.modelId === 'one-bedroom' ? 3 : 2;
+    const solarArray = createDetailedSolarArray(solarCount, -length * 0.22, 0.0);
+    solarGroup.add(solarArray);
+
+    const deckW = length * 0.44;
+    const deckD = depth * 0.82;
+    const deckCenterX = length * 0.22;
+    const terrace = createDetailedRooftopObservatory(deckW, deckD, deckCenterX, 0.0, 'right');
+    terraceGroup.add(terrace);
+
+    const deckEdgeX = deckCenterX + deckW / 2;
+    const stairX = length / 2 + 0.72;
+    const stairZ = -depth * 0.12;
+    const stairs = createArchitecturalSpiralStaircase(stairX, stairZ, roofBaseY, deckEdgeX);
+    rootGroup.add(stairs);
   }
 
   roofGroup.add(solarGroup);
