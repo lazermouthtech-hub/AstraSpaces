@@ -152,13 +152,13 @@ export function buildHomeModel(
   const glassHeight = height - 0.25;
   const doorWidth = 0.95;
 
-  let doorX = length / 2 - doorWidth / 2 - 0.15; // Default right side (studio)
+  let doorX = -length / 2 + doorWidth / 2 + 0.65; // Default left side (studio), flush with the wardrobe
   if (state.modelId === 'one-bedroom') {
-    // Place door in the living area (left side)
+    // Place door on the far left side of the living area
     doorX = -length / 2 + doorWidth / 2 + 0.15;
   } else if (state.modelId === 'two-bedroom') {
-    // Place door in the central living area
-    doorX = 0;
+    // Place door on the left side of the central living area
+    doorX = -1.2;
   }
 
   // Front Wall Framing Header
@@ -1093,7 +1093,18 @@ export function buildHomeModel(
     frontWallMesh.position.set(bathOriginX + (bathPodW - 0.7) / 2, (height - 0.1) / 2 + 0.15, -depth / 2 + bathPodD);
     frontWallMesh.castShadow = true;
 
-    bathPodGroup.add(sideWallMesh, frontWallMesh);
+    // Bathroom Door
+    const bathDoorGeo = new THREE.BoxGeometry(0.7, height - 0.1, 0.04);
+    const bathDoorMesh = new THREE.Mesh(bathDoorGeo, materials.woodDeckMaterial);
+    // Positioned in the 0.7m gap on the right side of the front wall, slightly inset
+    bathDoorMesh.position.set(bathOriginX + bathPodW - 0.35, (height - 0.1) / 2 + 0.15, -depth / 2 + bathPodD);
+    
+    // Add door handle
+    const bathHandleGeo = new THREE.CylinderGeometry(0.01, 0.01, 0.2, 8);
+    const bathHandleMesh = new THREE.Mesh(bathHandleGeo, materials.metalTrimMaterial);
+    bathHandleMesh.position.set(bathOriginX + bathPodW - 0.6, (height - 0.1) / 2 + 0.15, -depth / 2 + bathPodD + 0.04);
+    
+    bathPodGroup.add(sideWallMesh, frontWallMesh, bathDoorMesh, bathHandleMesh);
 
     // Shower Area (0.8 x 0.8 corner)
     const showerTrayGeo = new THREE.BoxGeometry(0.8, 0.05, 0.8);
@@ -2180,11 +2191,26 @@ export function buildHomeModel(
   if (state.modelId === 'one-bedroom') {
     // Adjusted interior partition wall between bedroom and living room
     const partitionX = 0.4;
-    const dividerGeo = new THREE.BoxGeometry(0.1, height - 0.1, depth * 0.55);
-    const dividerMesh = new THREE.Mesh(dividerGeo, materials.interiorWallMaterial);
-    dividerMesh.position.set(partitionX, (height - 0.1) / 2 + 0.15, -depth * 0.15); // Offset to the back
-    dividerMesh.castShadow = true;
-    interiorGroup.add(dividerMesh);
+    
+    // Back wall segment
+    const backWallGeo = new THREE.BoxGeometry(0.1, height - 0.1, 3.2);
+    const backWallMesh = new THREE.Mesh(backWallGeo, materials.interiorWallMaterial);
+    backWallMesh.position.set(partitionX, (height - 0.1) / 2 + 0.15, -1.1);
+    backWallMesh.castShadow = true;
+    
+    // Front wall segment
+    const frontWallGeo = new THREE.BoxGeometry(0.1, height - 0.1, 1.3);
+    const frontWallMesh = new THREE.Mesh(frontWallGeo, materials.interiorWallMaterial);
+    frontWallMesh.position.set(partitionX, (height - 0.1) / 2 + 0.15, 2.05);
+    frontWallMesh.castShadow = true;
+    
+    // Bedroom Door
+    const doorGeo = new THREE.BoxGeometry(0.04, height - 0.1, 0.9);
+    const bedroomDoor = new THREE.Mesh(doorGeo, materials.woodDeckMaterial);
+    bedroomDoor.position.set(partitionX, (height - 0.1) / 2 + 0.15, 0.95);
+    bedroomDoor.rotation.y = -Math.PI / 4; // Open slightly into the living room
+
+    interiorGroup.add(backWallMesh, frontWallMesh, bedroomDoor);
 
     // Repositioned 1-Bedroom Bed Suite facing the front glass doors (+Z)
     if (state.hasLuxuryBedSuite) {
@@ -2218,7 +2244,7 @@ export function buildHomeModel(
 
     // 1-Bedroom 3-seater luxury sofa & curated coffee table
     const oneBedLounge = createDetailedLivingLounge({
-      sofaCenterX: -1.3, // Shifted to match the new partition space
+      sofaCenterX: -0.8, // Shifted right to clear the new left-side entrance door
       sofaCenterZ: 0.35,
       sofaWidth: 2.15,
       sofaDepth: 0.90,
