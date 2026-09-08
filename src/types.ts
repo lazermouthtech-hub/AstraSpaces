@@ -39,8 +39,10 @@ export interface CustomizationState {
   // Toggles for modular add-ons
   hasKitchenetteModule: boolean;
   hasLuxuryBathPod: boolean;
+  hasLuxuryBedSuite: boolean;
   hasHvacMiniSplit: boolean;
   hasExteriorPergolaDeck: boolean;
+  hasBioDigester: boolean;
   hasSmartDoorLock: boolean;
   hasElectricBlinds: boolean;
 }
@@ -61,8 +63,10 @@ export interface AddonOptionItem {
     CustomizationState,
     | 'hasKitchenetteModule'
     | 'hasLuxuryBathPod'
+    | 'hasLuxuryBedSuite'
     | 'hasHvacMiniSplit'
     | 'hasExteriorPergolaDeck'
+    | 'hasBioDigester'
     | 'hasSmartDoorLock'
     | 'hasElectricBlinds'
   >;

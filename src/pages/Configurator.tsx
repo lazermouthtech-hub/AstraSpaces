@@ -30,8 +30,10 @@ const INITIAL_STATE: CustomizationState = {
   cabinetry: 'matte-black',
   hasKitchenetteModule: true,
   hasLuxuryBathPod: true,
+  hasLuxuryBedSuite: true,
   hasHvacMiniSplit: true,
   hasExteriorPergolaDeck: false,
+  hasBioDigester: false,
   hasSmartDoorLock: true,
   hasElectricBlinds: false,
 };

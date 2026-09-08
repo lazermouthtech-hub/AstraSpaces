@@ -45,18 +45,29 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        const mergeOptions = (parsedArr: any[], defaultArr: any[]) => {
+          if (!parsedArr || !parsedArr.length) return defaultArr;
+          const merged = [...parsedArr];
+          defaultArr.forEach(defOpt => {
+            if (!merged.find(p => p.id === defOpt.id)) {
+              merged.push(defOpt);
+            }
+          });
+          return merged;
+        };
+
         return {
           ...defaults,
           ...parsed,
-          models: parsed.models?.length ? parsed.models : defaults.models,
-          wallOptions: parsed.wallOptions?.length ? parsed.wallOptions : defaults.wallOptions,
-          glazingOptions: parsed.glazingOptions?.length ? parsed.glazingOptions : defaults.glazingOptions,
-          lightingOptions: parsed.lightingOptions?.length ? parsed.lightingOptions : defaults.lightingOptions,
-          electricalOptions: parsed.electricalOptions?.length ? parsed.electricalOptions : defaults.electricalOptions,
-          flooringOptions: parsed.flooringOptions?.length ? parsed.flooringOptions : defaults.flooringOptions,
-          roofOptions: parsed.roofOptions?.length ? parsed.roofOptions : defaults.roofOptions,
-          cabinetryOptions: parsed.cabinetryOptions?.length ? parsed.cabinetryOptions : defaults.cabinetryOptions,
-          addons: parsed.addons?.length ? parsed.addons : defaults.addons,
+          models: mergeOptions(parsed.models, defaults.models),
+          wallOptions: mergeOptions(parsed.wallOptions, defaults.wallOptions),
+          glazingOptions: mergeOptions(parsed.glazingOptions, defaults.glazingOptions),
+          lightingOptions: mergeOptions(parsed.lightingOptions, defaults.lightingOptions),
+          electricalOptions: mergeOptions(parsed.electricalOptions, defaults.electricalOptions),
+          flooringOptions: mergeOptions(parsed.flooringOptions, defaults.flooringOptions),
+          roofOptions: mergeOptions(parsed.roofOptions, defaults.roofOptions),
+          cabinetryOptions: mergeOptions(parsed.cabinetryOptions, defaults.cabinetryOptions),
+          addons: mergeOptions(parsed.addons, defaults.addons),
           branding: { ...defaults.branding, ...(parsed.branding || {}) },
           viewerControls: { ...defaults.viewerControls, ...(parsed.viewerControls || {}) },
           logistics: { ...defaults.logistics, ...(parsed.logistics || {}) },

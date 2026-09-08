@@ -1,0 +1,87 @@
+--- src/components/3d/modelBuilder.ts
++++ src/components/3d/modelBuilder.ts
+@@ -2108,16 +2108,18 @@
+   const headboardX = length / 2 - 0.18;
+   const nightstandZOffset = bedWidth / 2 + 0.28;
+ 
+-  const primaryBedSuite = createDetailedBedSuite({
+-    headboardX,
+-    headboardFacing: 'east',
+-    bedCenterZ,
+-    bedWidth,
+-    bedLength,
+-    nightstandZOffset,
+-    materials,
+-  });
+-  interiorGroup.add(primaryBedSuite);
++  if (state.modelId !== 'one-bedroom') {
++    const primaryBedSuite = createDetailedBedSuite({
++      headboardX,
++      headboardFacing: 'east',
++      bedCenterZ,
++      bedWidth,
++      bedLength,
++      nightstandZOffset,
++      materials,
++    });
++    interiorGroup.add(primaryBedSuite);
++  }
+ 
+   // High-Detail Designer Living Lounge (Sofa & Curated Coffee Table)
+   // Excluded from Studio: Studio maintains an open minimalist layout with sleeping suite, bath, and kitchen
+   if (state.modelId === 'one-bedroom') {
+-    // Interior partition wall between bedroom and living room
+-    const dividerGeo = new THREE.BoxGeometry(0.1, height - 0.1, depth * 0.6);
+-    const dividerMesh = new THREE.Mesh(dividerGeo, materials.interiorWallMaterial);
+-    dividerMesh.position.set(length * 0.15, (height - 0.1) / 2 + 0.15, 0);
+-    dividerMesh.castShadow = true;
+-    interiorGroup.add(dividerMesh);
+-
+-    // 1-Bedroom 3-seater luxury sofa & curated coffee table
+-    const oneBedLounge = createDetailedLivingLounge({
+-      sofaCenterX: -length * 0.2,
+-      sofaCenterZ: 0.35,
+-      sofaWidth: 2.15,
+-      sofaDepth: 0.90,
+-      sofaFacingAngle: 0,
+-      materials,
+-    });
+-    interiorGroup.add(oneBedLounge);
++    // Repositioned Interior partition wall between bedroom and living room
++    // Moved further towards the center to give the bedroom more space
++    const partitionX = 0.3;
++    const dividerGeo = new THREE.BoxGeometry(0.1, height - 0.1, depth * 0.55);
++    const dividerMesh = new THREE.Mesh(dividerGeo, materials.interiorWallMaterial);
++    dividerMesh.position.set(partitionX, (height - 0.1) / 2 + 0.15, -depth * 0.2); // Align towards back wall
++    dividerMesh.castShadow = true;
++    interiorGroup.add(dividerMesh);
++    
++    // Repositioned 1-Bedroom Bed Suite facing the glass doors (+Z)
++    const oneBedSuite = createDetailedBedSuite({
++      headboardX: 0, // Build at origin
++      headboardFacing: 'east', // Foot points towards -X locally
++      bedCenterZ: 0, 
++      bedWidth: 1.6,
++      bedLength: 1.95,
++      nightstandZOffset: 1.6 / 2 + 0.28,
++      materials,
++    });
++    
++    // Rotate the entire bed group 90 degrees so the foot points towards +Z (glass doors)
++    oneBedSuite.rotation.y = -Math.PI / 2; // -90 deg rotation. Wait, -X rotated by -90 is +Z!
++    // Center of bedroom space
++    const bedroomCenterX = (partitionX + (length / 2)) / 2;
++    // Position against the back wall
++    oneBedSuite.position.set(bedroomCenterX, 0, -depth / 2 + 0.18);
++    interiorGroup.add(oneBedSuite);
++
++    // 1-Bedroom 3-seater luxury sofa & curated coffee table
++    const oneBedLounge = createDetailedLivingLounge({
++      sofaCenterX: -1.4, // Adjusted lounge position
++      sofaCenterZ: 0.35,
++      sofaWidth: 2.15,
++      sofaDepth: 0.90,
++      sofaFacingAngle: 0,
++      materials,
++    });
++    interiorGroup.add(oneBedLounge);

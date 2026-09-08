@@ -376,6 +376,15 @@ export const MODULAR_ADDONS: AddonOptionItem[] = [
     specDetail: 'Fiberglass reinforced waterproof shell, hot/cold supply manifolds, odorless P-trap assembly',
   },
   {
+    id: 'hasLuxuryBedSuite',
+    name: 'Architectural Sleeping Suite',
+    description:
+      'Designer-curated sleeping suite complete with a floating cantilevered timber platform, luxury layered pillow-top mattress, quilted folded duvet, double-row euro shams, and integrated nightstands.',
+    price: 3500,
+    category: 'Interior Modules',
+    specDetail: 'Includes floating plinth base, 12-inch memory foam hybrid mattress, premium linen bedding package, and dimmable bedside sconce lighting.',
+  },
+  {
     id: 'hasHvacMiniSplit',
     name: 'Ultra-Quiet Inverter Mini-Split HVAC',
     description:
@@ -394,6 +403,15 @@ export const MODULAR_ADDONS: AddonOptionItem[] = [
     specDetail: '160 sq ft composite deck platform with adjustable leveling piers and powder-coated trellis',
   },
   {
+    id: 'hasBioDigester',
+    name: 'Advanced Off-Grid Bio Digester System',
+    description:
+      'Self-contained, odorless aerobic bio-digester unit for complete blackwater and greywater processing. Converts organic waste into pathogen-free liquid fertilizer. Ideal for off-grid sites without municipal sewer access.',
+    price: 4500,
+    category: 'Utilities & Off-Grid',
+    specDetail: 'High-density polyethylene tri-chamber tank, aerator pump (110V/15W), active carbon bio-filter stack, and dual inspection hatches',
+  },
+  {
     id: 'hasSmartDoorLock',
     name: 'Biometric Smart Entry Door Suite',
     description:
@@ -404,11 +422,11 @@ export const MODULAR_ADDONS: AddonOptionItem[] = [
   },
   {
     id: 'hasElectricBlinds',
-    name: 'Motorized Dual-Layer Blackout Blinds',
+    name: 'Remote Controlled Smart Curtains',
     description:
-      'Concealed roller blinds for all panoramic glass expanses with solar sheer filtering and 100% blackout layers, remote and voice-controlled.',
+      'Elegant, motorized floor-to-ceiling drapery track system for all panoramic glass expanses. Includes whisper-drive motor, architectural wavy fabric folds, and remote control integration.',
     price: 1850,
     category: 'Smart Hardware',
-    specDetail: 'Rechargeable lithium battery motorized rollers, whisper-drive quiet motor (<30dB)',
+    specDetail: 'Rechargeable lithium battery motorized track, ultra-quiet drive (<30dB), integrated LED status indicator',
   },
 ];

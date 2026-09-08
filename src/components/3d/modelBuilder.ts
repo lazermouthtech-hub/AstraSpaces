@@ -146,11 +146,20 @@ export function buildHomeModel(
   rightSideWindow.position.set(length / 2 - 0.05, 1.4, 0);
   rootGroup.add(rightSideWindow);
 
+
   // 4. FRONT FACADE & PANORAMIC GLAZING
   // Split front into Door frame + Large panoramic glass panels
   const glassHeight = height - 0.25;
   const doorWidth = 0.95;
-  const glassWidth = (length - doorWidth) * 0.92;
+
+  let doorX = length / 2 - doorWidth / 2 - 0.15; // Default right side (studio)
+  if (state.modelId === 'one-bedroom') {
+    // Place door in the living area (left side)
+    doorX = -length / 2 + doorWidth / 2 + 0.15;
+  } else if (state.modelId === 'two-bedroom') {
+    // Place door in the central living area
+    doorX = 0;
+  }
 
   // Front Wall Framing Header
   const frontHeaderGeo = new THREE.BoxGeometry(length, 0.25, wallThickness);
@@ -158,52 +167,126 @@ export function buildHomeModel(
   frontHeaderMesh.position.set(0, height + 0.15 - 0.125, depth / 2 - wallThickness / 2);
   frontWallGroup.add(frontHeaderMesh);
 
-  // Front Panoramic Glass Curtain Wall
-  const glassGeo = new THREE.BoxGeometry(glassWidth, glassHeight, 0.04);
-  const glassMesh = new THREE.Mesh(glassGeo, materials.glassMaterial);
-  glassMesh.position.set(-doorWidth / 2, glassHeight / 2 + 0.15, depth / 2 - wallThickness / 2);
-  glassMesh.castShadow = false;
-  glassMesh.receiveShadow = true;
-  frontWallGroup.add(glassMesh);
-
-  // Architectural mullions for the glass
-  const mullionMat = materials.chassisMaterial;
-  const mullionV1 = new THREE.Mesh(new THREE.BoxGeometry(0.04, glassHeight, 0.06), mullionMat);
-  mullionV1.position.set(-doorWidth / 2 - glassWidth / 4, glassHeight / 2 + 0.15, depth / 2 - wallThickness / 2);
-  const mullionV2 = new THREE.Mesh(new THREE.BoxGeometry(0.04, glassHeight, 0.06), mullionMat);
-  mullionV2.position.set(-doorWidth / 2 + glassWidth / 4, glassHeight / 2 + 0.15, depth / 2 - wallThickness / 2);
-  frontWallGroup.add(mullionV1, mullionV2);
-
   // Entrance Door
-  const doorGeo = new THREE.BoxGeometry(doorWidth, height - 0.25, 0.06);
+  const doorGeo = new THREE.BoxGeometry(doorWidth, glassHeight, 0.06);
   const doorMesh = new THREE.Mesh(doorGeo, materials.chassisMaterial);
-  doorMesh.position.set(length / 2 - doorWidth / 2 - 0.15, (height - 0.25) / 2 + 0.15, depth / 2 - wallThickness / 2);
+  doorMesh.position.set(doorX, glassHeight / 2 + 0.15, depth / 2 - wallThickness / 2);
   frontWallGroup.add(doorMesh);
 
   // Door Glass Insert
-  const doorGlassGeo = new THREE.BoxGeometry(doorWidth * 0.7, (height - 0.25) * 0.75, 0.04);
+  const doorGlassGeo = new THREE.BoxGeometry(doorWidth * 0.7, glassHeight * 0.75, 0.04);
   const doorGlassMesh = new THREE.Mesh(doorGlassGeo, materials.glassMaterial);
-  doorGlassMesh.position.set(length / 2 - doorWidth / 2 - 0.15, (height - 0.25) / 2 + 0.15, depth / 2 - wallThickness / 2 + 0.01);
+  doorGlassMesh.position.set(doorX, glassHeight / 2 + 0.15, depth / 2 - wallThickness / 2 + 0.01);
   frontWallGroup.add(doorGlassMesh);
 
   // Smart Door Lock & Handle
   if (state.hasSmartDoorLock) {
     const lockPadGeo = new THREE.BoxGeometry(0.06, 0.2, 0.04);
     const lockPadMesh = new THREE.Mesh(lockPadGeo, materials.ledStripMaterial);
-    lockPadMesh.position.set(length / 2 - doorWidth - 0.05, 1.2, depth / 2 + 0.02);
+    const lockOffset = (state.modelId === 'one-bedroom') ? 0.4 : -0.4; // Handle on appropriate side
+    lockPadMesh.position.set(doorX + lockOffset, 1.2, depth / 2 + 0.02);
     frontWallGroup.add(lockPadMesh);
   }
 
-  // Motorized Blinds (if enabled)
+  // Front Panoramic Glass Curtain Wall
+  // We need to fill the space on the left and right of the door
+  const leftSpace = (doorX - doorWidth / 2) - (-length / 2 + 0.15);
+  if (leftSpace > 0.1) {
+    const glassLeftGeo = new THREE.BoxGeometry(leftSpace, glassHeight, 0.04);
+    const glassLeftMesh = new THREE.Mesh(glassLeftGeo, materials.glassMaterial);
+    glassLeftMesh.position.set(-length / 2 + 0.15 + leftSpace / 2, glassHeight / 2 + 0.15, depth / 2 - wallThickness / 2);
+    glassLeftMesh.castShadow = false;
+    glassLeftMesh.receiveShadow = true;
+    frontWallGroup.add(glassLeftMesh);
+    
+    // Add mullion
+    const mullionMat = materials.chassisMaterial;
+    if (leftSpace > 1.5) {
+      const mullion = new THREE.Mesh(new THREE.BoxGeometry(0.04, glassHeight, 0.06), mullionMat);
+      mullion.position.set(-length / 2 + 0.15 + leftSpace / 2, glassHeight / 2 + 0.15, depth / 2 - wallThickness / 2);
+      frontWallGroup.add(mullion);
+    }
+  }
+
+  const rightSpace = (length / 2 - 0.15) - (doorX + doorWidth / 2);
+  if (rightSpace > 0.1) {
+    const glassRightGeo = new THREE.BoxGeometry(rightSpace, glassHeight, 0.04);
+    const glassRightMesh = new THREE.Mesh(glassRightGeo, materials.glassMaterial);
+    glassRightMesh.position.set(doorX + doorWidth / 2 + rightSpace / 2, glassHeight / 2 + 0.15, depth / 2 - wallThickness / 2);
+    glassRightMesh.castShadow = false;
+    glassRightMesh.receiveShadow = true;
+    frontWallGroup.add(glassRightMesh);
+    
+    // Add mullion
+    const mullionMat = materials.chassisMaterial;
+    if (rightSpace > 1.5) {
+      const mullion = new THREE.Mesh(new THREE.BoxGeometry(0.04, glassHeight, 0.06), mullionMat);
+      mullion.position.set(doorX + doorWidth / 2 + rightSpace / 2, glassHeight / 2 + 0.15, depth / 2 - wallThickness / 2);
+      frontWallGroup.add(mullion);
+    }
+  }
+
+  // Motorized Blinds/Curtains (if enabled)
   if (state.hasElectricBlinds) {
-    const blindsGeo = new THREE.BoxGeometry(glassWidth, glassHeight * 0.7, 0.02);
-    const blindsMat = new THREE.MeshStandardMaterial({
-      color: '#e2e8f0',
-      roughness: 0.8,
+    const curtainGroup = new THREE.Group();
+    
+    // Motorized Track / Rail Housing at the top
+    const trackGeo = new THREE.BoxGeometry(glassWidth + doorWidth + 0.1, 0.08, 0.08);
+    const trackMat = materials.metalTrimMaterial;
+    const trackMesh = new THREE.Mesh(trackGeo, trackMat);
+    // Positioned at the top header, just inside the glass
+    trackMesh.position.set(0, height + 0.15 - 0.04, depth / 2 - wallThickness / 2 - 0.08);
+    curtainGroup.add(trackMesh);
+
+    // Motor Unit on the side of the track
+    const motorGeo = new THREE.BoxGeometry(0.12, 0.1, 0.1);
+    const motorMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.5 });
+    const motorMesh = new THREE.Mesh(motorGeo, motorMat);
+    motorMesh.position.set((glassWidth + doorWidth) / 2 + 0.05, height + 0.15 - 0.05, depth / 2 - wallThickness / 2 - 0.08);
+    curtainGroup.add(motorMesh);
+
+    // Small LED on the motor unit
+    const ledGeo = new THREE.CircleGeometry(0.01, 8);
+    const ledMat = new THREE.MeshBasicMaterial({ color: '#3b82f6' }); // Blue LED
+    const ledMesh = new THREE.Mesh(ledGeo, ledMat);
+    ledMesh.position.set((glassWidth + doorWidth) / 2 + 0.05, height + 0.15 - 0.05, depth / 2 - wallThickness / 2 - 0.029);
+    curtainGroup.add(ledMesh);
+
+    // Wavy Curtain Fabric
+    // Create a wavy shape for the curtain to simulate folds
+    const curtainMat = new THREE.MeshStandardMaterial({
+      color: '#f8fafc',
+      roughness: 0.9,
+      metalness: 0.0,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.95
     });
-    const blindsMesh = new THREE.Mesh(blindsGeo, blindsMat);
-    blindsMesh.position.set(-doorWidth / 2, glassHeight / 2 + 0.3, depth / 2 - wallThickness / 2 - 0.03);
-    frontWallGroup.add(blindsMesh);
+
+    const segments = 60;
+    const curtainW = glassWidth + doorWidth;
+    const curtainH = glassHeight + 0.2; // Floor to ceiling
+    
+    const curtainGeo = new THREE.PlaneGeometry(curtainW, curtainH, segments, 1);
+    
+    // Apply sine wave displacement to vertices to create folds
+    const posAttribute = curtainGeo.attributes.position;
+    for (let i = 0; i < posAttribute.count; i++) {
+      const x = posAttribute.getX(i);
+      // Create waves based on X position.
+      // Adjust frequency and amplitude to simulate draped fabric folds.
+      const zOffset = Math.sin(x * 20) * 0.03; 
+      posAttribute.setZ(i, zOffset);
+    }
+    curtainGeo.computeVertexNormals();
+
+    const curtainMesh = new THREE.Mesh(curtainGeo, curtainMat);
+    // Position half-open or partially drawn depending on preference
+    // We'll draw it mostly covering the glass but slightly pulled back from the door
+    curtainMesh.position.set(-0.05, height / 2 + 0.15, depth / 2 - wallThickness / 2 - 0.08);
+    curtainGroup.add(curtainMesh);
+
+    frontWallGroup.add(curtainGroup);
   }
 
   rootGroup.add(frontWallGroup);
@@ -992,6 +1075,7 @@ export function buildHomeModel(
   // 7. INTERIOR FITOUT & MODULAR PODS
   // 7a. Integrated Bathroom Pod
   if (state.hasLuxuryBathPod) {
+    const bathOriginX = state.modelId === 'two-bedroom' ? -2.2 : -length / 2;
     const bathPodW = 1.4;
     const bathPodD = 1.8;
     const bathPodGroup = new THREE.Group();
@@ -1000,13 +1084,13 @@ export function buildHomeModel(
     // Side wall
     const sideWallGeo = new THREE.BoxGeometry(0.1, height - 0.1, bathPodD);
     const sideWallMesh = new THREE.Mesh(sideWallGeo, materials.interiorWallMaterial);
-    sideWallMesh.position.set(-length / 2 + bathPodW, (height - 0.1) / 2 + 0.15, -depth / 2 + bathPodD / 2 + 0.05);
+    sideWallMesh.position.set(bathOriginX + bathPodW, (height - 0.1) / 2 + 0.15, -depth / 2 + bathPodD / 2 + 0.05);
     sideWallMesh.castShadow = true;
     
     // Front wall (partial, leaving 0.7m for door)
     const frontWallGeo = new THREE.BoxGeometry(bathPodW - 0.7, height - 0.1, 0.1);
     const frontWallMesh = new THREE.Mesh(frontWallGeo, materials.interiorWallMaterial);
-    frontWallMesh.position.set(-length / 2 + (bathPodW - 0.7) / 2, (height - 0.1) / 2 + 0.15, -depth / 2 + bathPodD);
+    frontWallMesh.position.set(bathOriginX + (bathPodW - 0.7) / 2, (height - 0.1) / 2 + 0.15, -depth / 2 + bathPodD);
     frontWallMesh.castShadow = true;
 
     bathPodGroup.add(sideWallMesh, frontWallMesh);
@@ -1014,18 +1098,18 @@ export function buildHomeModel(
     // Shower Area (0.8 x 0.8 corner)
     const showerTrayGeo = new THREE.BoxGeometry(0.8, 0.05, 0.8);
     const showerTray = new THREE.Mesh(showerTrayGeo, materials.chassisMaterial);
-    showerTray.position.set(-length / 2 + 0.4 + 0.05, 0.17, -depth / 2 + 0.4 + 0.05);
+    showerTray.position.set(bathOriginX + 0.4 + 0.05, 0.17, -depth / 2 + 0.4 + 0.05);
     
     // Frameless Glass Shower Cubicle (Front and Side panels)
     const showerGlassMat = materials.glassMaterial;
     const glassFront = new THREE.Mesh(new THREE.BoxGeometry(0.8, height - 0.4, 0.02), showerGlassMat);
-    glassFront.position.set(-length / 2 + 0.4 + 0.05, height / 2, -depth / 2 + 0.8 + 0.05);
+    glassFront.position.set(bathOriginX + 0.4 + 0.05, height / 2, -depth / 2 + 0.8 + 0.05);
     const glassSide = new THREE.Mesh(new THREE.BoxGeometry(0.02, height - 0.4, 0.8), showerGlassMat);
-    glassSide.position.set(-length / 2 + 0.8 + 0.05, height / 2, -depth / 2 + 0.4 + 0.05);
+    glassSide.position.set(bathOriginX + 0.8 + 0.05, height / 2, -depth / 2 + 0.4 + 0.05);
     
     // Rainfall Showerhead
     const showerHead = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.02, 16), materials.metalTrimMaterial);
-    showerHead.position.set(-length / 2 + 0.4, height - 0.25, -depth / 2 + 0.4);
+    showerHead.position.set(bathOriginX + 0.4, height - 0.25, -depth / 2 + 0.4);
     
     bathPodGroup.add(showerTray, glassFront, glassSide, showerHead);
 
@@ -1035,27 +1119,27 @@ export function buildHomeModel(
     // Concealed cistern wall box
     const toiletTankGeo = new THREE.BoxGeometry(0.5, 1.1, 0.15);
     const toiletTank = new THREE.Mesh(toiletTankGeo, materials.interiorWallMaterial);
-    toiletTank.position.set(-length / 2 + 1.125, 0.55, -depth / 2 + 0.125);
+    toiletTank.position.set(bathOriginX + 1.125, 0.55, -depth / 2 + 0.125);
     
     // Chrome dual-flush plate
     const flushPlateBase = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.02), materials.metalTrimMaterial);
-    flushPlateBase.position.set(-length / 2 + 1.125, 0.85, -depth / 2 + 0.21);
+    flushPlateBase.position.set(bathOriginX + 1.125, 0.85, -depth / 2 + 0.21);
     const flushBtn1 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.07, 0.01), materials.chassisMaterial);
-    flushBtn1.position.set(-length / 2 + 1.075, 0.85, -depth / 2 + 0.22);
+    flushBtn1.position.set(bathOriginX + 1.075, 0.85, -depth / 2 + 0.22);
     const flushBtn2 = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.07, 0.01), materials.chassisMaterial);
-    flushBtn2.position.set(-length / 2 + 1.155, 0.85, -depth / 2 + 0.22);
+    flushBtn2.position.set(bathOriginX + 1.155, 0.85, -depth / 2 + 0.22);
     
     // D-shape Ceramic Bowl (Glossy White)
     const bowlFront = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.13, 0.32, 32), materials.countertopMaterial);
-    bowlFront.position.set(-length / 2 + 1.125, 0.34, -depth / 2 + 0.45);
+    bowlFront.position.set(bathOriginX + 1.125, 0.34, -depth / 2 + 0.45);
     const bowlBack = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.32, 0.25), materials.countertopMaterial);
-    bowlBack.position.set(-length / 2 + 1.125, 0.34, -depth / 2 + 0.325);
+    bowlBack.position.set(bathOriginX + 1.125, 0.34, -depth / 2 + 0.325);
     
     // Slim soft-close seat/lid (Matte)
     const seatFront = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.02, 32), materials.chassisMaterial);
-    seatFront.position.set(-length / 2 + 1.125, 0.51, -depth / 2 + 0.45);
+    seatFront.position.set(bathOriginX + 1.125, 0.51, -depth / 2 + 0.45);
     const seatBack = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.02, 0.25), materials.chassisMaterial);
-    seatBack.position.set(-length / 2 + 1.125, 0.51, -depth / 2 + 0.325);
+    seatBack.position.set(bathOriginX + 1.125, 0.51, -depth / 2 + 0.325);
     
     toiletGroup.add(toiletTank, flushPlateBase, flushBtn1, flushBtn2, bowlFront, bowlBack, seatFront, seatBack);
     bathPodGroup.add(toiletGroup);
@@ -1064,24 +1148,26 @@ export function buildHomeModel(
     const vanityGroup = new THREE.Group();
     // Wood/Cabinet base
     const vanityBase = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.4, 0.7), materials.cabinetMaterial);
-    vanityBase.position.set(-length / 2 + 0.22, 0.6, -depth / 2 + 1.35);
+    vanityBase.position.set(bathOriginX + 0.22, 0.6, -depth / 2 + 1.35);
     // White Countertop
     const vanityTop = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.04, 0.72), materials.countertopMaterial);
-    vanityTop.position.set(-length / 2 + 0.22, 0.82, -depth / 2 + 1.35);
+    vanityTop.position.set(bathOriginX + 0.22, 0.82, -depth / 2 + 1.35);
     // Vessel Sink
     const sinkBowl = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.12, 0.1, 24), materials.interiorWallMaterial);
-    sinkBowl.position.set(-length / 2 + 0.22, 0.89, -depth / 2 + 1.35);
+    sinkBowl.position.set(bathOriginX + 0.22, 0.89, -depth / 2 + 1.35);
     // Faucet
     const vanityFaucet = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.15, 8), materials.metalTrimMaterial);
-    vanityFaucet.position.set(-length / 2 + 0.1, 0.95, -depth / 2 + 1.35);
+    vanityFaucet.position.set(bathOriginX + 0.1, 0.95, -depth / 2 + 1.35);
     vanityFaucet.rotation.z = -Math.PI / 8;
     
     // LED Backlit Mirror
     const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.8, 0.6), materials.ledStripMaterial);
-    mirror.position.set(-length / 2 + 0.06, 1.4, -depth / 2 + 1.35);
+    mirror.position.set(bathOriginX + 0.06, 1.4, -depth / 2 + 1.35);
     
     vanityGroup.add(vanityBase, vanityTop, sinkBowl, vanityFaucet, mirror);
     bathPodGroup.add(vanityGroup);
+
+
 
     interiorGroup.add(bathPodGroup);
   }
@@ -1089,8 +1175,10 @@ export function buildHomeModel(
   // 7b. Gourmet Architectural Kitchenette Module
   if (state.hasKitchenetteModule) {
     const kitchenGroup = new THREE.Group();
-    const kitchenLength = state.modelId === 'studio' ? 1.8 : (state.modelId === 'one-bedroom' ? 2.5 : 3.0);
-    const kitchenX = state.modelId === 'studio' ? -0.5 : (state.modelId === 'one-bedroom' ? -1.3 : -2.2);
+    // Adjust kitchen length and position to safely clear the bath pod
+    const kitchenLength = state.modelId === 'studio' ? 1.8 : (state.modelId === 'one-bedroom' ? 1.9 : 3.0);
+    const kitchenOriginX = state.modelId === 'two-bedroom' ? -0.8 : -length / 2 + 1.5;
+    const kitchenX = kitchenOriginX + (kitchenLength / 2);
     const baseDepth = 0.60;
     const baseHeight = 0.86;
     const toeKickHeight = 0.08;
@@ -1434,6 +1522,40 @@ export function buildHomeModel(
   }
 
   // Helper function to construct a high-detail architectural sleeping suite with side table
+
+  function createWardrobe(wWidth: number, wHeight: number, wDepth: number) {
+    const wardrobeGroup = new THREE.Group();
+    
+    // Main Carcass
+    const wCarcassGeo = new THREE.BoxGeometry(wWidth, wHeight, wDepth);
+    const wCarcassMesh = new THREE.Mesh(wCarcassGeo, materials.cabinetMaterial || materials.interiorWallMaterial);
+    wCarcassMesh.position.set(0, 0, 0);
+    wCarcassMesh.castShadow = true;
+    wardrobeGroup.add(wCarcassMesh);
+
+    // Wardrobe Doors
+    const wDoorGeo = new THREE.BoxGeometry(wWidth * 0.48, wHeight - 0.1, 0.02);
+    const wDoorMat = materials.cabinetMaterial || materials.interiorWallMaterial;
+    
+    const wDoorL = new THREE.Mesh(wDoorGeo, wDoorMat);
+    wDoorL.position.set(-wWidth / 4, 0, wDepth / 2 + 0.01);
+    
+    const wDoorR = new THREE.Mesh(wDoorGeo, wDoorMat);
+    wDoorR.position.set(wWidth / 4, 0, wDepth / 2 + 0.01);
+    wardrobeGroup.add(wDoorL, wDoorR);
+
+    // Minimalist Vertical Handles
+    const wHandleGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.6, 8);
+    const wHandleMat = materials.metalTrimMaterial;
+    const wHandL = new THREE.Mesh(wHandleGeo, wHandleMat);
+    wHandL.position.set(-0.03, 0, wDepth / 2 + 0.03);
+    const wHandR = new THREE.Mesh(wHandleGeo, wHandleMat);
+    wHandR.position.set(0.03, 0, wDepth / 2 + 0.03);
+    wardrobeGroup.add(wHandL, wHandR);
+
+    return wardrobeGroup;
+  }
+
   function createDetailedBedSuite(options: {
     headboardX: number;
     headboardFacing: 'east' | 'west';
@@ -1674,9 +1796,9 @@ export function buildHomeModel(
     suiteGroup.add(lampGroup);
 
     // 8. Plush Bedroom Area Rug
-    const rugGeo = new THREE.BoxGeometry(bedLength + 0.70, 0.018, bedWidth + 0.85);
+    const rugGeo = new THREE.BoxGeometry(bedLength + 0.40, 0.018, bedWidth + 0.50);
     const rugMesh = new THREE.Mesh(rugGeo, materials.furnitureFabricMaterial);
-    rugMesh.position.set(bedCenterX - dirX * 0.15, 0.16, bedCenterZ + nightstandZOffset * 0.3);
+    rugMesh.position.set(bedCenterX - dirX * 0.15, 0.16, bedCenterZ + nightstandZOffset * 0.15);
     suiteGroup.add(rugMesh);
 
     return suiteGroup;
@@ -2010,34 +2132,93 @@ export function buildHomeModel(
   // 7c. Living Room & Sleeping Suite
   const bedWidth = state.modelId === 'studio' ? 1.45 : 1.6;
   const bedLength = 1.95;
-  const bedCenterZ = -depth / 2 + bedWidth / 2 + 0.28;
-  const headboardX = length / 2 - 0.18;
-  const nightstandZOffset = bedWidth / 2 + 0.28;
 
-  const primaryBedSuite = createDetailedBedSuite({
-    headboardX,
-    headboardFacing: 'east',
-    bedCenterZ,
-    bedWidth,
-    bedLength,
-    nightstandZOffset,
-    materials,
-  });
-  interiorGroup.add(primaryBedSuite);
+  if (state.hasLuxuryBedSuite) {
+    // Build bed at origin facing +Z after rotation
+    const primaryBedSuite = createDetailedBedSuite({
+      headboardX: 0,
+      headboardFacing: 'east',
+      bedCenterZ: 0,
+      bedWidth,
+      bedLength,
+      nightstandZOffset: bedWidth / 2 + 0.28,
+      materials,
+    });
+    
+    // Rotate +Math.PI / 2 to map the -X extending bed (east) to +Z (front)
+    primaryBedSuite.rotation.y = Math.PI / 2;
+    
+    if (state.modelId === 'studio') {
+      // In studio, place bed on the right side of the back wall, shifted left to clear the wide headboard
+      primaryBedSuite.position.set(length / 2 - 1.75, 0, -depth / 2 + 0.18);
+    } else if (state.modelId === 'two-bedroom') {
+      // For two-bedroom, primary bed is in the right bedroom (Partition at 2.2)
+      primaryBedSuite.position.set(length / 2 - 1.55, 0, -depth / 2 + 0.18);
+    }
+    
+    if (state.modelId !== 'one-bedroom') {
+      interiorGroup.add(primaryBedSuite);
+    }
+    
+    // Add Wardrobe to Studio
+    if (state.modelId === 'studio') {
+      const wWidth = depth <= 2.5 ? 0.55 : 0.8;
+      const wDepth = 0.6;
+      const wHeight = height - 0.1;
+      const wardrobe = createWardrobe(wWidth, wHeight, wDepth);
+      // Place against the left wall, right in front of the bathroom pod, doors facing right (+X)
+      wardrobe.rotation.y = Math.PI / 2; 
+      const bathOriginX = -length / 2;
+      const bathPodD = 1.8;
+      wardrobe.position.set(bathOriginX + wDepth / 2 + 0.05, wHeight / 2 + 0.15, -depth / 2 + bathPodD + 0.05 + wWidth / 2);
+      interiorGroup.add(wardrobe);
+    }
+  }
 
   // High-Detail Designer Living Lounge (Sofa & Curated Coffee Table)
   // Excluded from Studio: Studio maintains an open minimalist layout with sleeping suite, bath, and kitchen
   if (state.modelId === 'one-bedroom') {
-    // Interior partition wall between bedroom and living room
-    const dividerGeo = new THREE.BoxGeometry(0.1, height - 0.1, depth * 0.6);
+    // Adjusted interior partition wall between bedroom and living room
+    const partitionX = 0.4;
+    const dividerGeo = new THREE.BoxGeometry(0.1, height - 0.1, depth * 0.55);
     const dividerMesh = new THREE.Mesh(dividerGeo, materials.interiorWallMaterial);
-    dividerMesh.position.set(length * 0.15, (height - 0.1) / 2 + 0.15, 0);
+    dividerMesh.position.set(partitionX, (height - 0.1) / 2 + 0.15, -depth * 0.15); // Offset to the back
     dividerMesh.castShadow = true;
     interiorGroup.add(dividerMesh);
 
+    // Repositioned 1-Bedroom Bed Suite facing the front glass doors (+Z)
+    if (state.hasLuxuryBedSuite) {
+      const oneBedSuite = createDetailedBedSuite({
+        headboardX: 0,
+        headboardFacing: 'east',
+        bedCenterZ: 0,
+        bedWidth: 1.6,
+        bedLength: 1.95,
+        nightstandZOffset: 1.6 / 2 + 0.28,
+        materials,
+      });
+      
+      // Rotate the bed so the foot points towards +Z (the front glass windows)
+      oneBedSuite.rotation.y = Math.PI / 2;
+      // Position it in the center of the newly partitioned bedroom space, shifted left to ensure the wide headboard clears the right wall
+      const bedroomCenterX = (partitionX + (length / 2)) / 2 - 0.45;
+      oneBedSuite.position.set(bedroomCenterX, 0, -depth / 2 + 0.18);
+      
+      interiorGroup.add(oneBedSuite);
+      
+      // 1-Bedroom Wardrobe (Inside the bedroom, right side of partition, pushed forward to clear bed)
+      const wWidth = 0.8;
+      const wDepth = 0.6;
+      const wHeight = height - 0.1;
+      const wardrobe = createWardrobe(wWidth, wHeight, wDepth);
+      wardrobe.rotation.y = Math.PI / 2; // Doors face +X (towards the bed)
+      wardrobe.position.set(partitionX + wDepth / 2 + 0.05, wHeight / 2 + 0.15, 0.1);
+      interiorGroup.add(wardrobe);
+    }
+
     // 1-Bedroom 3-seater luxury sofa & curated coffee table
     const oneBedLounge = createDetailedLivingLounge({
-      sofaCenterX: -length * 0.2,
+      sofaCenterX: -1.3, // Shifted to match the new partition space
       sofaCenterZ: 0.35,
       sofaWidth: 2.15,
       sofaDepth: 0.90,
@@ -2046,17 +2227,66 @@ export function buildHomeModel(
     });
     interiorGroup.add(oneBedLounge);
   } else if (state.modelId === 'two-bedroom') {
-    // Interior partition wall between bedroom and living room
-    const dividerGeo = new THREE.BoxGeometry(0.1, height - 0.1, depth * 0.6);
-    const dividerMesh = new THREE.Mesh(dividerGeo, materials.interiorWallMaterial);
-    dividerMesh.position.set(length * 0.15, (height - 0.1) / 2 + 0.15, 0);
-    dividerMesh.castShadow = true;
-    interiorGroup.add(dividerMesh);
+    // Left Bedroom Partition Wall (-2.2)
+    const partitionLeftX = -2.2;
+    // Back wall segment
+    const backWallGeo = new THREE.BoxGeometry(0.1, height - 0.1, 3.2);
+    const leftBackWall = new THREE.Mesh(backWallGeo, materials.interiorWallMaterial);
+    leftBackWall.position.set(partitionLeftX, (height - 0.1) / 2 + 0.15, -1.1);
+    leftBackWall.castShadow = true;
+    // Front wall segment
+    const frontWallGeo = new THREE.BoxGeometry(0.1, height - 0.1, 1.3);
+    const leftFrontWall = new THREE.Mesh(frontWallGeo, materials.interiorWallMaterial);
+    leftFrontWall.position.set(partitionLeftX, (height - 0.1) / 2 + 0.15, 2.05);
+    leftFrontWall.castShadow = true;
+    
+    // Left Bedroom Door Frame
+    const doorGeo = new THREE.BoxGeometry(0.04, height - 0.1, 0.9);
+    const leftDoor = new THREE.Mesh(doorGeo, materials.woodDeckMaterial);
+    leftDoor.position.set(partitionLeftX, (height - 0.1) / 2 + 0.15, 0.95);
+    leftDoor.rotation.y = Math.PI / 4; // Open slightly into the living room
+
+    interiorGroup.add(leftBackWall, leftFrontWall, leftDoor);
+    
+    // Right Bedroom Partition Wall (2.2)
+    const partitionRightX = 2.2;
+    // Back wall segment
+    const rightBackWall = new THREE.Mesh(backWallGeo, materials.interiorWallMaterial);
+    rightBackWall.position.set(partitionRightX, (height - 0.1) / 2 + 0.15, -1.1);
+    rightBackWall.castShadow = true;
+    // Front wall segment
+    const rightFrontWall = new THREE.Mesh(frontWallGeo, materials.interiorWallMaterial);
+    rightFrontWall.position.set(partitionRightX, (height - 0.1) / 2 + 0.15, 2.05);
+    rightFrontWall.castShadow = true;
+
+    // Right Bedroom Door Frame
+    const rightDoor = new THREE.Mesh(doorGeo, materials.woodDeckMaterial);
+    rightDoor.position.set(partitionRightX, (height - 0.1) / 2 + 0.15, 0.95);
+    rightDoor.rotation.y = -Math.PI / 4; // Open slightly into the living room
+
+    interiorGroup.add(rightBackWall, rightFrontWall, rightDoor);
+
+    // 2-Bedroom Wardrobes (Placed inside their respective bedrooms, pushed forward to clear beds)
+    const wWidth = 0.8;
+    const wDepth = 0.6;
+    const wHeight = height - 0.1;
+    
+    // Left Bedroom Wardrobe
+    const leftWardrobe = createWardrobe(wWidth, wHeight, wDepth);
+    leftWardrobe.rotation.y = -Math.PI / 2; // Doors face -X (into the left room)
+    leftWardrobe.position.set(partitionLeftX - wDepth / 2 - 0.05, wHeight / 2 + 0.15, 0.0);
+    interiorGroup.add(leftWardrobe);
+
+    // Right Bedroom Wardrobe
+    const rightWardrobe = createWardrobe(wWidth, wHeight, wDepth);
+    rightWardrobe.rotation.y = Math.PI / 2; // Doors face +X (into the right room)
+    rightWardrobe.position.set(partitionRightX + wDepth / 2 + 0.05, wHeight / 2 + 0.15, 0.0);
+    interiorGroup.add(rightWardrobe);
 
     // 2-Bedroom spacious central great room 3-seater luxury sofa & coffee table
     const twoBedLounge = createDetailedLivingLounge({
       sofaCenterX: 0.0,
-      sofaCenterZ: 0.35,
+      sofaCenterZ: 0.5,
       sofaWidth: 2.30,
       sofaDepth: 0.90,
       sofaFacingAngle: 0,
@@ -2065,39 +2295,127 @@ export function buildHomeModel(
     interiorGroup.add(twoBedLounge);
   }
 
-  if (state.modelId === 'two-bedroom') {
-    // Second bedroom suite on opposite wing
+  if (state.modelId === 'two-bedroom' && state.hasLuxuryBedSuite) {
+    // Second bedroom suite on left wing (Inside left bedroom, -4.7 to -2.2)
     const bed2Width = 1.5;
     const bed2Length = 1.95;
-    const bed2CenterZ = depth / 2 - bed2Width / 2 - 0.28;
-    const headboard2X = -length / 2 + 0.18;
-    const nightstand2ZOffset = -(bed2Width / 2 + 0.28);
 
     const bed2Suite = createDetailedBedSuite({
-      headboardX: headboard2X,
-      headboardFacing: 'west',
-      bedCenterZ: bed2CenterZ,
+      headboardX: 0,
+      headboardFacing: 'east',
+      bedCenterZ: 0,
       bedWidth: bed2Width,
       bedLength: bed2Length,
-      nightstandZOffset: nightstand2ZOffset,
+      nightstandZOffset: bed2Width / 2 + 0.28,
       materials,
     });
+    
+    bed2Suite.rotation.y = Math.PI / 2;
+    // Position it securely on the left back wall, ensuring nightstand clears
+    bed2Suite.position.set(-length / 2 + 1.25, 0, -depth / 2 + 0.18);
+    
     interiorGroup.add(bed2Suite);
   }
 
   // 7d. Inverter Mini-Split HVAC Wall Unit
   if (state.hasHvacMiniSplit) {
-    const hvacGeo = new THREE.BoxGeometry(0.8, 0.25, 0.18);
-    const hvacMesh = new THREE.Mesh(hvacGeo, materials.metalTrimMaterial);
-    hvacMesh.position.set(0, height - 0.25, -depth / 2 + 0.12 + wallThickness);
-    interiorGroup.add(hvacMesh);
+    const hvacX = length * 0.25;
 
-    // Exterior heat pump compressor unit on rear wall
-    const compressorGeo = new THREE.BoxGeometry(0.65, 0.55, 0.3);
-    const compressorMesh = new THREE.Mesh(compressorGeo, materials.chassisMaterial);
-    compressorMesh.position.set(length * 0.25, 0.55, -depth / 2 - 0.2);
-    compressorMesh.castShadow = true;
-    rootGroup.add(compressorMesh);
+    // -- High-Detail Internal Wall Unit (Mini-Split) --
+    const hvacGroup = new THREE.Group();
+    
+    // Main Body
+    const hvacBodyGeo = new THREE.BoxGeometry(0.85, 0.28, 0.20);
+    const hvacBodyMesh = new THREE.Mesh(hvacBodyGeo, materials.cabinetMaterial);
+    hvacGroup.add(hvacBodyMesh);
+    
+    // Lower Air Deflector Louver
+    const louverGeo = new THREE.BoxGeometry(0.75, 0.04, 0.05);
+    const louverMesh = new THREE.Mesh(louverGeo, materials.metalTrimMaterial);
+    louverMesh.position.set(0, -0.12, 0.08);
+    louverMesh.rotation.x = Math.PI / 8;
+    hvacGroup.add(louverMesh);
+    
+    // LED Temperature Display (Right Side)
+    const ledGeo = new THREE.BoxGeometry(0.08, 0.04, 0.01);
+    const ledMat = new THREE.MeshBasicMaterial({ color: 0x050505 });
+    const ledMesh = new THREE.Mesh(ledGeo, ledMat);
+    ledMesh.position.set(0.3, -0.05, 0.105);
+    hvacGroup.add(ledMesh);
+    
+    // Chrome Accent Trim Line
+    const trimGeo = new THREE.BoxGeometry(0.85, 0.01, 0.01);
+    const trimMesh = new THREE.Mesh(trimGeo, materials.metalTrimMaterial);
+    trimMesh.position.set(0, 0.05, 0.105);
+    hvacGroup.add(trimMesh);
+    
+    hvacGroup.position.set(hvacX, height - 0.25, -depth / 2 + 0.12 + wallThickness);
+    interiorGroup.add(hvacGroup);
+
+    // -- High-Detail Exterior Heat Pump Compressor Unit --
+    const compGroup = new THREE.Group();
+    const compW = 0.85;
+    const compH = 0.65;
+    const compD = 0.35;
+    
+    // Main casing
+    const compBodyGeo = new THREE.BoxGeometry(compW, compH, compD);
+    const compBodyMesh = new THREE.Mesh(compBodyGeo, materials.chassisMaterial);
+    compBodyMesh.castShadow = true;
+    compGroup.add(compBodyMesh);
+    
+    // Side Access / Service Panel
+    const serviceGeo = new THREE.BoxGeometry(0.15, compH - 0.05, 0.02);
+    const serviceMesh = new THREE.Mesh(serviceGeo, materials.metalTrimMaterial);
+    serviceMesh.position.set(compW / 2 + 0.005, 0, 0);
+    compGroup.add(serviceMesh);
+
+    // Front Fan Grille Circular Cutout
+    const grilleRadius = 0.24;
+    const grilleGeo = new THREE.CylinderGeometry(grilleRadius, grilleRadius, 0.02, 24);
+    const grilleMesh = new THREE.Mesh(grilleGeo, materials.chassisMaterial);
+    grilleMesh.rotation.x = Math.PI / 2;
+    grilleMesh.position.set(-0.08, 0, compD / 2 + 0.01);
+    compGroup.add(grilleMesh);
+    
+    // Dark Interior / Fan Shadow behind grille
+    const fanGeo = new THREE.CylinderGeometry(grilleRadius - 0.02, grilleRadius - 0.02, 0.02, 24);
+    const fanMesh = new THREE.Mesh(fanGeo, ledMat); // reuse dark LED material
+    fanMesh.rotation.x = Math.PI / 2;
+    fanMesh.position.set(-0.08, 0, compD / 2 + 0.005);
+    compGroup.add(fanMesh);
+
+    // Horizontal grille protective slats
+    for(let i = -5; i <= 5; i++) {
+       const slatGeo = new THREE.BoxGeometry(grilleRadius * 1.8, 0.008, 0.008);
+       const slatMesh = new THREE.Mesh(slatGeo, materials.metalTrimMaterial);
+       slatMesh.position.set(-0.08, i * 0.04, compD / 2 + 0.02);
+       compGroup.add(slatMesh);
+    }
+    
+    // Brand / Manufacturer Badge
+    const badgeGeo = new THREE.BoxGeometry(0.06, 0.02, 0.01);
+    const badgeMesh = new THREE.Mesh(badgeGeo, materials.metalTrimMaterial);
+    badgeMesh.position.set(compW / 2 - 0.12, compH / 2 - 0.08, compD / 2 + 0.005);
+    compGroup.add(badgeMesh);
+
+    // Anti-Vibration Mounting Feet
+    const feetGeo = new THREE.BoxGeometry(0.08, 0.05, compD + 0.05);
+    const foot1 = new THREE.Mesh(feetGeo, materials.chassisMaterial);
+    foot1.position.set(-compW / 2 + 0.15, -compH / 2 - 0.025, 0);
+    const foot2 = new THREE.Mesh(feetGeo, materials.chassisMaterial);
+    foot2.position.set(compW / 2 - 0.15, -compH / 2 - 0.025, 0);
+    compGroup.add(foot1, foot2);
+
+    // Refrigerant Lines & Power Conduit (running up wall)
+    const conduitGeo = new THREE.BoxGeometry(0.08, 1.4, 0.06);
+    const conduitMesh = new THREE.Mesh(conduitGeo, materials.chassisMaterial);
+    conduitMesh.position.set(compW / 2 - 0.05, compH / 2 + 0.7, -compD / 2 + 0.03);
+    compGroup.add(conduitMesh);
+
+    // Position outside on the rear wall
+    compGroup.position.set(hvacX, 0.55 + compH / 2, -depth / 2 - 0.2);
+    rootGroup.add(compGroup);
   }
 
   // 7e. Ceiling Downlights & Halo Ambient Strips (Lighting system)
@@ -2128,38 +2446,425 @@ export function buildHomeModel(
 
   rootGroup.add(interiorGroup);
 
-  // 8. MODULAR ADD-ON: FRONT ENTRY PERGOLA & COMPOSITE DECK
+  // 8. MODULAR ADD-ON: FRONT ENTRY ARCHITECTURAL PERGOLA & PATIO DECK
   if (state.hasExteriorPergolaDeck) {
-    const deckDepth = 2.4;
-    const deckWidth = length + 0.8;
+    const deckDepth = 3.2;
+    const deckWidth = length + 1.2;
+    const deckCenterZ = depth / 2 + deckDepth / 2;
+    const deckBaseY = 0.12;
+    
+    // 1. Walkable Hardwood Composite Decking Platform
+    // Plinth base
+    const plinthGeo = new THREE.BoxGeometry(deckWidth, deckBaseY, deckDepth);
+    const plinthMesh = new THREE.Mesh(plinthGeo, materials.chassisMaterial);
+    plinthMesh.position.set(0, deckBaseY / 2, deckCenterZ);
+    plinthMesh.receiveShadow = true;
+    pergolaGroup.add(plinthMesh);
+    
+    // Individual realistic decking planks with shadow reveals
+    const boardCount = Math.round(deckDepth / 0.16);
+    const boardZSpan = (deckDepth - 0.08) / boardCount;
+    for (let b = 0; b < boardCount; b++) {
+      const bz = deckCenterZ - deckDepth / 2 + 0.04 + b * boardZSpan + boardZSpan / 2;
+      const boardGeo = new THREE.BoxGeometry(deckWidth - 0.04, 0.024, boardZSpan - 0.008);
+      const boardMesh = new THREE.Mesh(boardGeo, materials.woodDeckMaterial);
+      boardMesh.position.set(0, deckBaseY + 0.012, bz);
+      boardMesh.receiveShadow = true;
+      pergolaGroup.add(boardMesh);
+    }
 
-    // Platform deck
-    const pergolaDeckGeo = new THREE.BoxGeometry(deckWidth, 0.15, deckDepth);
-    const pergolaDeckMesh = new THREE.Mesh(pergolaDeckGeo, materials.woodDeckMaterial);
-    pergolaDeckMesh.position.set(0, 0.075, depth / 2 + deckDepth / 2);
-    pergolaDeckMesh.receiveShadow = true;
-    pergolaGroup.add(pergolaDeckMesh);
+    // Flush-mount perimeter LED deck puck lights
+    const puckPositions = [
+      [-deckWidth / 2 + 0.3, deckCenterZ + deckDepth / 2 - 0.3],
+      [deckWidth / 2 - 0.3, deckCenterZ + deckDepth / 2 - 0.3],
+      [-deckWidth / 2 + 0.3, deckCenterZ - deckDepth / 2 + 0.3],
+      [deckWidth / 2 - 0.3, deckCenterZ - deckDepth / 2 + 0.3],
+    ];
+    puckPositions.forEach(([px, pz]) => {
+      const puckGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.006, 12);
+      const puckMesh = new THREE.Mesh(puckGeo, materials.terraceLightMaterial);
+      puckMesh.position.set(px, deckBaseY + 0.024, pz);
+      pergolaGroup.add(puckMesh);
+    });
 
-    // Black aluminum pergola posts and trellis rafters
-    const postGeo = new THREE.BoxGeometry(0.1, height + 0.1, 0.1);
+    // 2. Black Powder-Coated Aluminum Bioclimatic Pergola Framework
+    const postGeo = new THREE.BoxGeometry(0.12, height + 0.2, 0.12);
     const postMat = materials.chassisMaterial;
+    
+    // Front corner columns
+    const p1 = new THREE.Mesh(postGeo, postMat);
+    p1.position.set(-deckWidth / 2 + 0.2, (height + 0.2) / 2, deckCenterZ + deckDepth / 2 - 0.2);
+    p1.castShadow = true;
+    
+    const p2 = new THREE.Mesh(postGeo, postMat);
+    p2.position.set(deckWidth / 2 - 0.2, (height + 0.2) / 2, deckCenterZ + deckDepth / 2 - 0.2);
+    p2.castShadow = true;
+    
+    // Rear columns (anchored against house)
+    const p3 = new THREE.Mesh(postGeo, postMat);
+    p3.position.set(-deckWidth / 2 + 0.2, (height + 0.2) / 2, deckCenterZ - deckDepth / 2 + 0.1);
+    
+    const p4 = new THREE.Mesh(postGeo, postMat);
+    p4.position.set(deckWidth / 2 - 0.2, (height + 0.2) / 2, deckCenterZ - deckDepth / 2 + 0.1);
+    
+    pergolaGroup.add(p1, p2, p3, p4);
 
-    const post1 = new THREE.Mesh(postGeo, postMat);
-    post1.position.set(-deckWidth / 2 + 0.1, (height + 0.1) / 2, depth / 2 + deckDepth - 0.1);
-    const post2 = new THREE.Mesh(postGeo, postMat);
-    post2.position.set(deckWidth / 2 - 0.1, (height + 0.1) / 2, depth / 2 + deckDepth - 0.1);
-    pergolaGroup.add(post1, post2);
+    // Perimeter Roof Beams (Ring Beam)
+    const ringY = height + 0.2 + 0.06;
+    
+    const frontBeam = new THREE.Mesh(new THREE.BoxGeometry(deckWidth - 0.2, 0.12, 0.12), postMat);
+    frontBeam.position.set(0, ringY, deckCenterZ + deckDepth / 2 - 0.2);
+    frontBeam.castShadow = true;
+    
+    const rearBeam = new THREE.Mesh(new THREE.BoxGeometry(deckWidth - 0.2, 0.12, 0.12), postMat);
+    rearBeam.position.set(0, ringY, deckCenterZ - deckDepth / 2 + 0.1);
+    
+    const leftBeam = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, deckDepth - 0.2), postMat);
+    leftBeam.position.set(-deckWidth / 2 + 0.2, ringY, deckCenterZ - 0.05);
+    leftBeam.castShadow = true;
+    
+    const rightBeam = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, deckDepth - 0.2), postMat);
+    rightBeam.position.set(deckWidth / 2 - 0.2, ringY, deckCenterZ - 0.05);
+    rightBeam.castShadow = true;
+    
+    pergolaGroup.add(frontBeam, rearBeam, leftBeam, rightBeam);
 
-    // Trellis rafters
-    const rafterGeo = new THREE.BoxGeometry(deckWidth, 0.08, 0.06);
-    for (let r = 0; r < 5; r++) {
-      const rafter = new THREE.Mesh(rafterGeo, postMat);
-      rafter.position.set(0, height + 0.15, depth / 2 + 0.3 + r * 0.45);
-      rafter.castShadow = true;
-      pergolaGroup.add(rafter);
+    // 3. Automated Operable Louver Blades (Sun Tracking System)
+    const louverCount = Math.round((deckWidth - 0.6) / 0.22);
+    const louverW = (deckWidth - 0.6) / louverCount;
+    const louverGeo = new THREE.BoxGeometry(louverW - 0.01, 0.02, deckDepth - 0.44);
+    
+    // Tilt louvers at an architectural 45-degree angle
+    const tiltAngle = Math.PI / 4; 
+    
+    for (let l = 0; l < louverCount; l++) {
+      const louverMesh = new THREE.Mesh(louverGeo, postMat);
+      const lx = (-deckWidth / 2 + 0.3) + louverW / 2 + l * louverW;
+      louverMesh.position.set(lx, ringY + 0.02, deckCenterZ - 0.05);
+      louverMesh.rotation.z = tiltAngle;
+      louverMesh.castShadow = true;
+      pergolaGroup.add(louverMesh);
+    }
+    
+    // Integrated LED linear strip along the perimeter ring beams
+    const ledStripGeo = new THREE.BoxGeometry(deckWidth - 0.4, 0.02, 0.01);
+    const ledStripMesh = new THREE.Mesh(ledStripGeo, materials.ledStripMaterial);
+    ledStripMesh.position.set(0, ringY - 0.05, deckCenterZ - deckDepth / 2 + 0.18);
+    ledStripMesh.rotation.x = Math.PI / 4;
+    pergolaGroup.add(ledStripMesh);
+
+    // 4. Frameless Glass Front Balustrade / Windbreak
+    const glassRailHeight = 0.95;
+    const glassGeo = new THREE.BoxGeometry(deckWidth - 0.6, glassRailHeight, 0.016);
+    const glassMesh = new THREE.Mesh(glassGeo, materials.glassMaterial);
+    glassMesh.position.set(0, deckBaseY + 0.024 + glassRailHeight / 2, deckCenterZ + deckDepth / 2 - 0.08);
+    pergolaGroup.add(glassMesh);
+    
+    // Stainless steel spigot floor clamps for glass
+    const spigotGeo = new THREE.BoxGeometry(0.05, 0.10, 0.05);
+    for (let s = -2; s <= 2; s++) {
+      const spigotMesh = new THREE.Mesh(spigotGeo, materials.metalTrimMaterial);
+      spigotMesh.position.set(s * (deckWidth * 0.2), deckBaseY + 0.024 + 0.05, deckCenterZ + deckDepth / 2 - 0.08);
+      pergolaGroup.add(spigotMesh);
+    }
+
+    // 5. Minimalist Concrete Firepit Lounge Assembly
+    const loungeGroup = new THREE.Group();
+    const loungeX = -deckWidth * 0.18;
+    const loungeZ = deckCenterZ + 0.2;
+    loungeGroup.position.set(loungeX, deckBaseY + 0.024, loungeZ);
+    
+    // Cast Concrete Rectangular Firepit Table (Enhanced)
+    const tableHeight = 0.35;
+    const tableW = 1.4;
+    const tableD = 0.8;
+    
+    // Recessed base plinth (shadow line)
+    const baseGeo = new THREE.BoxGeometry(tableW - 0.1, 0.05, tableD - 0.1);
+    const baseMesh = new THREE.Mesh(baseGeo, materials.chassisMaterial);
+    baseMesh.position.set(0, 0.025, 0);
+    loungeGroup.add(baseMesh);
+
+    // Main concrete table block
+    const firepitGeo = new THREE.BoxGeometry(tableW, tableHeight - 0.05, tableD);
+    const firepitMesh = new THREE.Mesh(firepitGeo, materials.terraceTableMaterial);
+    firepitMesh.position.set(0, 0.05 + (tableHeight - 0.05) / 2, 0);
+    firepitMesh.castShadow = true;
+    loungeGroup.add(firepitMesh);
+    
+    // Firepit burner channel with crushed glass & flame glow
+    const burnerGeo = new THREE.BoxGeometry(0.85, 0.02, 0.22);
+    const burnerMesh = new THREE.Mesh(burnerGeo, materials.chassisMaterial);
+    burnerMesh.position.set(0, tableHeight, 0);
+    loungeGroup.add(burnerMesh);
+    
+    const flameGeo = new THREE.BoxGeometry(0.8, 0.04, 0.18);
+    const flameMesh = new THREE.Mesh(flameGeo, materials.candleGlowMaterial);
+    flameMesh.position.set(0, tableHeight + 0.01, 0);
+    loungeGroup.add(flameMesh);
+
+    // Decorative table accessories (drinks)
+    const drinkGlassGeo = new THREE.CylinderGeometry(0.04, 0.03, 0.1, 16);
+    const glass1 = new THREE.Mesh(drinkGlassGeo, materials.glassMaterial);
+    glass1.position.set(tableW / 2 - 0.15, tableHeight + 0.05, tableD / 2 - 0.15);
+    const glass2 = new THREE.Mesh(drinkGlassGeo, materials.glassMaterial);
+    glass2.position.set(tableW / 2 - 0.25, tableHeight + 0.05, tableD / 2 - 0.12);
+    loungeGroup.add(glass1, glass2);
+    
+    // Low-slung Outdoor Sectional Sofa (L-Shape wrapping firepit)
+    const sofaDepth = 0.85;
+    const frameHeight = 0.12;
+    const seatHeight = 0.16; // thickness of seat cushions
+    const backHeight = 0.38;
+    const armWidth = 0.15;
+    
+    // Sofa Chassis (Teak Wood Frame)
+    const frameMat = materials.woodDeckMaterial;
+    const fabricMat = materials.terraceFabricMaterial;
+
+    // Main Long Section Frame
+    const mainFrameW = 2.4;
+    const mainFrameGeo = new THREE.BoxGeometry(mainFrameW, frameHeight, sofaDepth);
+    const mainFrame = new THREE.Mesh(mainFrameGeo, frameMat);
+    mainFrame.position.set(0.1, frameHeight / 2, -1.0);
+    mainFrame.castShadow = true;
+    loungeGroup.add(mainFrame);
+
+    // Return L-Section Frame
+    const retFrameD = 1.6;
+    const retFrameGeo = new THREE.BoxGeometry(sofaDepth, frameHeight, retFrameD);
+    const retFrame = new THREE.Mesh(retFrameGeo, frameMat);
+    retFrame.position.set(0.1 + mainFrameW / 2 - sofaDepth / 2, frameHeight / 2, -1.0 + sofaDepth / 2 + retFrameD / 2);
+    retFrame.castShadow = true;
+    loungeGroup.add(retFrame);
+
+    // Sofa Legs (Black metal)
+    const legGeo = new THREE.CylinderGeometry(0.02, 0.015, 0.05, 8);
+    const legMat = materials.chassisMaterial;
+    const legPositions = [
+      [0.1 - mainFrameW / 2 + 0.05, -1.0 - sofaDepth / 2 + 0.05], // Front Left
+      [0.1 + mainFrameW / 2 - 0.05, -1.0 - sofaDepth / 2 + 0.05], // Front Right
+      [0.1 - mainFrameW / 2 + 0.05, -1.0 + sofaDepth / 2 - 0.05], // Back Left
+      [0.1 + mainFrameW / 2 - 0.05, -1.0 + sofaDepth / 2 + retFrameD - 0.05], // Back Right (End of Return)
+      [0.1 + mainFrameW / 2 - sofaDepth + 0.05, -1.0 + sofaDepth / 2 + retFrameD - 0.05], // Inner Corner Right
+    ];
+    legPositions.forEach(([lx, lz]) => {
+      const leg = new THREE.Mesh(legGeo, legMat);
+      leg.position.set(lx, -0.025, lz);
+      loungeGroup.add(leg);
+    });
+
+    // Individual Seat Cushions (Main Section)
+    const seatW = (mainFrameW - armWidth - sofaDepth) / 2; // Subtract arm and corner return
+    const seatGeo = new THREE.BoxGeometry(seatW - 0.02, seatHeight, sofaDepth - 0.04);
+    
+    for (let i = 0; i < 2; i++) {
+      const seat = new THREE.Mesh(seatGeo, fabricMat);
+      seat.position.set(0.1 - mainFrameW / 2 + armWidth + seatW / 2 + i * seatW, frameHeight + seatHeight / 2, -1.0);
+      seat.castShadow = true;
+      loungeGroup.add(seat);
+    }
+
+    // Corner Seat Cushion
+    const cornerSeatGeo = new THREE.BoxGeometry(sofaDepth - 0.04, seatHeight, sofaDepth - 0.04);
+    const cornerSeat = new THREE.Mesh(cornerSeatGeo, fabricMat);
+    cornerSeat.position.set(0.1 + mainFrameW / 2 - sofaDepth / 2, frameHeight + seatHeight / 2, -1.0);
+    cornerSeat.castShadow = true;
+    loungeGroup.add(cornerSeat);
+
+    // Return Seat Cushion
+    const retSeatD = retFrameD - sofaDepth - armWidth;
+    const retSeatGeo = new THREE.BoxGeometry(sofaDepth - 0.04, seatHeight, retSeatD - 0.02);
+    const retSeat = new THREE.Mesh(retSeatGeo, fabricMat);
+    retSeat.position.set(0.1 + mainFrameW / 2 - sofaDepth / 2, frameHeight + seatHeight / 2, -1.0 + sofaDepth / 2 + retSeatD / 2 + 0.01);
+    retSeat.castShadow = true;
+    loungeGroup.add(retSeat);
+
+    // Backrest Cushions (Main Section)
+    const backCushionGeo = new THREE.BoxGeometry(seatW - 0.02, backHeight, 0.18);
+    for (let i = 0; i < 2; i++) {
+      const back = new THREE.Mesh(backCushionGeo, fabricMat);
+      back.position.set(0.1 - mainFrameW / 2 + armWidth + seatW / 2 + i * seatW, frameHeight + seatHeight + backHeight / 2 - 0.05, -1.0 - sofaDepth / 2 + 0.15);
+      back.rotation.x = Math.PI * 0.05; // slight recline
+      loungeGroup.add(back);
+    }
+    
+    // Backrest Cushion (Corner)
+    const cornerBackGeo = new THREE.BoxGeometry(sofaDepth - 0.2, backHeight, 0.18);
+    const cornerBack1 = new THREE.Mesh(cornerBackGeo, fabricMat);
+    cornerBack1.position.set(0.1 + mainFrameW / 2 - sofaDepth / 2 - 0.05, frameHeight + seatHeight + backHeight / 2 - 0.05, -1.0 - sofaDepth / 2 + 0.15);
+    cornerBack1.rotation.x = Math.PI * 0.05;
+    loungeGroup.add(cornerBack1);
+
+    // Backrest Cushion (Return Section)
+    const retBackGeo = new THREE.BoxGeometry(0.18, backHeight, retSeatD - 0.02);
+    const retBack = new THREE.Mesh(retBackGeo, fabricMat);
+    retBack.position.set(0.1 + mainFrameW / 2 - 0.15, frameHeight + seatHeight + backHeight / 2 - 0.05, -1.0 + sofaDepth / 2 + retSeatD / 2 + 0.01);
+    retBack.rotation.z = -Math.PI * 0.05;
+    loungeGroup.add(retBack);
+
+    // Armrests
+    const armGeo = new THREE.BoxGeometry(armWidth, seatHeight + 0.08, sofaDepth);
+    const armLeft = new THREE.Mesh(armGeo, fabricMat);
+    armLeft.position.set(0.1 - mainFrameW / 2 + armWidth / 2, frameHeight + (seatHeight + 0.08) / 2, -1.0);
+    loungeGroup.add(armLeft);
+
+    const armRightGeo = new THREE.BoxGeometry(sofaDepth, seatHeight + 0.08, armWidth);
+    const armRight = new THREE.Mesh(armRightGeo, fabricMat);
+    armRight.position.set(0.1 + mainFrameW / 2 - sofaDepth / 2, frameHeight + (seatHeight + 0.08) / 2, -1.0 + sofaDepth / 2 + retFrameD - armWidth / 2);
+    loungeGroup.add(armRight);
+    
+    pergolaGroup.add(loungeGroup);
+    
+    // 6. Architectural Edge Planter Boxes with Tall Grasses
+    const planterW = deckWidth * 0.28;
+    const planterGeo = new THREE.BoxGeometry(planterW, 0.45, 0.45);
+    const planterMesh = new THREE.Mesh(planterGeo, materials.chassisMaterial);
+    planterMesh.position.set(deckWidth / 2 - planterW / 2 - 0.05, deckBaseY + 0.024 + 0.45 / 2, deckCenterZ + deckDepth / 2 - 0.3);
+    planterMesh.castShadow = true;
+    pergolaGroup.add(planterMesh);
+    
+    const plantGrassMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color('#365314'),
+      roughness: 0.85,
+    });
+    for (let g = 0; g < 6; g++) {
+      const grassGeo = new THREE.ConeGeometry(0.08, 0.55, 5);
+      const grassMesh = new THREE.Mesh(grassGeo, plantGrassMat);
+      const gx = (deckWidth / 2 - planterW / 2 - 0.05) - planterW * 0.35 + g * (planterW * 0.14);
+      grassMesh.position.set(gx, deckBaseY + 0.024 + 0.45 + 0.2, deckCenterZ + deckDepth / 2 - 0.3);
+      grassMesh.rotation.z = (Math.random() - 0.5) * 0.2;
+      grassMesh.rotation.x = (Math.random() - 0.5) * 0.2;
+      pergolaGroup.add(grassMesh);
     }
 
     rootGroup.add(pergolaGroup);
+  }
+
+  // 9. MODULAR ADD-ON: BIO DIGESTER SYSTEM
+  if (state.hasBioDigester) {
+    const bioGroup = new THREE.Group();
+    
+    // Position directly behind the house
+    const bioX = 1.0; // Slightly off-center
+    const bioZ = -depth / 2 - 2.2;
+    bioGroup.position.set(bioX, 0, bioZ);
+    // Face the house
+    bioGroup.rotation.y = 0;
+
+    // Concrete equipment pad (Buried)
+    const padGeo = new THREE.BoxGeometry(2.8, 0.1, 1.8);
+    const padMesh = new THREE.Mesh(padGeo, materials.wallInternalMat);
+    padMesh.position.set(0, -0.9, 0); // Buried 90cm deep
+    padMesh.receiveShadow = true;
+    bioGroup.add(padMesh);
+
+    // Primary Digester Tank (Ribbed Polyethylene horizontal cylinder)
+    const tankRadius = 0.65;
+    const tankLength = 2.0;
+    const tankGeo = new THREE.CylinderGeometry(tankRadius, tankRadius, tankLength, 32);
+    
+    // Create a rugged green plastic material for the tank
+    const tankMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color('#1F2937'), // Dark slate/charcoal tank
+      roughness: 0.7,
+      metalness: 0.2,
+    });
+    
+    const tankMesh = new THREE.Mesh(tankGeo, tankMat);
+    tankMesh.rotation.z = Math.PI / 2; // Lay horizontally
+    const tankY = -0.3; // Center is 30cm underground. Top is at +0.35m
+    tankMesh.position.set(0, tankY, -0.2);
+    tankMesh.castShadow = true;
+    bioGroup.add(tankMesh);
+
+    // Tank Structural Ribs
+    const ribCount = 8;
+    const ribSpacing = tankLength / (ribCount + 1);
+    const ribGeo = new THREE.TorusGeometry(tankRadius + 0.03, 0.04, 8, 32);
+    for(let i = 1; i <= ribCount; i++) {
+      const rib = new THREE.Mesh(ribGeo, tankMat);
+      rib.rotation.y = Math.PI / 2;
+      rib.position.set(-tankLength/2 + i * ribSpacing, tankY, -0.2);
+      bioGroup.add(rib);
+    }
+
+    // Dual Inspection/Access Hatches (Sticking just above ground)
+    const hatchGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.15, 24);
+    const hatchMat = new THREE.MeshStandardMaterial({ color: '#111827', roughness: 0.9 });
+    
+    const hatchY = tankY + tankRadius + 0.05; // 0.4
+    const hatch1 = new THREE.Mesh(hatchGeo, hatchMat);
+    hatch1.position.set(-0.6, hatchY, -0.2);
+    
+    const hatch2 = new THREE.Mesh(hatchGeo, hatchMat);
+    hatch2.position.set(0.6, hatchY, -0.2);
+    
+    bioGroup.add(hatch1, hatch2);
+
+    // Aerator Pump & Control Enclosure (Surface Level)
+    const pumpBoxGeo = new THREE.BoxGeometry(0.5, 0.6, 0.4);
+    const pumpBoxMat = new THREE.MeshStandardMaterial({ color: '#D1D5DB', roughness: 0.4, metalness: 0.6 });
+    const pumpBox = new THREE.Mesh(pumpBoxGeo, pumpBoxMat);
+    pumpBox.position.set(1.0, 0.3, 0.5); // Sits on the ground
+    pumpBox.castShadow = true;
+    bioGroup.add(pumpBox);
+
+    // Pump cooling vents (dark slats)
+    const ventGeo = new THREE.BoxGeometry(0.3, 0.02, 0.41);
+    const ventMat = new THREE.MeshStandardMaterial({ color: '#000000' });
+    for(let i=0; i<4; i++) {
+      const vent = new THREE.Mesh(ventGeo, ventMat);
+      vent.position.set(1.0, 0.25 + i * 0.06, 0.5);
+      bioGroup.add(vent);
+    }
+
+    // Bio-Filter / Active Carbon Stack (Vertical cylinder, surface level)
+    const filterGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.9, 16);
+    const filterMat = new THREE.MeshStandardMaterial({ color: '#374151', roughness: 0.8 });
+    const filterMesh = new THREE.Mesh(filterGeo, filterMat);
+    filterMesh.position.set(0.2, 0.45, 0.5); // Bottom at 0
+    filterMesh.castShadow = true;
+    bioGroup.add(filterMesh);
+
+    // PVC Piping (Connecting house to tank, tank to filter)
+    const pipeMat = new THREE.MeshStandardMaterial({ color: '#E5E7EB', roughness: 0.3 }); // White PVC
+    
+    // Inlet pipe from house (Buried)
+    const inletPipeLength = 2.0;
+    const inletPipeGeo = new THREE.CylinderGeometry(0.06, 0.06, inletPipeLength, 12);
+    const inletPipe = new THREE.Mesh(inletPipeGeo, pipeMat);
+    inletPipe.rotation.x = Math.PI / 2;
+    inletPipe.position.set(0, tankY + 0.2, 0.8); // Points towards the house underground
+    bioGroup.add(inletPipe);
+
+    // Connecting pipe from pump to tank (aeration line)
+    const aeratorLineGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.7, 8);
+    const aeratorLine = new THREE.Mesh(aeratorLineGeo, pipeMat);
+    aeratorLine.rotation.z = Math.PI / 2;
+    aeratorLine.position.set(0.65, 0.1, 0.5);
+    bioGroup.add(aeratorLine);
+
+    // Vent stack extending upwards from buried tank
+    const ventStackGeo = new THREE.CylinderGeometry(0.04, 0.04, 1.8, 12);
+    const ventStack = new THREE.Mesh(ventStackGeo, pipeMat);
+    ventStack.position.set(-0.8, tankY + 0.9, -0.2);
+    bioGroup.add(ventStack);
+    
+    // Vent cap
+    const ventCapGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.05, 12);
+    const ventCap = new THREE.Mesh(ventCapGeo, pipeMat);
+    ventCap.position.set(-0.8, tankY + 1.8, -0.2);
+    bioGroup.add(ventCap);
+
+    // Add green glow / LED indicator on pump box
+    const statusLedGeo = new THREE.CircleGeometry(0.02, 16);
+    const statusLedMat = new THREE.MeshBasicMaterial({ color: '#10B981' }); // Emerald Green
+    const statusLed = new THREE.Mesh(statusLedGeo, statusLedMat);
+    statusLed.position.set(1.0, 0.5, 0.701); // Front face of pump box
+    bioGroup.add(statusLed);
+
+    rootGroup.add(bioGroup);
   }
 
   // Calculate 3D Hotspot Coordinates for Interactive Clicking
@@ -2169,7 +2874,7 @@ export function buildHomeModel(
     lighting: new THREE.Vector3(0, height + 0.1, 0),
     flooring: new THREE.Vector3(0, 0.2, 0.4),
     roof: new THREE.Vector3(0, height + roofThickness + 0.3, 0),
-    kitchenette: new THREE.Vector3(state.modelId === 'studio' ? -0.5 : (state.modelId === 'one-bedroom' ? -1.3 : -2.2), 1.2, -depth / 2 + 0.8),
+    kitchenette: new THREE.Vector3(-length / 2 + 1.5 + ( (state.modelId === 'studio' ? 1.8 : (state.modelId === 'one-bedroom' ? 1.9 : 3.0)) / 2 ), 1.2, -depth / 2 + 0.8),
     bath: new THREE.Vector3(-length / 2 + 1.2, 1.3, -depth / 2 + 1.0),
     bedroom: new THREE.Vector3(length / 2 - 1.2, 1.1, -depth / 2 + 1.1),
     living: new THREE.Vector3(
