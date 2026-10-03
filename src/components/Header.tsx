@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { HomeModelId } from '../types';
-import { FileText, RotateCcw, Share2, DollarSign, Globe } from 'lucide-react';
+import { BASE_MODELS } from '../data/models';
+import { FileText, RotateCcw, Share2, DollarSign, Globe, LayoutDashboard, Home, ChevronDown } from 'lucide-react';
 import { useAppConfig } from '../context/AppConfigContext';
-import { formatCurrency, normalizeCurrency, SUPPORTED_CURRENCIES } from '../utils/currency';
+import { formatCurrency, normalizeCurrency, TWO_CURRENCIES } from '../utils/currency';
+import { syncOrdersCurrency } from '../utils/orderManager';
 
 interface HeaderProps {
   selectedModelId: HomeModelId;
@@ -22,7 +25,18 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenReserve,
 }) => {
   const { config, updateConfig, setCurrency } = useAppConfig();
-  const currentModel = config.models.find((m: any) => m.id === selectedModelId) || config.models[0];
+  
+  const displayModels = useMemo(() => {
+    const list = config.models && config.models.length > 0 ? config.models : BASE_MODELS;
+    return list.filter((m: any) => m.isAvailable !== false && m.isActive !== false);
+  }, [config.models]);
+
+  const currentModel =
+    displayModels.find((m: any) => m.id === selectedModelId) ||
+    config.models?.find((m: any) => m.id === selectedModelId) ||
+    BASE_MODELS.find((m) => m.id === selectedModelId) ||
+    displayModels[0] ||
+    BASE_MODELS[0];
 
   const handleShare = () => {
     if (navigator.clipboard) {
@@ -34,7 +48,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <nav className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 sm:px-6 lg:px-8 shrink-0 z-30 shadow-xs">
       {/* Brand Logo & Name */}
-      <div className="flex items-center gap-2.5">
+      <Link to="/" className="flex items-center gap-2.5 hover:opacity-85 transition-opacity" title="Return to Homepage">
         <div className="w-8 h-8 flex items-center justify-center font-black text-white rounded-md shadow-xs text-base tracking-tighter" style={{ backgroundColor: config.branding.primaryColor }}>
           {config.branding.brandName ? config.branding.brandName.charAt(0).toUpperCase() : 'B'}
         </div>
@@ -46,38 +60,51 @@ export const Header: React.FC<HeaderProps> = ({
             {config.branding.headerText}
           </span>
         </div>
-      </div>
+      </Link>
 
-      {/* Center Model Selector Pills (Desktop) */}
-      <div className="hidden md:flex items-center bg-gray-100 p-1 rounded-full border border-gray-200">
-        {config.models.map((model: any) => {
-          const isSelected = model.id === selectedModelId;
-          return (
-            <button
-              key={model.id}
-              onClick={() => onSelectModel(model.id)}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                isSelected
-                  ? 'bg-white text-gray-900 shadow-xs border border-gray-200'
-                  : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              <span>{model.name.replace('Casita ', '')}</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
-                  isSelected ? 'font-bold' : 'text-gray-400'
-                }`}
-                style={isSelected ? { backgroundColor: `${config.branding.primaryColor}20`, color: config.branding.primaryColor } : {}}
-              >
-                {model.sqft} sq ft
-              </span>
-            </button>
-          );
-        })}
+      {/* Center Model Selector (Desktop & Mobile) - CSS selector 1 */}
+      <div className="flex items-center min-w-0 overflow-hidden gap-1.5 sm:gap-2.5 bg-white/95 hover:bg-orange-50/50 border border-gray-200 hover:border-orange-400/90 px-2 sm:px-3 py-1.5 rounded-xl shadow-xs ring-1 ring-black/5 transition-all max-w-[210px] sm:max-w-[340px] md:max-w-[400px]">
+        <span className="flex h-2 w-2 relative shrink-0">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        </span>
+        <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider bg-orange-100 text-orange-900 border border-orange-200 px-1.5 py-0.5 rounded shrink-0 font-mono shadow-2xs whitespace-nowrap">
+          {selectedModelId.includes('30ft')
+            ? '30FT'
+            : selectedModelId.includes('20ft')
+            ? '20FT'
+            : selectedModelId.includes('40ft')
+            ? '40FT'
+            : currentModel?.series
+            ? currentModel.series.toUpperCase().slice(0, 6)
+            : 'HOUSE'}
+        </span>
+        <select
+          value={selectedModelId}
+          onChange={(e) => onSelectModel(e.target.value as HomeModelId)}
+          className="appearance-none bg-transparent text-xs font-black text-gray-950 border-none outline-none cursor-pointer pr-1 flex-1 min-w-0 truncate focus:ring-0 overflow-hidden"
+        >
+          {displayModels.map((model: any) => (
+            <option key={model.id} value={model.id}>
+              {model.name} — {model.sqft} sq ft ({formatCurrency(model.basePrice, config.currency)})
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0 pointer-events-none" />
       </div>
 
       {/* Right Navigation Controls */}
       <div className="flex items-center gap-3 sm:gap-4">
+        {/* Back to Home Link */}
+        <Link
+          to="/"
+          className="hidden md:flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-900 transition-colors uppercase tracking-wider"
+          title="Return to Homepage"
+        >
+          <Home className="w-3.5 h-3.5 text-gray-400" />
+          <span>Home</span>
+        </Link>
+
         <button
           onClick={onOpenSpecSheet}
           className="hidden sm:flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-900 transition-colors uppercase tracking-wider cursor-pointer"
@@ -103,32 +130,38 @@ export const Header: React.FC<HeaderProps> = ({
           <RotateCcw className="w-4 h-4" />
         </button>
 
-        {/* Currency Switcher */}
+        {/* Two-Currency Switcher */}
         <div className="flex items-center gap-1 border-l border-gray-200 pl-3">
-          <Globe className="w-3.5 h-3.5 text-gray-400 hidden lg:block" />
-          <select
-            value={normalizeCurrency(config.currency)}
-            onChange={(e) => {
-              if (setCurrency) {
-                setCurrency(e.target.value);
-              } else {
-                updateConfig({ ...config, currency: e.target.value });
-              }
-            }}
-            className="text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200/80 border border-gray-200 rounded-lg px-2 py-1 cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500"
-            title="Select Main Currency"
-            aria-label="Main Currency Selector"
-          >
-            <option value="GHS">GH₵ (Cedis)</option>
-            <option value="USD">$ (USD)</option>
-            <option value="EUR">€ (EUR)</option>
-            <option value="GBP">£ (GBP)</option>
-            <option value="CAD">CA$ (CAD)</option>
-            <option value="AUD">A$ (AUD)</option>
-            <option value="NGN">₦ (NGN)</option>
-            <option value="ZAR">R (ZAR)</option>
-            <option value="KES">KSh (KES)</option>
-          </select>
+          <div className="inline-flex p-0.5 bg-gray-100 rounded-lg border border-gray-200">
+            {TWO_CURRENCIES.map((curr) => {
+              const isActive = normalizeCurrency(config.currency) === curr.code;
+              return (
+                <button
+                  key={curr.code}
+                  type="button"
+                  onClick={() => {
+                    if (setCurrency) {
+                      setCurrency(curr.code);
+                    } else {
+                      updateConfig({ ...config, currency: curr.code });
+                    }
+                    syncOrdersCurrency(curr.code);
+                  }}
+                  className={`px-2 py-1 text-[11px] font-extrabold rounded-md transition-all flex items-center gap-1 cursor-pointer ${
+                    isActive
+                      ? curr.code === 'GHS'
+                        ? 'bg-orange-600 text-white shadow-xs'
+                        : 'bg-black text-white shadow-xs'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  title={`Switch entire website and all orders to single currency: ${curr.name} (${curr.symbol})`}
+                >
+                  <span className="font-mono">{curr.symbol}</span>
+                  <span>{curr.code}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Live Total Price */}
@@ -140,6 +173,16 @@ export const Header: React.FC<HeaderProps> = ({
             {formatCurrency(totalPrice, config.currency)}
           </div>
         </div>
+
+        {/* Admin Dashboard Navigation */}
+        <Link
+          to="/dashboard"
+          className="p-2 text-gray-500 hover:text-gray-950 hover:bg-gray-100 rounded-full transition-colors flex items-center gap-1.5 text-xs font-bold"
+          title="Admin Orders & Queue"
+        >
+          <LayoutDashboard className="w-4 h-4 text-orange-600" />
+          <span className="hidden lg:inline text-[11px] text-gray-600">Admin</span>
+        </Link>
 
         {/* Finalize Build Button */}
         {onOpenReserve && (

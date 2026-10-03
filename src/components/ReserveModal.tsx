@@ -4,7 +4,8 @@ import { CustomizationState } from '../types';
 import { BASE_MODELS } from '../data/models';
 import { X, CheckCircle2, ShieldCheck, CreditCard, Sparkles, MapPin, Truck } from 'lucide-react';
 import { useAppConfig } from '../context/AppConfigContext';
-import { formatCurrency } from '../utils/currency';
+import { formatCurrency, normalizeCurrency } from '../utils/currency';
+import { addOrder } from '../utils/orderManager';
 
 interface ReserveModalProps {
   state: CustomizationState;
@@ -19,12 +20,15 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
 }) => {
   const { config } = useAppConfig();
   const [step, setStep] = useState<'form' | 'success'>('form');
+  const [createdOrderId, setCreatedOrderId] = useState<string>('BX-2026-9841');
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
     phone: '',
+    deliveryAddress: '',
     zipCode: '',
     landStatus: 'own-land',
+    notes: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -37,6 +41,73 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+
+    // Calculate options details
+    const wallOpt = config.wallOptions?.find((w: any) => w.id === state.wallCladding);
+    const glazingOpt = config.glazingOptions?.find((g: any) => g.id === state.glazing);
+    const lightingOpt = config.lightingOptions?.find((l: any) => l.id === state.lightingPackage);
+    const electricalOpt = config.electricalOptions?.find((el: any) => el.id === state.electricalTier);
+    const flooringOpt = config.flooringOptions?.find((f: any) => f.id === state.flooring);
+    const roofOpt = config.roofOptions?.find((r: any) => r.id === state.roofOption);
+    const cabinetryOpt = config.cabinetryOptions?.find((c: any) => c.id === state.cabinetry);
+
+    const activeAddons: string[] = [];
+    if (state.hasKitchenetteModule) activeAddons.push('Galley Kitchenette Pod');
+    if (state.hasLuxuryBathPod) activeAddons.push('Luxury Bath Pod & Rain Shower');
+    if (state.hasLuxuryBedSuite) activeAddons.push('Built-in Master Bed Suite & Storage');
+    if (state.hasHvacMiniSplit) activeAddons.push('HVAC Climate Mini-Split 18k BTU');
+    if (state.hasExteriorPergolaDeck) activeAddons.push('Exterior Pergola Decking Extension');
+    if (state.hasBioDigester) activeAddons.push('Eco Bio-Digester Blackwater System');
+    if (state.hasSmartDoorLock) activeAddons.push('Smart Biometric Entry Door Lock');
+    if (state.hasElectricBlinds) activeAddons.push('Motorized Architectural Blackout Blinds');
+
+    const freight = config.logistics?.freightCost || 4500;
+    const sitePrep = config.logistics?.sitePrepCost || 5500;
+    const basePrice = currentModel.basePrice || 54900;
+    const optionsTotal = Math.max(0, totalPrice - basePrice - freight - sitePrep);
+
+    const newOrder = addOrder({
+      status: 'deposit_received',
+      customer: {
+        fullName: formData.fullName.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        deliveryAddress: formData.deliveryAddress.trim() || undefined,
+        zipCode: formData.zipCode.trim(),
+        landStatus: formData.landStatus,
+        notes: formData.notes.trim() || undefined,
+      },
+      customization: {
+        modelId: state.modelId,
+        modelName: currentModel.name,
+        wallCladdingName: wallOpt?.name || 'Standard Wall Cladding',
+        wallCladdingColor: wallOpt?.color || '#334155',
+        glazingName: glazingOpt?.name || 'Panoramic Low-E Clear Glass',
+        lightingName: lightingOpt?.name || 'Architectural Lighting Suite',
+        electricalName: electricalOpt?.name || 'Standard Pre-Wired Electrical',
+        flooringName: flooringOpt?.name || 'Rigid Core SPC Flooring',
+        roofName: roofOpt?.name || 'Architectural Parapet Roof',
+        cabinetryName: cabinetryOpt?.name || 'Standard Cabinetry',
+        addonsList: activeAddons,
+        rawState: state,
+      },
+      pricing: {
+        basePrice,
+        optionsTotal,
+        freightCost: freight,
+        sitePrepCost: sitePrep,
+        taxAmount: 0,
+        totalPrice,
+        depositDue: reservationFee,
+        depositPaid: true,
+        currency: normalizeCurrency(config.currency),
+      },
+      estimatedDeliveryDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 35).toISOString().split('T')[0],
+      initialNote: `Deposit of ${formatCurrency(reservationFee, config.currency)} authorized online. Placed via 3D Configurator.`,
+    });
+
+    setCreatedOrderId(newOrder.id);
+
     setTimeout(() => {
       setIsSubmitting(false);
       setStep('success');
@@ -46,7 +117,7 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
         origin: { y: 0.6 },
         colors: ['#f59e0b', '#0f172a', '#38bdf8'],
       });
-    }, 800);
+    }, 600);
   };
 
   return (
@@ -185,6 +256,21 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
                   </select>
                 </div>
               </div>
+
+              <div>
+                <label className="block font-bold text-gray-700 mb-1">
+                  Delivery Site / Street Address <span className="text-gray-400 font-normal">(Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 1420 Desert Sun Way, Nevada"
+                  value={formData.deliveryAddress}
+                  onChange={(e) =>
+                    setFormData({ ...formData, deliveryAddress: e.target.value })
+                  }
+                  className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500 text-xs"
+                />
+              </div>
             </div>
 
             {/* Refundable Guarantee Notice */}
@@ -233,7 +319,7 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
             <div className="p-4 bg-[#F8F9FB] border border-gray-200 rounded-2xl text-left text-xs space-y-1.5 font-mono">
               <div className="flex justify-between text-gray-600">
                 <span>Order Reference:</span>
-                <span className="font-bold text-gray-900">BX-2026-9841</span>
+                <span className="font-bold text-gray-900 bg-orange-100 text-orange-800 px-2 py-0.5 rounded-md">{createdOrderId}</span>
               </div>
               <div className="flex justify-between text-gray-600">
                 <span>Estimated Factory Ready:</span>

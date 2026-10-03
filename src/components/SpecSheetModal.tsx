@@ -1,18 +1,22 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { CustomizationState } from '../types';
 import { BASE_MODELS } from '../data/models';
 import {
   WALL_CLADDING_OPTIONS,
+  INTERIOR_WALL_OPTIONS,
   GLAZING_OPTIONS,
   LIGHTING_OPTIONS,
   ELECTRICAL_OPTIONS,
   FLOORING_OPTIONS,
   ROOF_OPTIONS,
   MODULAR_ADDONS,
+  FLOOR_PLAN_OPTIONS,
 } from '../data/options';
-import { X, Printer, Download, ShieldCheck, Check, FileText } from 'lucide-react';
+import { X, Printer, Download, ShieldCheck, Check, FileText, Loader2, Compass } from 'lucide-react';
 import { useAppConfig } from '../context/AppConfigContext';
 import { formatCurrency } from '../utils/currency';
+import { ProductLineDrawing } from './dashboard/ProductLineDrawing';
+import { exportElementToPDF } from '../utils/pdfGenerator';
 
 interface SpecSheetModalProps {
   state: CustomizationState;
@@ -26,6 +30,8 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
   totalPrice,
 }) => {
   const { config } = useAppConfig();
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
+  const specSheetRef = useRef<HTMLDivElement>(null);
   const markupFactor = 1 + ((config.markup || 0) / 100);
 
   const currentModel =
@@ -34,6 +40,9 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
   const wallOpt =
     config.wallOptions?.find((o: any) => o.id === state.wallCladding) ||
     config.wallOptions?.[0] || WALL_CLADDING_OPTIONS[0];
+  const intWallOpt =
+    config.interiorWallOptions?.find((o: any) => o.id === state.interiorWall) ||
+    config.interiorWallOptions?.[0] || INTERIOR_WALL_OPTIONS[0];
   const glassOpt =
     config.glazingOptions?.find((o: any) => o.id === state.glazing) ||
     config.glazingOptions?.[0] || GLAZING_OPTIONS[0];
@@ -55,38 +64,82 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
 
   const activeAddons = (config.addons || MODULAR_ADDONS).filter((addon: any) => state[addon.id]);
 
+  const isExpandableHouse =
+    state.modelId.includes('expandable') ||
+    state.modelId.includes('20ft') ||
+    state.modelId.includes('30ft') ||
+    state.modelId.includes('40ft') ||
+    currentModel?.series === 'expandable';
+
+  const floorPlanOpt = isExpandableHouse && state.floorPlan
+    ? FLOOR_PLAN_OPTIONS.find((f) => f.id === state.floorPlan)
+    : null;
+
   const handlePrint = () => {
     window.print();
   };
 
+  const handleDownloadPDF = async () => {
+    if (!specSheetRef.current) return;
+    try {
+      setIsExportingPDF(true);
+      await exportElementToPDF(specSheetRef.current, {
+        filename: `${currentModel.name.replace(/[^a-zA-Z0-9]/g, '-').toUpperCase()}-SPEC-SHEET.pdf`,
+        onSuccess: () => setIsExportingPDF(false),
+        onError: () => setIsExportingPDF(false),
+      });
+    } catch (e) {
+      console.error(e);
+      setIsExportingPDF(false);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs overflow-y-auto">
-      <div className="bg-white rounded-3xl max-w-3xl w-full border border-gray-200 shadow-2xl overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/50 backdrop-blur-xs overflow-y-auto">
+      <div className="bg-white rounded-3xl max-w-4xl w-full border border-gray-200 shadow-2xl overflow-hidden my-4 animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] flex flex-col">
         {/* Modal Header */}
-        <div className="bg-[#FAFAFC] border-b border-gray-100 p-5 sm:p-6 flex items-center justify-between">
+        <div className="bg-[#FAFAFC] border-b border-gray-100 p-4 sm:p-5 flex items-center justify-between shrink-0 flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-orange-600 text-white font-black rounded-xl flex items-center justify-center text-xl shadow-xs">
-              B
+              {(config.branding?.brandName || currentModel.name).charAt(0).toUpperCase()}
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-lg text-gray-950 tracking-tight">
-                  BOXABL ARCHITECTURAL SPECIFICATION
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-extrabold text-base sm:text-lg text-gray-950 tracking-tight">
+                  {currentModel.name.toUpperCase()} ARCHITECTURAL SPECIFICATION &amp; BLUEPRINT
                 </span>
                 <span className="text-[10px] bg-orange-50 text-orange-600 font-bold px-2 py-0.5 rounded-full border border-orange-200">
-                  20ft Apple Cabin Series
+                  {currentModel.name}
                 </span>
               </div>
               <p className="text-xs text-gray-500">
-                Official Engineering Document & Customization Bill of Materials
+                Official Engineering Document, CAD Line Drawings &amp; Customization Bill of Materials
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap no-print">
+            <button
+              onClick={handleDownloadPDF}
+              disabled={isExportingPDF}
+              className="bg-orange-600 hover:bg-orange-500 text-white text-xs font-black px-3.5 py-2 rounded-xl flex items-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+              title="Download architectural spec sheet as PDF"
+            >
+              {isExportingPDF ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Generating PDF...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download PDF</span>
+                </>
+              )}
+            </button>
             <button
               onClick={handlePrint}
-              className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
+              className="p-2 text-gray-600 hover:text-gray-950 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer border border-gray-200"
               title="Print Specification Document"
             >
               <Printer className="w-4 h-4" />
@@ -101,7 +154,33 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 sm:p-8 space-y-6 max-h-[75vh] overflow-y-auto print:max-h-none">
+        <div ref={specSheetRef} className="p-5 sm:p-7 space-y-6 overflow-y-auto flex-1 text-xs">
+          {/* Section: Architectural Line Drawing & CAD Blueprint */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between pb-1 border-b border-gray-200 text-xs font-bold text-gray-900">
+              <span className="flex items-center gap-1.5 uppercase font-mono tracking-wider">
+                <Compass className="w-4 h-4 text-orange-600" />
+                <span>Product Line Drawing &amp; Technical Measures</span>
+              </span>
+              <span className="text-[10px] font-mono text-gray-500">{currentModel.dimensions.metricStr}</span>
+            </div>
+
+            <ProductLineDrawing
+              modelId={state.modelId}
+              modelName={currentModel.name}
+              customization={{
+                wallCladdingName: wallOpt.name,
+                wallCladdingColor: wallOpt.color,
+                glazingName: glassOpt.name,
+                roofName: roofOpt.name,
+                lightingName: lightOpt.name,
+                flooringName: floorOpt.name,
+                cabinetryName: cabOpt?.name,
+                addonsList: activeAddons.map((a: any) => a.name),
+              }}
+              initialView="plan"
+            />
+          </div>
           {/* Engineering Overview Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3.5 bg-[#F8F9FB] border border-gray-200 rounded-2xl">
@@ -171,13 +250,35 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
                 </span>
               </div>
 
+              {isExpandableHouse && floorPlanOpt && (
+                <div className="py-2.5 flex items-start justify-between bg-blue-50/40 px-2 rounded-lg">
+                  <div>
+                    <div className="font-bold text-slate-900">Floor plan: {floorPlanOpt.name}</div>
+                    <div className="text-slate-500">{floorPlanOpt.tagline} • {floorPlanOpt.bedrooms} Bed, {floorPlanOpt.bathrooms} Bath</div>
+                  </div>
+                  <span className="font-mono font-bold text-slate-900 shrink-0 ml-4">
+                    {floorPlanOpt.price === 0 ? 'Included' : formatCurrency(floorPlanOpt.price * markupFactor, config.currency, { showPlus: true })}
+                  </span>
+                </div>
+              )}
+
               <div className="py-2.5 flex items-start justify-between">
                 <div>
-                  <div className="font-bold text-slate-900">Wall Cladding: {wallOpt.name}</div>
+                  <div className="font-bold text-slate-900">Exterior Wall Cladding: {wallOpt.name}</div>
                   <div className="text-slate-500">{wallOpt.specDetail}</div>
                 </div>
                 <span className="font-mono font-bold text-slate-900 shrink-0 ml-4">
                   {wallOpt.price === 0 ? 'Included' : formatCurrency(wallOpt.price * markupFactor, config.currency, { showPlus: true })}
+                </span>
+              </div>
+
+              <div className="py-2.5 flex items-start justify-between">
+                <div>
+                  <div className="font-bold text-slate-900">Indoor Wall Panels: {intWallOpt.name}</div>
+                  <div className="text-slate-500">{intWallOpt.specDetail || intWallOpt.description}</div>
+                </div>
+                <span className="font-mono font-bold text-slate-900 shrink-0 ml-4">
+                  {intWallOpt.price === 0 ? 'Included' : formatCurrency(intWallOpt.price * markupFactor, config.currency, { showPlus: true })}
                 </span>
               </div>
 
@@ -280,11 +381,21 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
             Close
           </button>
           <button
-            onClick={handlePrint}
-            className="px-4 py-2 text-xs font-bold bg-orange-600 hover:bg-orange-700 text-white rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+            onClick={handleDownloadPDF}
+            disabled={isExportingPDF}
+            className="px-4 py-2 text-xs font-bold bg-orange-600 hover:bg-orange-500 text-white rounded-xl shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
           >
-            <Download className="w-3.5 h-3.5" />
-            <span>Print / Save as PDF</span>
+            {isExportingPDF ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Generating PDF...</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-3.5 h-3.5" />
+                <span>Download {currentModel.name} Blueprint</span>
+              </>
+            )}
           </button>
         </div>
       </div>

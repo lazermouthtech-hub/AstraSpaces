@@ -3,8 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { useAppConfig } from '../context/AppConfigContext';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useAppConfig, getActivePublicModelId } from '../context/AppConfigContext';
+import { BASE_MODELS } from '../data/models';
+import { FLOOR_PLAN_OPTIONS } from '../data/options';
 import {
   CustomizationState,
   HomeModelId,
@@ -20,9 +23,12 @@ import { ReserveModal } from '../components/ReserveModal';
 import { Sliders, DollarSign, Box } from 'lucide-react';
 
 const INITIAL_STATE: CustomizationState = {
-  modelId: 'studio',
+  modelId: 'expandable-20ft',
   wallCladding: 'fluoro-white',
-  glazing: 'low-e-clear',
+  interiorWall: 'bamboo-charcoal-offwhite',
+  floorPlan: '2-bed-1-bath',
+  bedroomLayout: '2-bedroom',
+  glazing: 'broken-bridge-sliding-door',
   lightingPackage: 'standard-recessed',
   electricalTier: 'standard-100a',
   flooring: 'spc-nordic-oak',
@@ -36,18 +42,63 @@ const INITIAL_STATE: CustomizationState = {
   hasBioDigester: false,
   hasSmartDoorLock: true,
   hasElectricBlinds: false,
+  hasWardrobe: false,
 };
 
 export default function Configurator() {
   const { config } = useAppConfig();
+  const [searchParams, setSearchParams] = useSearchParams();
   
-  const [state, setState] = useState<CustomizationState>(INITIAL_STATE);
+  const [state, setState] = useState<CustomizationState>(() => {
+    const urlModel = new URLSearchParams(window.location.search).get('model');
+    const allKnown = [...(config.models || []), ...BASE_MODELS];
+    const defaultModel = (getActivePublicModelId(allKnown, config.defaultModelId) as HomeModelId) || 'expandable-20ft';
+    const initialModel = (urlModel && allKnown.some(m => m.id === urlModel))
+      ? (urlModel as HomeModelId)
+      : defaultModel;
+    return {
+      ...INITIAL_STATE,
+      modelId: initialModel,
+    };
+  });
+
+  // Sync to query param change when URL searchParams changes externally
+  useEffect(() => {
+    const modelParam = searchParams.get('model');
+    if (!modelParam) return;
+    const allKnown = [...(config.models || []), ...BASE_MODELS];
+    if (allKnown.some((m: any) => m.id === modelParam)) {
+      setState((prev) => {
+        if (prev.modelId !== modelParam) {
+          return { ...prev, modelId: modelParam as HomeModelId };
+        }
+        return prev;
+      });
+    }
+  }, [searchParams, config.models]);
+
+  // Ensure active model is a valid model across all known base models; fallback only if completely unknown
+  useEffect(() => {
+    const allKnown = [...(config.models || []), ...BASE_MODELS];
+    const isKnown = allKnown.some((m: any) => m.id === state.modelId);
+    if (!isKnown && allKnown.length > 0) {
+      const fallback = (getActivePublicModelId(allKnown, config.defaultModelId) as HomeModelId) || 'expandable-20ft';
+      setState((prev) => ({ ...prev, modelId: fallback }));
+      setSearchParams((params) => {
+        const next = new URLSearchParams(params);
+        next.set('model', fallback);
+        return next;
+      }, { replace: true });
+    }
+  }, [state.modelId, config.models, config.defaultModelId, setSearchParams]);
+
   const [lightingMode, setLightingMode] = useState<LightingMode>(config.viewerControls?.defaultLighting === 'night' ? 'night' : 'daylight');
   const [roofLiftPercent, setRoofLiftPercent] = useState<number>(0);
+  const [roofRemoved, setRoofRemoved] = useState<boolean>(false);
   const [cutawayMode, setCutawayMode] = useState<boolean>(config.viewerControls?.defaultCutaway || false);
   const [currentPerspective, setCurrentPerspective] =
     useState<ViewPerspective>('exterior-iso');
-  const [activeCategory, setActiveCategory] = useState<string>('Wall Panels');
+  const [activeCategory, setActiveCategory] = useState<string>('Base House');
 
   // Sync to config changes if dashboard changes them
   useEffect(() => {
@@ -67,10 +118,16 @@ export default function Configurator() {
   // Calculate live total price
   const totalPrice = useMemo(() => {
     const currentModel =
-      config.models.find((m: any) => m.id === state.modelId) || config.models[0];
+      config.models?.find((m: any) => m.id === state.modelId) ||
+      BASE_MODELS.find((m: any) => m.id === state.modelId) ||
+      config.models?.[0] ||
+      BASE_MODELS[0];
     const wallOpt =
       config.wallOptions.find((o: any) => o.id === state.wallCladding) ||
       config.wallOptions[0];
+    const intWallOpt =
+      (config.interiorWallOptions || []).find((o: any) => o.id === state.interiorWall) ||
+      (config.interiorWallOptions || [])[0];
     const glassOpt =
       config.glazingOptions.find((o: any) => o.id === state.glazing) ||
       config.glazingOptions[0];
@@ -90,8 +147,21 @@ export default function Configurator() {
 
     const activeAddons = config.addons.filter((addon: any) => state[addon.id]);
 
+    const isExpandableHouse =
+      state.modelId === 'expandable-20ft' ||
+      state.modelId === 'expandable-30ft' ||
+      state.modelId === 'expandable-40ft' ||
+      state.modelId.includes('expandable') ||
+      currentModel?.series === 'expandable';
+    const floorPlanOpt = isExpandableHouse && state.floorPlan
+      ? FLOOR_PLAN_OPTIONS.find((f) => f.id === state.floorPlan)
+      : null;
+    const floorPlanPrice = floorPlanOpt?.price || 0;
+
     const upgradesTotal =
       wallOpt.price +
+      (intWallOpt?.price || 0) +
+      floorPlanPrice +
       glassOpt.price +
       lightOpt.price +
       elecOpt.price +
@@ -107,10 +177,34 @@ export default function Configurator() {
 
   const handleSelectModel = (id: HomeModelId) => {
     setState((prev) => ({ ...prev, modelId: id }));
+    setSearchParams((prevParams) => {
+      const next = new URLSearchParams(prevParams);
+      next.set('model', id);
+      return next;
+    }, { replace: true });
+  };
+
+  const handleCustomizationChange = (
+    updater: ((prev: CustomizationState) => CustomizationState) | Partial<CustomizationState>
+  ) => {
+    setState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : { ...prev, ...updater };
+      if (next.modelId !== prev.modelId) {
+        setTimeout(() => {
+          setSearchParams((prevParams) => {
+            const params = new URLSearchParams(prevParams);
+            params.set('model', next.modelId);
+            return params;
+          }, { replace: true });
+        }, 0);
+      }
+      return next;
+    });
   };
 
   const handleReset = () => {
     setState(INITIAL_STATE);
+    setSearchParams({ model: INITIAL_STATE.modelId }, { replace: true });
     setRoofLiftPercent(0);
     setCutawayMode(false);
     setCurrentPerspective('exterior-iso');
@@ -119,10 +213,23 @@ export default function Configurator() {
 
   const handleSelectCategoryFromPanel = (categoryId: string) => {
     setActiveCategory(categoryId);
-    // If the category is an interior feature, automatically switch to interior view and cutaway mode
-    if (['Cabinetry', 'Interior Modules', 'Flooring'].includes(categoryId)) {
+    // If the category is an interior feature, automatically switch to appropriate view
+    if (categoryId === 'Floor plan' || categoryId === 'Floor Plan') {
+      setCurrentPerspective('top-down-floorplan');
+      setCutawayMode(true);
+      setRoofLiftPercent(0);
+      setRoofRemoved(true);
+    } else if (categoryId === 'Flooring') {
+      setCurrentPerspective('floor-inspection');
+      setRoofLiftPercent(75);
+      setCutawayMode(false);
+      setRoofRemoved(true);
+    } else if (['Cabinetry', 'Interior Modules'].includes(categoryId)) {
       setCurrentPerspective('interior-walkthrough');
       setCutawayMode(true);
+    } else if (categoryId === 'Glazing & Windows') {
+      setCurrentPerspective('front-elevation');
+      setCutawayMode(false);
     }
   };
 
@@ -155,9 +262,14 @@ export default function Configurator() {
         >
           <ConfiguratorPanel
             state={state}
-            onChange={setState}
+            onChange={handleCustomizationChange}
+            onSelectModel={handleSelectModel}
             activeCategory={activeCategory}
             onSelectCategory={handleSelectCategoryFromPanel}
+            onPerspectiveChange={setCurrentPerspective}
+            onCutawayToggle={() => setCutawayMode(!cutawayMode)}
+            onRoofLiftChange={setRoofLiftPercent}
+            cutawayMode={cutawayMode}
           />
         </div>
 
@@ -169,11 +281,14 @@ export default function Configurator() {
         >
           <ThreeViewer
             state={state}
+            onStateChange={handleCustomizationChange}
             lightingMode={lightingMode}
             onLightingModeChange={setLightingMode}
             onSelectCategory={handleSelectCategoryFromViewer}
             roofLiftPercent={roofLiftPercent}
             onRoofLiftChange={setRoofLiftPercent}
+            roofRemoved={roofRemoved}
+            onRoofRemovedToggle={() => setRoofRemoved(!roofRemoved)}
             cutawayMode={cutawayMode}
             onCutawayModeToggle={() => setCutawayMode(!cutawayMode)}
             currentPerspective={currentPerspective}

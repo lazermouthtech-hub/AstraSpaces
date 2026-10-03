@@ -30,9 +30,18 @@ export default function Login() {
         
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-              Password
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                Password
+              </label>
+              <button
+                type="button"
+                onClick={() => setPassword('KingPere2022$')}
+                className="text-[10px] text-orange-600 hover:text-orange-700 font-bold cursor-pointer"
+              >
+                Autofill Demo Key
+              </button>
+            </div>
             <input
               type="password"
               value={password}
@@ -50,11 +59,28 @@ export default function Login() {
           </div>
           <button
             type="submit"
-            className="w-full bg-black text-white font-bold py-3 px-4 rounded-xl shadow-xs hover:bg-gray-800 transition-colors"
+            className="w-full bg-black text-white font-bold py-3 px-4 rounded-xl shadow-xs hover:bg-gray-800 transition-colors cursor-pointer"
           >
             Authenticate
           </button>
         </form>
+
+        <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between text-xs font-semibold text-gray-500">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="hover:text-gray-900 cursor-pointer"
+          >
+            ← Return to Homepage
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/configurator')}
+            className="hover:text-orange-600 cursor-pointer"
+          >
+            3D Configurator →
+          </button>
+        </div>
       </div>
     </div>
   );

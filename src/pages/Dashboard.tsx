@@ -11,6 +11,7 @@ import {
   Trash2,
   Box,
   Eye,
+  EyeOff,
   Edit3,
   Layers,
   Grid,
@@ -20,6 +21,13 @@ import {
   ArrowLeft,
   RotateCcw,
   CheckCircle2,
+  ClipboardList,
+  Search,
+  ExternalLink,
+  Check,
+  Filter,
+  Globe,
+  Lock,
 } from 'lucide-react';
 import { BASE_MODELS } from '../data/models';
 import {
@@ -32,8 +40,12 @@ import {
   CABINETRY_OPTIONS,
   MODULAR_ADDONS,
 } from '../data/options';
+import { OrderManagement } from '../components/dashboard/OrderManagement';
+import { getOrders, subscribeToOrders, syncOrdersCurrency } from '../utils/orderManager';
+import { TWO_CURRENCIES, normalizeCurrency } from '../utils/currency';
 
 type DashboardTab =
+  | 'orders'
   | 'models'
   | 'walls'
   | 'glazing'
@@ -50,8 +62,16 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { config, updateConfig } = useAppConfig();
 
-  const [activeTab, setActiveTab] = useState<DashboardTab>('walls');
+  const [activeTab, setActiveTab] = useState<DashboardTab>('orders');
   const [savedToast, setSavedToast] = useState(false);
+  const [ordersCount, setOrdersCount] = useState<number>(() => getOrders().length);
+
+  useEffect(() => {
+    const unsub = subscribeToOrders((orders) => {
+      setOrdersCount(orders.length);
+    });
+    return unsub;
+  }, []);
 
   // Local state initialized from global config with robust fallbacks
   const [models, setModels] = useState(config.models?.length ? config.models : BASE_MODELS);
@@ -75,6 +95,7 @@ export default function Dashboard() {
     supportEmail: 'support@boxabl.com',
   });
   const [viewerControls, setViewerControls] = useState(config.viewerControls || {
+    defaultModelId: config.defaultModelId || 'expandable-20ft',
     defaultLighting: 'day',
     defaultCutaway: false,
   });
@@ -82,6 +103,141 @@ export default function Dashboard() {
     freightCost: 4500,
     sitePrepCost: 5500,
     taxRate: 0,
+  });
+
+  // Model Availability Management State & Helpers
+  const [modelSearch, setModelSearch] = useState('');
+  const [modelStatusFilter, setModelStatusFilter] = useState<'all' | 'public' | 'hidden'>('all');
+  const [modelSeriesFilterTab, setModelSeriesFilterTab] = useState<'all' | 'expandable' | 'apple-cabin' | 'space-capsule' | 'folding'>('all');
+
+  const isModelAvailable = (model: any) => model.isAvailable !== false && model.isActive !== false;
+
+  const publicModelsCount = models.filter((m: any) => isModelAvailable(m)).length;
+  const hiddenModelsCount = models.length - publicModelsCount;
+
+  const toggleModelAvailability = (modelId: string) => {
+    const updated = models.map((m: any) => {
+      if (m.id === modelId) {
+        const nextState = !isModelAvailable(m);
+        return {
+          ...m,
+          isAvailable: nextState,
+          isActive: nextState,
+        };
+      }
+      return m;
+    });
+    setModels(updated);
+    updateConfig({
+      ...config,
+      models: updated,
+    });
+  };
+
+  const setAllModelsAvailability = (makePublic: boolean) => {
+    const updated = models.map((m: any) => ({
+      ...m,
+      isAvailable: makePublic,
+      isActive: makePublic,
+    }));
+    setModels(updated);
+    updateConfig({
+      ...config,
+      models: updated,
+    });
+  };
+
+  const setSeriesAvailability = (seriesKey: string, makePublic: boolean) => {
+    const updated = models.map((m: any) => {
+      const match =
+        seriesKey === 'expandable'
+          ? m.series === 'expandable' || m.id.includes('expandable')
+          : seriesKey === 'apple-cabin'
+          ? m.series === 'apple-cabin' || m.id === 'studio' || m.id === 'one-bedroom' || m.id === 'two-bedroom' || m.id.includes('apple')
+          : seriesKey === 'space-capsule'
+          ? m.series === 'space-capsule' || m.id.includes('space-capsule')
+          : seriesKey === 'folding'
+          ? m.series === 'folding' || m.id.includes('folding') || m.id.includes('assembly')
+          : true;
+
+      if (match) {
+        return {
+          ...m,
+          isAvailable: makePublic,
+          isActive: makePublic,
+        };
+      }
+      return m;
+    });
+    setModels(updated);
+    updateConfig({
+      ...config,
+      models: updated,
+    });
+  };
+
+  const addModel = () => {
+    const newId = `custom-model-${Date.now()}`;
+    const newModel = {
+      id: newId,
+      name: 'Custom Modular Prefab Cabin',
+      series: 'expandable',
+      tagline: 'Custom engineered modular living space',
+      sqft: 400,
+      areaM2: 37,
+      dimensions: {
+        lengthFt: 20,
+        widthFt: 20,
+        heightFt: 8.5,
+        metricStr: '6,000mm × 6,000mm × 2,600mm',
+      },
+      basePrice: 25000,
+      leadTime: '3-4 Weeks',
+      bedrooms: 1,
+      bathrooms: 1,
+      description: 'Custom modular prefab structure with structural steel framing and thermal insulation panels.',
+      includedFeatures: ['Heavy-duty structural steel frame', 'Thermal insulation wall panels'],
+      isAvailable: true,
+      isActive: true,
+    };
+    const updated = [newModel, ...models];
+    setModels(updated);
+    updateConfig({
+      ...config,
+      models: updated,
+    });
+  };
+
+  const filteredDashboardModels = models.filter((m: any) => {
+    // Status filter
+    const isAvail = isModelAvailable(m);
+    if (modelStatusFilter === 'public' && !isAvail) return false;
+    if (modelStatusFilter === 'hidden' && isAvail) return false;
+
+    // Series filter
+    if (modelSeriesFilterTab !== 'all') {
+      const isExp = m.series === 'expandable' || m.id.includes('expandable');
+      const isApp = m.series === 'apple-cabin' || m.id === 'studio' || m.id === 'one-bedroom' || m.id === 'two-bedroom' || m.id.includes('apple');
+      const isSpace = m.series === 'space-capsule' || m.id.includes('space-capsule');
+      const isFold = m.series === 'folding' || m.id.includes('folding') || m.id.includes('assembly');
+
+      if (modelSeriesFilterTab === 'expandable' && !isExp) return false;
+      if (modelSeriesFilterTab === 'apple-cabin' && !isApp) return false;
+      if (modelSeriesFilterTab === 'space-capsule' && !isSpace) return false;
+      if (modelSeriesFilterTab === 'folding' && !isFold) return false;
+    }
+
+    // Search query
+    if (modelSearch.trim()) {
+      const q = modelSearch.toLowerCase();
+      const matchName = m.name?.toLowerCase().includes(q);
+      const matchId = m.id?.toLowerCase().includes(q);
+      const matchSeries = m.series?.toLowerCase().includes(q);
+      const matchTag = m.tagline?.toLowerCase().includes(q);
+      return matchName || matchId || matchSeries || matchTag;
+    }
+
+    return true;
   });
 
   useEffect(() => {
@@ -99,6 +255,7 @@ export default function Dashboard() {
   const handleSave = () => {
     updateConfig({
       ...config,
+      defaultModelId: viewerControls.defaultModelId,
       models,
       wallOptions: wallColors,
       glazingOptions,
@@ -114,6 +271,7 @@ export default function Dashboard() {
       viewerControls,
       logistics,
     });
+    syncOrdersCurrency(baseCurrency);
     setSavedToast(true);
     setTimeout(() => setSavedToast(false), 3000);
   };
@@ -162,6 +320,7 @@ export default function Dashboard() {
           taxRate: 0,
         },
       });
+      syncOrdersCurrency('USD');
       setSavedToast(true);
       setTimeout(() => setSavedToast(false), 3000);
     }
@@ -314,16 +473,59 @@ export default function Dashboard() {
             </div>
             <p className="text-[11px] text-gray-400 mt-0.5 font-medium">Modular Home Configuration Suite</p>
           </div>
-          <Link
-            to="/"
-            className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-colors"
-            title="Return to Configurator"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
+          <div className="flex items-center gap-1.5">
+            <Link
+              to="/"
+              className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-colors"
+              title="Return to Homepage"
+            >
+              <Home className="w-4 h-4" />
+            </Link>
+            <Link
+              to="/configurator"
+              className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-colors"
+              title="Open 3D Configurator"
+            >
+              <Box className="w-4 h-4 text-orange-600" />
+            </Link>
+          </div>
         </div>
 
         <div className="p-3 space-y-4 flex-1 overflow-y-auto">
+          {/* Group 0: Orders & Production Pipeline */}
+          <div>
+            <div className="px-3 py-1 text-[10px] font-black uppercase tracking-wider text-orange-600 flex items-center justify-between">
+              <span>Orders & Pipeline</span>
+              <span className="text-[9px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full font-bold">
+                Live Queue
+              </span>
+            </div>
+            <div className="space-y-0.5 mt-1">
+              <button
+                onClick={() => setActiveTab('orders')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                  activeTab === 'orders'
+                    ? 'bg-orange-50 text-orange-700 font-bold border border-orange-200/80 shadow-xs'
+                    : 'text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <ClipboardList className={`w-4 h-4 ${activeTab === 'orders' ? 'text-orange-600' : 'text-gray-400'}`} />
+                  <span>Customer Orders</span>
+                </div>
+                <span
+                  className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold transition-colors ${
+                    activeTab === 'orders'
+                      ? 'bg-orange-600 text-white'
+                      : 'bg-orange-100 text-orange-800'
+                  }`}
+                >
+                  {ordersCount}
+                </span>
+              </button>
+            </div>
+          </div>
+
           {/* Group 1: Core Dimensions */}
           <div>
             <div className="px-3 py-1 text-[10px] font-black uppercase tracking-wider text-gray-400">
@@ -337,11 +539,22 @@ export default function Dashboard() {
             >
               <div className="flex items-center gap-2.5">
                 <Home className="w-4 h-4 text-gray-400" />
-                <span>Properties & Sizes</span>
+                <span>Models & Configurator</span>
               </div>
-              <span className="text-[10px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">
-                {models.length}
-              </span>
+              <div className="flex items-center gap-1">
+                <span
+                  className="text-[10px] font-mono bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full"
+                  title={`${publicModelsCount} models active in public configurator`}
+                >
+                  {publicModelsCount}
+                </span>
+                <span
+                  className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1 py-0.5 rounded-full"
+                  title={`${models.length} total models in catalog`}
+                >
+                  /{models.length}
+                </span>
+              </div>
             </button>
           </div>
 
@@ -375,7 +588,7 @@ export default function Dashboard() {
               >
                 <div className="flex items-center gap-2.5">
                   <Grid className="w-4 h-4 text-gray-400" />
-                  <span>Glazing & Windows</span>
+                  <span>Windows & Doors</span>
                 </div>
                 <span className="text-[10px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">
                   {glazingOptions.length}
@@ -527,9 +740,10 @@ export default function Dashboard() {
             </Link>
             <div>
               <h2 className="text-lg sm:text-xl font-bold text-gray-900 capitalize">
+                {activeTab === 'orders' && 'Customer Orders & Production Queue'}
                 {activeTab === 'models' && 'Properties & Cabin Sizes'}
                 {activeTab === 'walls' && 'Wall Panels & Cladding Finishes'}
-                {activeTab === 'glazing' && 'Glazing & Panoramic Windows'}
+                {activeTab === 'glazing' && 'Windows & Doors Customization'}
                 {activeTab === 'lighting' && 'Lighting & Electrical Infrastructure'}
                 {activeTab === 'flooring' && 'Architectural Flooring & Finishes'}
                 {activeTab === 'cabinetry' && 'Kitchen Cabinetry Options'}
@@ -540,7 +754,9 @@ export default function Dashboard() {
                 {activeTab === 'viewer' && '3D Viewer Defaults & Controls'}
               </h2>
               <p className="text-xs text-gray-500 mt-0.5">
-                Configure features shown in the 3D studio, cost buildup, and spec sheets.
+                {activeTab === 'orders'
+                  ? 'Monitor customer reservations, site requirements, build phases, and logistics.'
+                  : 'Configure features shown in the 3D studio, cost buildup, and spec sheets.'}
               </p>
             </div>
           </div>
@@ -550,16 +766,25 @@ export default function Dashboard() {
               to="/"
               className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
+              <Home className="w-3.5 h-3.5" />
+              <span>Home</span>
+            </Link>
+            <Link
+              to="/configurator"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors"
+            >
+              <Box className="w-3.5 h-3.5 text-orange-600" />
               <span>Configurator</span>
             </Link>
-            <button
-              onClick={handleSave}
-              className="bg-black text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-gray-800 transition-colors shadow-xs cursor-pointer"
-            >
-              <Save className="w-4 h-4 text-orange-400" />
-              <span>Save Changes</span>
-            </button>
+            {activeTab !== 'orders' && (
+              <button
+                onClick={handleSave}
+                className="bg-black text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-gray-800 transition-colors shadow-xs cursor-pointer"
+              >
+                <Save className="w-4 h-4 text-orange-400" />
+                <span>Save Changes</span>
+              </button>
+            )}
           </div>
         </header>
 
@@ -570,100 +795,500 @@ export default function Dashboard() {
               <CheckCircle2 className="w-4 h-4" />
               <span>All changes saved successfully! Updates are immediately active across the configurator.</span>
             </div>
-            <Link to="/" className="underline hover:text-emerald-100">
+            <Link to="/configurator" className="underline hover:text-emerald-100">
               View in 3D Configurator →
             </Link>
           </div>
         )}
 
         <main className="p-6 sm:p-8 flex-1">
-          <div className="max-w-4xl space-y-6">
+          <div className={`${activeTab === 'orders' ? 'max-w-6xl' : 'max-w-4xl'} space-y-6`}>
 
-            {/* 1. MODELS / SIZES */}
+            {/* 0. ORDERS MANAGEMENT */}
+            {activeTab === 'orders' && (
+              <OrderManagement onGoToConfigurator={() => navigate('/configurator')} />
+            )}
+
+            {/* 1. MODELS / SIZES WITH PUBLIC CONFIGURATOR AVAILABILITY MANAGEMENT */}
             {activeTab === 'models' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-gray-900 text-sm">Base Models & Footprints</h3>
-                  <span className="text-xs text-gray-500 font-mono">Currency: {baseCurrency}</span>
-                </div>
-                {models.map((model: any, idx: number) => (
-                  <div key={model.id} className="bg-white p-6 rounded-3xl border border-gray-200 shadow-xs flex flex-col gap-4">
-                    <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-gray-900 text-sm">{model.name}</h4>
-                        <span className="text-xs text-gray-400 font-mono">({model.sqft} sq ft)</span>
-                      </div>
-                      <span className="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded-md text-gray-600 font-semibold">{model.id}</span>
+              <div className="space-y-6">
+                {/* Header & Description */}
+                <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-xs space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
+                    <div>
+                      <h3 className="font-extrabold text-gray-900 text-base flex items-center gap-2">
+                        <Home className="w-5 h-5 text-orange-600" />
+                        <span>Base Models & Public Configurator Catalog</span>
+                      </h3>
+                      <p className="text-xs text-gray-500 mt-1 max-w-2xl">
+                        Manage which modular cabin models are published and selectable by customers in the 3D Configurator, header selector dropdown, and public website showcase.
+                      </p>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={addModel}
+                        className="px-3.5 py-2 bg-orange-50 text-orange-700 hover:bg-orange-100 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer border border-orange-200/80 shadow-2xs"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add Model</span>
+                      </button>
+                      <Link
+                        to="/configurator"
+                        target="_blank"
+                        className="px-3.5 py-2 bg-black text-white hover:bg-gray-800 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        <span>View Configurator</span>
+                      </Link>
+                    </div>
+                  </div>
+
+                  {/* Summary Metric Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-200/80 flex items-center justify-between">
                       <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Display Title</label>
-                        <input
-                          type="text"
-                          value={model.name}
-                          onChange={(e) => {
-                            const updated = [...models];
-                            updated[idx].name = e.target.value;
-                            setModels(updated);
-                          }}
-                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-orange-500"
-                        />
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Total Models</div>
+                        <div className="text-lg font-black text-gray-900 font-mono mt-0.5">{models.length}</div>
+                        <div className="text-[10px] text-gray-500">Prefabricated footprints</div>
                       </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Base Price ({baseCurrency})</label>
-                        <input
-                          type="number"
-                          value={model.basePrice}
-                          onChange={(e) => {
-                            const updated = [...models];
-                            updated[idx].basePrice = Number(e.target.value);
-                            setModels(updated);
-                          }}
-                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold focus:outline-none focus:border-orange-500"
-                        />
+                      <div className="w-8 h-8 rounded-xl bg-gray-200/70 text-gray-700 flex items-center justify-center font-bold">
+                        <Box className="w-4 h-4" />
                       </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-200 flex items-center justify-between">
                       <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Square Footage</label>
-                        <input
-                          type="number"
-                          value={model.sqft}
-                          onChange={(e) => {
-                            const updated = [...models];
-                            updated[idx].sqft = Number(e.target.value);
-                            setModels(updated);
-                          }}
-                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold focus:outline-none focus:border-orange-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Dimensions Length × Width (ft)</label>
-                        <div className="flex gap-2 items-center">
-                          <input
-                            type="number"
-                            value={model.dimensions.lengthFt}
-                            onChange={(e) => {
-                              const updated = [...models];
-                              updated[idx].dimensions.lengthFt = Number(e.target.value);
-                              setModels(updated);
-                            }}
-                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono"
-                          />
-                          <span className="text-gray-400 font-bold">×</span>
-                          <input
-                            type="number"
-                            value={model.dimensions.widthFt}
-                            onChange={(e) => {
-                              const updated = [...models];
-                              updated[idx].dimensions.widthFt = Number(e.target.value);
-                              setModels(updated);
-                            }}
-                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono"
-                          />
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                          <span>Public in Configurator</span>
                         </div>
+                        <div className="text-lg font-black text-emerald-950 font-mono mt-0.5">{publicModelsCount}</div>
+                        <div className="text-[10px] text-emerald-700">Available to customers</div>
+                      </div>
+                      <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                        <Globe className="w-4 h-4" />
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-amber-50/60 border border-amber-200 flex items-center justify-between">
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-amber-500" />
+                          <span>Hidden / Draft</span>
+                        </div>
+                        <div className="text-lg font-black text-amber-950 font-mono mt-0.5">{hiddenModelsCount}</div>
+                        <div className="text-[10px] text-amber-700">Protected from public</div>
+                      </div>
+                      <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+                        <EyeOff className="w-4 h-4" />
                       </div>
                     </div>
                   </div>
-                ))}
+
+                  {/* Bulk Actions */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100">
+                    <span className="text-xs font-semibold text-gray-500">
+                      Quick Bulk Actions:
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAllModelsAvailability(true)}
+                        className="px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        <Check className="w-3 h-3" />
+                        <span>Publish All ({models.length})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAllModelsAvailability(false)}
+                        className="px-2.5 py-1 text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        <EyeOff className="w-3 h-3" />
+                        <span>Hide All</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Filter and Search Bar */}
+                <div className="bg-white p-4 rounded-3xl border border-gray-200 shadow-xs space-y-3">
+                  <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+                    {/* Search Input */}
+                    <div className="relative flex-1">
+                      <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+                      <input
+                        type="text"
+                        value={modelSearch}
+                        onChange={(e) => setModelSearch(e.target.value)}
+                        placeholder="Search models by title, ID, or series..."
+                        className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:outline-none focus:border-orange-500"
+                      />
+                      {modelSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setModelSearch('')}
+                          className="absolute right-2.5 top-2 text-gray-400 hover:text-gray-600 text-xs font-bold cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Status Filter Chips */}
+                    <div className="inline-flex p-1 bg-gray-100 rounded-xl gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setModelStatusFilter('all')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          modelStatusFilter === 'all'
+                            ? 'bg-white text-gray-900 shadow-2xs'
+                            : 'text-gray-500 hover:text-gray-900'
+                        }`}
+                      >
+                        All ({models.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModelStatusFilter('public')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          modelStatusFilter === 'public'
+                            ? 'bg-emerald-600 text-white shadow-2xs'
+                            : 'text-gray-500 hover:text-emerald-700'
+                        }`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-300" />
+                        <span>Public ({publicModelsCount})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModelStatusFilter('hidden')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          modelStatusFilter === 'hidden'
+                            ? 'bg-amber-600 text-white shadow-2xs'
+                            : 'text-gray-500 hover:text-amber-700'
+                        }`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-300" />
+                        <span>Hidden ({hiddenModelsCount})</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Series Filter Chips */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none pt-1 border-t border-gray-100">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mr-1 shrink-0">
+                      Series:
+                    </span>
+                    {[
+                      { id: 'all', label: 'All Series' },
+                      { id: 'expandable', label: 'Expandable' },
+                      { id: 'apple-cabin', label: 'Apple Cabin' },
+                      { id: 'space-capsule', label: 'Space Capsule' },
+                      { id: 'folding', label: 'Folding / Fast Pack' },
+                    ].map((tab) => {
+                      const isSelected = modelSeriesFilterTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setModelSeriesFilterTab(tab.id as any)}
+                          className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+                            isSelected
+                              ? 'bg-black text-white shadow-2xs'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Empty State */}
+                {filteredDashboardModels.length === 0 && (
+                  <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-gray-300">
+                    <div className="w-12 h-12 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center mx-auto mb-3 font-bold">
+                      <Search className="w-6 h-6" />
+                    </div>
+                    <h4 className="text-sm font-bold text-gray-900">No Models Match Filter</h4>
+                    <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
+                      No models found matching your current search query or filter selection.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModelSearch('');
+                        setModelStatusFilter('all');
+                        setModelSeriesFilterTab('all');
+                      }}
+                      className="mt-4 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Reset All Filters
+                    </button>
+                  </div>
+                )}
+
+                {/* Models List */}
+                <div className="space-y-4">
+                  {filteredDashboardModels.map((model: any) => {
+                    const modelIndex = models.findIndex((m: any) => m.id === model.id);
+                    const isAvail = isModelAvailable(model);
+
+                    return (
+                      <div
+                        key={model.id}
+                        className={`p-6 rounded-3xl border transition-all flex flex-col gap-4 ${
+                          isAvail
+                            ? 'bg-white border-gray-200 shadow-xs ring-1 ring-emerald-500/10'
+                            : 'bg-amber-50/20 border-dashed border-amber-300 shadow-2xs'
+                        }`}
+                      >
+                        {/* Top Row: Series, ID, Title, and Public Availability Switch */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-mono uppercase font-black tracking-wider text-orange-800 bg-orange-100 px-2 py-0.5 rounded">
+                              {model.series ? model.series.toUpperCase() : 'PREFAB'}
+                            </span>
+                            <h4 className="font-bold text-gray-900 text-sm">{model.name}</h4>
+                            <span className="text-xs text-gray-400 font-mono">({model.sqft} sq ft)</span>
+                            <span className="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded-md text-gray-600 font-semibold">
+                              {model.id}
+                            </span>
+                          </div>
+
+                          {/* Control Controls */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            {/* The Public Configurator Toggle Button */}
+                            <button
+                              type="button"
+                              onClick={() => toggleModelAvailability(model.id)}
+                              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border ${
+                                isAvail
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 ring-2 ring-emerald-500/20 hover:bg-emerald-100'
+                                  : 'bg-amber-50 text-amber-800 border-amber-300 ring-2 ring-amber-500/20 hover:bg-amber-100'
+                              }`}
+                              title={
+                                isAvail
+                                  ? 'Click to hide this model from the public configurator'
+                                  : 'Click to make this model publicly available in the configurator'
+                              }
+                            >
+                              <span
+                                className={`w-2 h-2 rounded-full ${
+                                  isAvail ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                                }`}
+                              />
+                              <span>
+                                {isAvail ? 'Public in Configurator' : 'Hidden from Public'}
+                              </span>
+
+                              {/* Toggle switch visual */}
+                              <div
+                                className={`w-8 h-4.5 rounded-full relative transition-colors ${
+                                  isAvail ? 'bg-emerald-600' : 'bg-gray-300'
+                                }`}
+                              >
+                                <div
+                                  className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-transform ${
+                                    isAvail ? 'left-4' : 'left-0.5'
+                                  }`}
+                                />
+                              </div>
+                            </button>
+
+                            {/* Preview in 3D Configurator */}
+                            <Link
+                              to={`/configurator?model=${model.id}`}
+                              target="_blank"
+                              className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                              title="Test preview in 3D Configurator"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </Link>
+
+                            {/* Delete custom model if user added one */}
+                            {model.id.startsWith('custom-') && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = models.filter((m: any) => m.id !== model.id);
+                                  setModels(updated);
+                                  updateConfig({ ...config, models: updated });
+                                }}
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                title="Delete Custom Model"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Status Notice Banner */}
+                        {isAvail ? (
+                          <div className="flex items-center gap-2 px-3.5 py-2 bg-emerald-50/80 border border-emerald-200/80 rounded-xl text-emerald-800 text-[11px] font-semibold">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>
+                              <strong>Live in Configurator:</strong> Available to all customers in the 3D Configurator, header dropdown, and homepage catalogs.
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 px-3.5 py-2 bg-amber-50/80 border border-amber-200/80 rounded-xl text-amber-800 text-[11px] font-semibold">
+                            <EyeOff className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                            <span>
+                              <strong>Hidden from Public:</strong> Customers cannot see, select, or configure this model. Only accessible via admin direct preview link.
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Editable Model Fields */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                          <div className="lg:col-span-2">
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                              Display Title
+                            </label>
+                            <input
+                              type="text"
+                              value={model.name}
+                              onChange={(e) => {
+                                if (modelIndex === -1) return;
+                                const updated = [...models];
+                                updated[modelIndex].name = e.target.value;
+                                setModels(updated);
+                              }}
+                              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-orange-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                              Base Price ({baseCurrency})
+                            </label>
+                            <input
+                              type="number"
+                              value={model.basePrice}
+                              onChange={(e) => {
+                                if (modelIndex === -1) return;
+                                const updated = [...models];
+                                updated[modelIndex].basePrice = Number(e.target.value);
+                                setModels(updated);
+                              }}
+                              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold focus:outline-none focus:border-orange-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                              Total Square Footage
+                            </label>
+                            <input
+                              type="number"
+                              value={model.sqft}
+                              onChange={(e) => {
+                                if (modelIndex === -1) return;
+                                const updated = [...models];
+                                updated[modelIndex].sqft = Number(e.target.value);
+                                setModels(updated);
+                              }}
+                              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold focus:outline-none focus:border-orange-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                              Dimensions Length × Width (ft)
+                            </label>
+                            <div className="flex gap-2 items-center">
+                              <input
+                                type="number"
+                                value={model.dimensions?.lengthFt || 20}
+                                onChange={(e) => {
+                                  if (modelIndex === -1) return;
+                                  const updated = [...models];
+                                  updated[modelIndex].dimensions = {
+                                    ...updated[modelIndex].dimensions,
+                                    lengthFt: Number(e.target.value),
+                                  };
+                                  setModels(updated);
+                                }}
+                                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono"
+                              />
+                              <span className="text-gray-400 font-bold">×</span>
+                              <input
+                                type="number"
+                                value={model.dimensions?.widthFt || 20}
+                                onChange={(e) => {
+                                  if (modelIndex === -1) return;
+                                  const updated = [...models];
+                                  updated[modelIndex].dimensions = {
+                                    ...updated[modelIndex].dimensions,
+                                    widthFt: Number(e.target.value),
+                                  };
+                                  setModels(updated);
+                                }}
+                                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                              Bedrooms & Bathrooms
+                            </label>
+                            <div className="flex gap-2 items-center">
+                              <input
+                                type="number"
+                                placeholder="Beds"
+                                value={model.bedrooms ?? 1}
+                                onChange={(e) => {
+                                  if (modelIndex === -1) return;
+                                  const updated = [...models];
+                                  updated[modelIndex].bedrooms = Number(e.target.value);
+                                  setModels(updated);
+                                }}
+                                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono"
+                              />
+                              <span className="text-gray-400 text-xs font-bold">Beds</span>
+                              <input
+                                type="number"
+                                placeholder="Baths"
+                                value={model.bathrooms ?? 1}
+                                onChange={(e) => {
+                                  if (modelIndex === -1) return;
+                                  const updated = [...models];
+                                  updated[modelIndex].bathrooms = Number(e.target.value);
+                                  setModels(updated);
+                                }}
+                                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono"
+                              />
+                              <span className="text-gray-400 text-xs font-bold">Baths</span>
+                            </div>
+                          </div>
+
+                          <div className="lg:col-span-2">
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                              Tagline / Subheading
+                            </label>
+                            <input
+                              type="text"
+                              value={model.tagline || ''}
+                              onChange={(e) => {
+                                if (modelIndex === -1) return;
+                                const updated = [...models];
+                                updated[modelIndex].tagline = e.target.value;
+                                setModels(updated);
+                              }}
+                              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-orange-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
@@ -1677,26 +2302,56 @@ export default function Dashboard() {
               <div className="space-y-6">
                 <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-xs space-y-6">
                   <div>
-                    <h3 className="font-bold text-gray-900 mb-1 text-sm">Global Currency Settings</h3>
-                    <p className="text-xs text-gray-500 mb-4">Controls currency symbols and formatting throughout the configurator and reservation flow.</p>
-                    <div className="max-w-xs">
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Display Currency</label>
-                      <select
-                        value={baseCurrency}
-                        onChange={(e) => setBaseCurrency(e.target.value)}
-                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-orange-500 cursor-pointer"
-                      >
-                        <option value="USD">USD ($) - US Dollar</option>
-                        <option value="EUR">EUR (€) - Euro</option>
-                        <option value="GBP">GBP (£) - British Pound</option>
-                        <option value="CAD">CAD ($) - Canadian Dollar</option>
-                        <option value="AUD">AUD ($) - Australian Dollar</option>
-                        <option value="GHS">GHS (GH₵) - Ghana Cedi</option>
-                        <option value="NGN">NGN (₦) - Nigerian Naira</option>
-                        <option value="ZAR">ZAR (R) - South African Rand</option>
-                        <option value="KES">KES (KSh) - Kenyan Shilling</option>
-                        <option value="EGP">EGP (E£) - Egyptian Pound</option>
-                      </select>
+                    <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                      <div>
+                        <h3 className="font-bold text-gray-900 text-sm">Two Supported Currencies & Single Currency Enforcement</h3>
+                        <p className="text-xs text-gray-500">
+                          The system supports two currencies (USD & GHS). All pricing, production orders, and deposits strictly follow a single currency type across the entire platform.
+                        </p>
+                      </div>
+                      <span className="text-[11px] font-bold px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg">
+                        Single Currency Enforced
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 max-w-xl">
+                      {TWO_CURRENCIES.map((curr) => {
+                        const isSelected = normalizeCurrency(baseCurrency) === curr.code;
+                        return (
+                          <button
+                            key={curr.code}
+                            type="button"
+                            onClick={() => {
+                              setBaseCurrency(curr.code);
+                              syncOrdersCurrency(curr.code);
+                            }}
+                            className={`p-4 rounded-2xl border text-left transition-all flex items-start justify-between cursor-pointer ${
+                              isSelected
+                                ? 'border-orange-500 bg-orange-50/40 ring-2 ring-orange-500/20'
+                                : 'border-gray-200 hover:border-gray-300 bg-gray-50/50'
+                            }`}
+                          >
+                            <div>
+                              <div className="text-xs font-black text-gray-950 flex items-center gap-2">
+                                <span className="font-mono text-base font-black">{curr.symbol}</span>
+                                <span>{curr.name}</span>
+                              </div>
+                              <p className="text-[11px] text-gray-500 mt-1">
+                                Code: <span className="font-mono font-bold text-gray-700">{curr.code}</span> • Standard Locale: {curr.locale}
+                              </p>
+                            </div>
+                            <span
+                              className={`w-4 h-4 rounded-full border flex items-center justify-center text-[10px] font-bold mt-0.5 ${
+                                isSelected
+                                  ? 'border-orange-600 bg-orange-600 text-white'
+                                  : 'border-gray-300 bg-white'
+                              }`}
+                            >
+                              {isSelected ? '✓' : ''}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -1850,7 +2505,32 @@ export default function Dashboard() {
             {/* 11. 3D VIEWER SETTINGS */}
             {activeTab === 'viewer' && (
               <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-xs space-y-6">
-                <h3 className="font-bold text-gray-900 text-sm">Environmental & 3D Viewer Defaults</h3>
+                <div>
+                  <h3 className="font-bold text-gray-900 text-sm">Environmental & 3D Viewer Defaults</h3>
+                  <p className="text-xs text-gray-500 mt-1">Configure default showcase model and environment settings for visitors.</p>
+                </div>
+
+                {/* Default Publicly Available House Selector */}
+                <div className="p-4 bg-orange-50/70 rounded-2xl border border-orange-200">
+                  <label className="block text-[11px] font-bold text-orange-950 uppercase tracking-wider mb-1.5">
+                    Default Showcase House (Publicly Available)
+                  </label>
+                  <p className="text-xs text-orange-800/80 mb-3">
+                    Choose which publicly available model loads by default in the interactive 3D hero viewer and configurator.
+                  </p>
+                  <select
+                    value={viewerControls.defaultModelId || 'expandable-20ft'}
+                    onChange={(e) => setViewerControls({ ...viewerControls, defaultModelId: e.target.value })}
+                    className="w-full sm:w-auto min-w-[320px] px-4 py-2.5 bg-white border border-orange-300 rounded-xl text-xs font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer shadow-xs"
+                  >
+                    {models.filter((m: any) => isModelAvailable(m)).map((m: any) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.sqft} sq ft · Starting at {m.basePrice})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Default Lighting Environment</label>

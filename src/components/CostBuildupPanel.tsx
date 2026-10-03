@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { CustomizationState } from '../types';
+import { CustomizationState, FloorPlanId } from '../types';
 import { useAppConfig } from '../context/AppConfigContext';
+import { BASE_MODELS } from '../data/models';
+import { FLOOR_PLAN_OPTIONS } from '../data/options';
 import { formatCurrency as formatCurrencyUtil } from '../utils/currency';
 import {
   DollarSign,
@@ -15,6 +17,7 @@ import {
   CheckCircle2,
   Clock,
   Sparkles,
+  LayoutGrid,
 } from 'lucide-react';
 
 interface CostBuildupPanelProps {
@@ -36,12 +39,18 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
   const { config } = useAppConfig();
 
   const currentModel =
-    config.models.find((m: any) => m.id === state.modelId) || config.models[0];
+    config.models?.find((m: any) => m.id === state.modelId) ||
+    BASE_MODELS.find((m: any) => m.id === state.modelId) ||
+    config.models?.[0] ||
+    BASE_MODELS[0];
 
   // Lookups for prices
   const wallOpt =
     config.wallOptions.find((o: any) => o.id === state.wallCladding) ||
     config.wallOptions[0];
+  const intWallOpt =
+    (config.interiorWallOptions || []).find((o: any) => o.id === state.interiorWall) ||
+    (config.interiorWallOptions || [])[0];
   const glassOpt =
     config.glazingOptions.find((o: any) => o.id === state.glazing) || config.glazingOptions[0];
   const lightOpt =
@@ -63,9 +72,23 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
   const freightCost = includeFreight ? (config.logistics?.freightCost || 4500) : 0;
   const sitePrepCost = includeSitePrep ? (config.logistics?.sitePrepCost || 5500) : 0;
 
+  const isExpandableHouse =
+    state.modelId.includes('expandable') ||
+    state.modelId.includes('20ft') ||
+    state.modelId.includes('30ft') ||
+    state.modelId.includes('40ft') ||
+    currentModel?.series === 'expandable';
+
+  const floorPlanOpt = isExpandableHouse && state.floorPlan
+    ? FLOOR_PLAN_OPTIONS.find((f) => f.id === state.floorPlan)
+    : null;
+  const floorPlanPrice = floorPlanOpt?.price || 0;
+
   // Calculate Subtotal & Total
   const upgradesTotal =
     wallOpt.price +
+    (intWallOpt?.price || 0) +
+    floorPlanPrice +
     glassOpt.price +
     lightOpt.price +
     elecOpt.price +
@@ -178,6 +201,45 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
               </span>
             </div>
 
+            {/* Double-Wing Floor Plan Layout */}
+            {isExpandableHouse && floorPlanOpt && (
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-blue-50/50 border border-blue-200/80">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                    <LayoutGrid className="w-3 h-3 text-blue-700" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-900 leading-tight">{floorPlanOpt.name}</div>
+                    <div className="text-[10px] text-blue-900/70 font-medium">
+                      Floor plan · {floorPlanOpt.bedrooms} Bed, {floorPlanOpt.bathrooms} Bath
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-gray-900">
+                    {floorPlanOpt.price === 0
+                      ? 'Included'
+                      : `+${formatCurrency(floorPlanOpt.price * markupFactor)}`}
+                  </span>
+                  {floorPlanOpt.price > 0 && (
+                    <button
+                      onClick={() =>
+                        onStateChange((prev) => ({
+                          ...prev,
+                          floorPlan: '2-bed-1-bath',
+                          bedroomLayout: '2-bedroom',
+                        }))
+                      }
+                      className="text-gray-400 hover:text-red-500 p-0.5 cursor-pointer"
+                      title="Revert to standard 2-Bed layout"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Custom Wall Cladding */}
             {wallOpt.price > 0 && (
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200">
@@ -200,6 +262,33 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                       onStateChange((prev) => ({
                         ...prev,
                         wallCladding: 'fluoro-white',
+                      }))
+                    }
+                    className="text-gray-400 hover:text-red-500 p-0.5 cursor-pointer"
+                    title="Revert to standard"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Interior Wall Panels */}
+            {intWallOpt && intWallOpt.price > 0 && (
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200">
+                <div>
+                  <div className="font-semibold text-gray-900">{intWallOpt.name}</div>
+                  <div className="text-[10px] text-gray-400">Indoor Wall Panels & Acoustic Slats</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-gray-900">
+                    +{formatCurrency(intWallOpt.price * markupFactor)}
+                  </span>
+                  <button
+                    onClick={() =>
+                      onStateChange((prev) => ({
+                        ...prev,
+                        interiorWall: 'bamboo-charcoal-offwhite',
                       }))
                     }
                     className="text-gray-400 hover:text-red-500 p-0.5 cursor-pointer"
@@ -488,10 +577,11 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
 
         <button
           onClick={onOpenSpecSheet}
-          className="w-full py-2.5 px-3 bg-[#F8F9FB] hover:bg-gray-100 text-gray-700 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer border border-gray-200"
+          className="w-full py-2.5 px-3 bg-[#F8F9FB] hover:bg-gray-100 hover:text-gray-900 text-gray-700 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer border border-gray-200/90 shadow-2xs hover:shadow-xs group"
+          title={`Download specification sheet for ${currentModel.name}`}
         >
-          <Download className="w-3.5 h-3.5 text-gray-500" />
-          <span>Download Apple Cabin Specification Sheet</span>
+          <Download className="w-3.5 h-3.5 text-gray-500 group-hover:text-gray-900 transition-colors shrink-0" />
+          <span className="truncate">Download {currentModel.name} Specification Sheet</span>
         </button>
       </div>
     </aside>
