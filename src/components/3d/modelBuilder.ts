@@ -109,19 +109,20 @@ export function buildHomeModel(
   }
 
   const isExpandable = modelSeries === 'expandable';
-  const is20ft = state.modelId.includes('20ft') || (!state.modelId.includes('30ft') && !state.modelId.includes('40ft') && isExpandable);
+  const is10ft = state.modelId.includes('10ft');
+  const is20ft = state.modelId.includes('20ft') || (!is10ft && !state.modelId.includes('30ft') && !state.modelId.includes('40ft') && isExpandable);
   const is30ft = state.modelId.includes('30ft');
   const is40ft = state.modelId.includes('40ft');
   const isFoldedMode = isExpandable && !!state.isFoldedTransportMode;
 
   // Rigid 2.2 m central transport core (Catalog constraint)
   const coreWidth = 2.2;
-  // Deployed width across front elevation: 20FT: 5.9m; 30FT: 6.4m; 40FT: 6.4m
-  const deployedWidth = is20ft ? 5.9 : 6.4;
+  // Deployed width across front elevation: 10FT: 5.9m; 20FT: 5.9m; 30FT: 6.4m; 40FT: 6.4m
+  const deployedWidth = (is10ft || is20ft) ? 5.9 : 6.4;
   const expandableWidth = isFoldedMode ? coreWidth : deployedWidth;
-  const wingWidth = (deployedWidth - coreWidth) / 2; // 1.85m for 20FT, 2.1m for 30FT/40FT
-  // House depth along container spine: 20FT: 6.4m; 30FT: 9.0m; 40FT: 11.8m
-  const houseDepth = is20ft ? 6.4 : (is30ft ? 9.0 : 11.8);
+  const wingWidth = (deployedWidth - coreWidth) / 2; // 1.85m for 10FT & 20FT, 2.1m for 30FT/40FT
+  // House depth along container spine: 10FT: 3.1m; 20FT: 6.4m; 30FT: 9.0m; 40FT: 11.8m
+  const houseDepth = is10ft ? 3.1 : (is20ft ? 6.4 : (is30ft ? 9.0 : 11.8));
 
   const spineWidth = 2.2; // Rigid 2.2 m central transport core
   const effectiveDepth = isFoldedMode ? spineWidth : depth;
@@ -808,15 +809,42 @@ export function buildHomeModel(
       }
     });
 
+    // Architectural Wall Mesh with Dual-Sided Materials:
+    // Exterior face receives materials.wallMaterial (the selected exterior cladding),
+    // while the interior face remains strictly materials.whiteInteriorWallMaterial (crisp architectural white)
+    // for all 20ft, 30ft, and 40ft models, even when the exterior cladding is changed.
+    const createDualSidedWall = (
+      geo: THREE.BoxGeometry,
+      interiorFace: 'posX' | 'negX' | 'posZ' | 'negZ'
+    ): THREE.Mesh => {
+      const ext = materials.wallMaterial;
+      const int = materials.whiteInteriorWallMaterial;
+      // BoxGeometry face groups:
+      // 0: +X, 1: -X, 2: +Y (top), 3: -Y (bottom), 4: +Z, 5: -Z
+      const mats: THREE.Material[] = [
+        interiorFace === 'posX' ? int : (interiorFace === 'negX' ? ext : int), // 0: +X
+        interiorFace === 'negX' ? int : (interiorFace === 'posX' ? ext : int), // 1: -X
+        int, // 2: +Y (top edge)
+        int, // 3: -Y (bottom edge)
+        interiorFace === 'posZ' ? int : (interiorFace === 'negZ' ? ext : int), // 4: +Z
+        interiorFace === 'negZ' ? int : (interiorFace === 'posZ' ? ext : int), // 5: -Z
+      ];
+      const mesh = new THREE.Mesh(geo, mats);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    };
+
     if (isFoldedMode) {
       // -------------------------------------------------------------------
       // TRANSPORT / FOLDED CONFIGURATION (Strictly 2.2m transport width)
       // -------------------------------------------------------------------
       // Side wings folded vertically against the 2.2m spine
       [-coreWidth / 2 - 0.04, coreWidth / 2 + 0.04].forEach((fx) => {
-        const foldedWingPanel = new THREE.Mesh(
+        const isRight = fx > 0;
+        const foldedWingPanel = createDualSidedWall(
           new THREE.BoxGeometry(0.075, height - 0.1, houseDepth - 0.1),
-          materials.wallMaterial
+          isRight ? 'negX' : 'posX'
         );
         foldedWingPanel.position.set(fx, height / 2 + 0.15, 0);
         foldedWingPanel.castShadow = true;
@@ -835,19 +863,19 @@ export function buildHomeModel(
 
       // Front & Rear End Core Enclosures (75mm bamboo-wood-fiber wall)
       [-houseDepth / 2 + 0.075 / 2, houseDepth / 2 - 0.075 / 2].forEach((ez) => {
-        const coreEnd = new THREE.Mesh(
+        const coreEnd = createDualSidedWall(
           new THREE.BoxGeometry(coreWidth, height, 0.075),
-          materials.wallMaterial
+          ez < 0 ? 'posZ' : 'negZ'
         );
         coreEnd.position.set(0, height / 2 + 0.15, ez);
         coreEnd.castShadow = true;
         rootGroup.add(coreEnd);
       });
 
-      // Central core roof
+      // Central core roof (dark external roof for expandable series)
       const spineRoof = new THREE.Mesh(
         new THREE.BoxGeometry(coreWidth + 0.1, 0.16, houseDepth + 0.1),
-        materials.roofMaterial
+        materials.expandableRoofMaterial
       );
       spineRoof.position.set(0, height + 0.15 + 0.08, 0);
       roofGroup.add(spineRoof);
@@ -916,48 +944,60 @@ export function buildHomeModel(
       const winTopY = doorTopY; // 2.37m
       const wallBelowH = winBottomY - 0.15; // 1.30m
       const headerH = height + 0.15 - winTopY; // ~0.28m
-      // Exactly 2 windows on the left side and 2 windows on the right side across all sizes (20ft, 30ft, 40ft)
-      const numSideWindows = 2;
-      const isWhiteWin =
-        state.glazing === 'aluminum-alloy-double-door' ||
-        state.glazing === 'broken-bridge-grille-door';
+      // The 40ft expandable house has 3 windows on each side (6 side windows total),
+      // 20ft/30ft have 2 windows on each side (4 side windows total),
+      // and 10ft has 1 window on each side (2 side windows total).
+      const numSideWindows = is40ft ? 3 : is10ft ? 1 : 2;
+      // Doors and windows come in sleek architectural black by default:
+      const isWhiteWin = false;
+      const winType: 'sliding' | 'casement' | 'tophanging' | 'overhanging' =
+        state.glazing === 'casement-window'
+          ? 'casement'
+          : state.glazing === 'tophanging-window'
+          ? 'tophanging'
+          : state.glazing === 'overhanging-window'
+          ? 'overhanging'
+          : 'sliding';
 
       // --- Outer Side Walls (Left & Right) with Architectural Aperture Cuts ---
-      // Exactly two windows on each side (left and right) for balanced natural daylight and cross-ventilation in all rooms
+      // For 40ft: 3 windows on each side (rear bay, middle bay, front bay)
+      // For 20ft/30ft: 2 windows on each side (rear bay, front bay)
+      // For 10ft: 1 centered window on each side
       const sideDepth = houseDepth - wallT * 2;
 
       [-expandableWidth / 2 + wallT / 2, expandableWidth / 2 - wallT / 2].forEach((sx) => {
         const isRightSide = sx > 0;
 
         // Continuous lower wall below all side windows
-        const sideWallBelow = new THREE.Mesh(
+        const sideWallBelow = createDualSidedWall(
           new THREE.BoxGeometry(wallT, wallBelowH, sideDepth),
-          materials.wallMaterial
+          isRightSide ? 'negX' : 'posX'
         );
         sideWallBelow.position.set(sx, 0.15 + wallBelowH / 2, 0);
-        sideWallBelow.castShadow = true;
-        sideWallBelow.receiveShadow = true;
         rootGroup.add(sideWallBelow);
 
         // Continuous upper wall header above all side windows
-        const sideWallAbove = new THREE.Mesh(
+        const sideWallAbove = createDualSidedWall(
           new THREE.BoxGeometry(wallT, headerH, sideDepth),
-          materials.wallMaterial
+          isRightSide ? 'negX' : 'posX'
         );
         sideWallAbove.position.set(sx, winTopY + headerH / 2, 0);
-        sideWallAbove.castShadow = true;
-        sideWallAbove.receiveShadow = true;
         rootGroup.add(sideWallAbove);
 
         // Window band wall segments along Z between openings:
-        // Precisely 2 side windows: one in the rear room half and one in the front room half
+        // 40ft model (11.8m depth): 3 evenly spaced windows per side in rear (-11.8/3), center (0), and front (+11.8/3)
+        // 20ft (6.4m) & 30ft (9.0m) models: 2 windows per side at -houseDepth * 0.25 and +houseDepth * 0.25
+        // 10ft (3.1m) model: 1 window centered per side at 0
         const zSplits: number[] = [-sideDepth / 2];
-        const windowCentersZ: number[] = [];
-        const wzRear = -houseDepth * 0.25;
-        const wzFront = houseDepth * 0.25;
-        windowCentersZ.push(wzRear, wzFront);
-        zSplits.push(wzRear - winW / 2, wzRear + winW / 2);
-        zSplits.push(wzFront - winW / 2, wzFront + winW / 2);
+        const windowCentersZ: number[] = is40ft
+          ? [-houseDepth / 3, 0, houseDepth / 3]
+          : is10ft
+          ? [0]
+          : [-houseDepth * 0.25, houseDepth * 0.25];
+
+        windowCentersZ.forEach((wz) => {
+          zSplits.push(wz - winW / 2, wz + winW / 2);
+        });
         zSplits.push(sideDepth / 2);
 
         // Solid wall segments between window openings
@@ -966,13 +1006,11 @@ export function buildHomeModel(
           const zEnd = zSplits[i + 1];
           const segLen = zEnd - zStart;
           if (segLen > 0.001) {
-            const segWall = new THREE.Mesh(
+            const segWall = createDualSidedWall(
               new THREE.BoxGeometry(wallT, winH, segLen),
-              materials.wallMaterial
+              isRightSide ? 'negX' : 'posX'
             );
             segWall.position.set(sx, winCenterY, (zStart + zEnd) / 2);
-            segWall.castShadow = true;
-            segWall.receiveShadow = true;
             rootGroup.add(segWall);
           }
         }
@@ -980,7 +1018,7 @@ export function buildHomeModel(
         // Install High-Precision Architectural Window Units in each side aperture
         windowCentersZ.forEach((wz) => {
           const winUnit = createArchitecturalWindowUnit({
-            type: 'sliding',
+            type: winType,
             width: winW,
             height: winH,
             wallThickness: wallT,
@@ -1002,62 +1040,52 @@ export function buildHomeModel(
       const rx2 = expandableWidth / 3;
 
       // Lower wall below rear windows
-      const rearWallBelow = new THREE.Mesh(
+      const rearWallBelow = createDualSidedWall(
         new THREE.BoxGeometry(expandableWidth, wallBelowH, wallT),
-        materials.wallMaterial
+        'posZ'
       );
       rearWallBelow.position.set(0, 0.15 + wallBelowH / 2, rearZ);
-      rearWallBelow.castShadow = true;
-      rearWallBelow.receiveShadow = true;
       rootGroup.add(rearWallBelow);
 
       // Upper wall above rear windows
-      const rearWallAbove = new THREE.Mesh(
+      const rearWallAbove = createDualSidedWall(
         new THREE.BoxGeometry(expandableWidth, headerH, wallT),
-        materials.wallMaterial
+        'posZ'
       );
       rearWallAbove.position.set(0, winTopY + headerH / 2, rearZ);
-      rearWallAbove.castShadow = true;
-      rearWallAbove.receiveShadow = true;
       rootGroup.add(rearWallAbove);
 
       // Window band wall segments along X
       // Left corner wall segment
       const leftSegW = rx1 - winW / 2 - (-expandableWidth / 2);
       if (leftSegW > 0.001) {
-        const leftWall = new THREE.Mesh(
+        const leftWall = createDualSidedWall(
           new THREE.BoxGeometry(leftSegW, winH, wallT),
-          materials.wallMaterial
+          'posZ'
         );
         leftWall.position.set(-expandableWidth / 2 + leftSegW / 2, winCenterY, rearZ);
-        leftWall.castShadow = true;
-        leftWall.receiveShadow = true;
         rootGroup.add(leftWall);
       }
 
       // Center wall segment between the two rear windows
       const centerSegW = rx2 - winW / 2 - (rx1 + winW / 2);
       if (centerSegW > 0.001) {
-        const centerWall = new THREE.Mesh(
+        const centerWall = createDualSidedWall(
           new THREE.BoxGeometry(centerSegW, winH, wallT),
-          materials.wallMaterial
+          'posZ'
         );
         centerWall.position.set(0, winCenterY, rearZ);
-        centerWall.castShadow = true;
-        centerWall.receiveShadow = true;
         rootGroup.add(centerWall);
       }
 
       // Right corner wall segment
       const rightSegW = expandableWidth / 2 - (rx2 + winW / 2);
       if (rightSegW > 0.001) {
-        const rightWall = new THREE.Mesh(
+        const rightWall = createDualSidedWall(
           new THREE.BoxGeometry(rightSegW, winH, wallT),
-          materials.wallMaterial
+          'posZ'
         );
         rightWall.position.set(expandableWidth / 2 - rightSegW / 2, winCenterY, rearZ);
-        rightWall.castShadow = true;
-        rightWall.receiveShadow = true;
         rootGroup.add(rightWall);
       }
 
@@ -1094,17 +1122,17 @@ export function buildHomeModel(
         state.glazing === 'broken-bridge-double-door' ||
         state.glazing === 'aluminum-alloy-double-door' ||
         state.glazing === 'kfc-double-door';
-      const isWhiteDoor =
-        state.glazing === 'aluminum-alloy-double-door' ||
-        state.glazing === 'broken-bridge-grille-door';
+      // Doors come in sleek architectural black by default as requested:
+      const isWhiteDoor = false;
       const isKfcCommercial = state.glazing === 'kfc-double-door';
       const hasDoorGrilles =
         state.glazing === 'broken-bridge-grille-door' ||
         state.glazing === 'aluminum-alloy-double-door';
 
+      // Broken-bridge doors come in sleek architectural black by default:
       const doorFrameMat = isWhiteDoor
         ? materials.whiteDoorFrameMaterial
-        : (isKfcCommercial ? materials.darkDoorFrameMaterial : materials.q235SteelMaterial);
+        : materials.darkDoorFrameMaterial;
 
       // --- 1. Master Perimeter Frame (Hollow 4-Piece Jamb System) ---
       const clearApertureW = doorW - frameThick * 2; // ~1.76m
@@ -1433,9 +1461,9 @@ export function buildHomeModel(
       // Terminates cleanly at the underside of the top transverse structural steel beam to prevent Z-fighting
       const beamBottomY = height + 0.15 - beamH;
       const frontHeaderH = Math.max(0.04, beamBottomY - doorTopY);
-      const frontHeader = new THREE.Mesh(
+      const frontHeader = createDualSidedWall(
         new THREE.BoxGeometry(coreWidth, frontHeaderH, wallT),
-        materials.wallMaterial
+        'negZ'
       );
       frontHeader.position.set(0, doorTopY + frontHeaderH / 2, frontZ);
       frontWallGroup.add(frontHeader);
@@ -1456,32 +1484,29 @@ export function buildHomeModel(
 
         // Solid wall below window (from Y = 0.15 to Y = 1.45, height = 1.30m)
         const wallBelowH = winBottomY - 0.15;
-        const wallBelow = new THREE.Mesh(
+        const wallBelow = createDualSidedWall(
           new THREE.BoxGeometry(wingWidth, wallBelowH, wallT),
-          materials.wallMaterial
+          'negZ'
         );
         wallBelow.position.set(wingCenterX, 0.15 + wallBelowH / 2, frontZ);
-        wallBelow.castShadow = true;
         frontWallGroup.add(wallBelow);
 
         // Solid wall above window (from Y = 2.37 to Y = 2.65, height = 0.28m)
-        const wallAbove = new THREE.Mesh(
+        const wallAbove = createDualSidedWall(
           new THREE.BoxGeometry(wingWidth, headerH, wallT),
-          materials.wallMaterial
+          'negZ'
         );
         wallAbove.position.set(wingCenterX, doorTopY + headerH / 2, frontZ);
-        wallAbove.castShadow = true;
         frontWallGroup.add(wallAbove);
 
         // Side wall jambs to the left and right of the 920mm window
         const jambW = (wingWidth - winW) / 2;
         [-1, 1].forEach((jDir) => {
-          const jamb = new THREE.Mesh(
+          const jamb = createDualSidedWall(
             new THREE.BoxGeometry(jambW, winH, wallT),
-            materials.wallMaterial
+            'negZ'
           );
           jamb.position.set(wingCenterX + jDir * (winW / 2 + jambW / 2), winCenterY, frontZ);
-          jamb.castShadow = true;
           frontWallGroup.add(jamb);
         });
 
@@ -1508,16 +1533,24 @@ export function buildHomeModel(
       const coreRoofOverhangX = 0.08; // 80mm overhang extending past X = ±1.1m
       const coreRoofOverhangZ = 0.10; // 100mm overhang extending past front/rear
 
-      // Central core roof
+      // Central core roof (dark external roof for expandable houses)
       const spineRoof = new THREE.Mesh(
         new THREE.BoxGeometry(coreWidth + coreRoofOverhangX * 2, coreRoofThickness, houseDepth + coreRoofOverhangZ * 2),
-        materials.roofMaterial
+        materials.expandableRoofMaterial
       );
       spineRoof.position.set(0, height + 0.15 + coreRoofThickness / 2, 0);
       spineRoof.castShadow = true;
       roofGroup.add(spineRoof);
 
-      // Expanded wing roof panels
+      // Central core white interior ceiling panel
+      const coreCeiling = new THREE.Mesh(
+        new THREE.BoxGeometry(coreWidth - 0.02, 0.015, houseDepth - 0.04),
+        materials.whiteCeilingMaterial
+      );
+      coreCeiling.position.set(0, height + 0.15 - 0.005, 0);
+      roofGroup.add(coreCeiling);
+
+      // Expanded wing roof panels (dark external roof for expandable houses)
       const wingRoofThickness = 0.09;
       [-1, 1].forEach((dir) => {
         // Tucks directly under the core overhang at X = ±1.1m
@@ -1525,7 +1558,7 @@ export function buildHomeModel(
         const wingRoofD = houseDepth + coreRoofOverhangZ * 2;
         const wingRoof = new THREE.Mesh(
           new THREE.BoxGeometry(wingRoofW, wingRoofThickness, wingRoofD),
-          materials.roofMaterial
+          materials.expandableRoofMaterial
         );
         // Positioned flush underneath core roof overhang and clearing the top of the side walls without clipping
         const wingRoofCenterX = dir * (coreWidth / 2 + wingWidth / 2 + 0.025);
@@ -1541,10 +1574,23 @@ export function buildHomeModel(
         wingRoof.castShadow = true;
         roofGroup.add(wingRoof);
 
+        // Expanded wing white interior ceiling panel
+        const wingCeiling = new THREE.Mesh(
+          new THREE.BoxGeometry(wingWidth - 0.02, 0.015, houseDepth - 0.04),
+          materials.whiteCeilingMaterial
+        );
+        wingCeiling.position.set(
+          wingRoofCenterX,
+          wingRoofCenterY - wingRoofThickness / 2 - 0.005,
+          0
+        );
+        wingCeiling.rotation.z = -dir * 0.025;
+        roofGroup.add(wingCeiling);
+
         // Waterproof joint flashing along the seam between core overhang and wing roof
         const flashing = new THREE.Mesh(
           new THREE.BoxGeometry(0.06, 0.03, wingRoofD),
-          materials.q235SteelMaterial
+          materials.expandableRoofMaterial
         );
         flashing.position.set(dir * (coreWidth / 2 + 0.02), height + 0.15 + 0.01, 0);
         roofGroup.add(flashing);
@@ -1661,7 +1707,14 @@ export function buildHomeModel(
       frontWallGroup.add(frontGlass);
     }
 
-    // 6. Motorized Panoramic Ceiling Starlight Skylight (1.8m x 0.9m)
+    // 6. Motorized Panoramic Ceiling Starlight Skylight & Dark Aerodynamic Roof Cap
+    const capsuleRoofCap = new THREE.Mesh(
+      new THREE.BoxGeometry(length * 0.94, 0.03, depth * 0.88),
+      materials.roofMaterial
+    );
+    capsuleRoofCap.position.set(0, height + 0.15 + 0.015, 0);
+    roofGroup.add(capsuleRoofCap);
+
     const skylightMesh = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.06, 0.9), materials.glassMaterial);
     skylightMesh.position.set(length * 0.12, height + 0.15 + roofThickness / 2, 0);
     roofGroup.add(skylightMesh);
@@ -2160,7 +2213,7 @@ export function buildHomeModel(
       );
       terraceDeck.position.set(0, deckY + deckFloorThick / 2, 0);
       terraceDeck.receiveShadow = true;
-      rootGroup.add(terraceDeck);
+      terraceGroup.add(terraceDeck);
 
       // Secure Perimeter Glass Railing:
       // Total height with railing reads EXACTLY 3,360mm (3.36m from ground):
@@ -2175,7 +2228,7 @@ export function buildHomeModel(
           materials.glassMaterial
         );
         railGlass.position.set(0, railCenterY, rz);
-        rootGroup.add(railGlass);
+        terraceGroup.add(railGlass);
 
         // Top handrail (stainless steel / broken-bridge aluminum)
         const handrail = new THREE.Mesh(
@@ -2183,7 +2236,7 @@ export function buildHomeModel(
           materials.metalTrimMaterial
         );
         handrail.position.set(0, 3.36 - 0.02, rz);
-        rootGroup.add(handrail);
+        terraceGroup.add(handrail);
       });
 
       // Right end safety glass railing
@@ -2192,14 +2245,14 @@ export function buildHomeModel(
         materials.glassMaterial
       );
       rightRail.position.set(deckW / 2 - 0.02, railCenterY, 0);
-      rootGroup.add(rightRail);
+      terraceGroup.add(rightRail);
 
       const rightHandrail = new THREE.Mesh(
         new THREE.BoxGeometry(0.04, 0.04, deckD),
         materials.metalTrimMaterial
       );
       rightHandrail.position.set(deckW / 2 - 0.02, 3.36 - 0.02, 0);
-      rootGroup.add(rightHandrail);
+      terraceGroup.add(rightHandrail);
 
       // Left end safety railing (with opening for stairs gate)
       const stairLandingGateW = 0.85;
@@ -2210,14 +2263,14 @@ export function buildHomeModel(
           materials.glassMaterial
         );
         leftRail.position.set(-deckW / 2 + 0.02, railCenterY, lz);
-        rootGroup.add(leftRail);
+        terraceGroup.add(leftRail);
 
         const lHandrail = new THREE.Mesh(
           new THREE.BoxGeometry(0.04, 0.04, leftRailW),
           materials.metalTrimMaterial
         );
         lHandrail.position.set(-deckW / 2 + 0.02, 3.36 - 0.02, lz);
-        rootGroup.add(lHandrail);
+        terraceGroup.add(lHandrail);
       });
 
       // External Heavy-Duty Steel Flight Staircase (leading up to rooftop terrace):
@@ -2400,7 +2453,7 @@ export function buildHomeModel(
       );
       upperRoof.position.set(upperCenterX, totalDuplexH - 0.07, 0);
       upperRoof.castShadow = true;
-      duplexUpperGroup.add(upperRoof);
+      roofGroup.add(upperRoof);
 
       // Catalog constraint: V-shaped or vertical structural Q235 galvanized steel pillars
       // supporting the cantilevered upper floor
@@ -2591,6 +2644,40 @@ export function buildHomeModel(
     return stairGroup;
   };
 
+  if (state.roofOption === 'pitched-roof' || state.roofOption === 'pitched-terrace-combo') {
+    const pitchGroup = new THREE.Group();
+    const isPitchedCombo = state.roofOption === 'pitched-terrace-combo';
+    const pitchLength = isPitchedCombo ? length * 0.52 : length + 0.2;
+    const pitchShiftX = isPitchedCombo ? -length * 0.22 : 0;
+    const pitchD = effectiveDepth + 0.25;
+    const pitchH = 0.55;
+
+    // Dual-sloped dark architectural gable roof panels
+    const halfHypot = Math.hypot(pitchD / 2, pitchH);
+    const slopeAngle = Math.atan2(pitchH, pitchD / 2);
+
+    [-1, 1].forEach((dir) => {
+      const slope = new THREE.Mesh(
+        new THREE.BoxGeometry(pitchLength, 0.05, halfHypot),
+        materials.roofMaterial
+      );
+      slope.position.set(pitchShiftX, roofBaseY + pitchH / 2 + 0.02, dir * (pitchD / 4));
+      slope.rotation.x = dir * slopeAngle;
+      slope.castShadow = true;
+      pitchGroup.add(slope);
+    });
+
+    // Dark architectural ridge cap running along the roof peak
+    const ridgeCap = new THREE.Mesh(
+      new THREE.BoxGeometry(pitchLength + 0.04, 0.06, 0.14),
+      materials.roofMaterial
+    );
+    ridgeCap.position.set(pitchShiftX, roofBaseY + pitchH + 0.03, 0);
+    pitchGroup.add(ridgeCap);
+
+    roofGroup.add(pitchGroup);
+  }
+
   if (state.roofOption === 'solar-array-3kw' || state.roofOption === 'solar-deck-combo') {
     const solarCount = length > 9 ? 6 : length > 6 ? 4 : 2;
     const solarArray = createDetailedSolarArray(solarCount, state.roofOption === 'solar-deck-combo' ? -length * 0.22 : 0, 0);
@@ -2757,76 +2844,79 @@ export function buildHomeModel(
         const headZ = opts.headZ !== undefined ? opts.headZ : opts.z - (dir * bL) / 2;
         const centerZ = opts.headZ !== undefined ? headZ + (dir * bL) / 2 : opts.z;
 
-        // Padded Headboard
-        const hbH = 1.05;
-        const headboard = new THREE.Mesh(new THREE.BoxGeometry(bW + 0.08, hbH, 0.08), materials.sofaBoucleMaterial);
-        headboard.position.set(opts.x, 0.15 + hbH / 2, headZ);
-        headboard.castShadow = true;
-        bedGroup.add(headboard);
+        // Architectural Bed Suite is ONLY rendered if the user adds it via the Add-on Manager:
+        if (Boolean(state.hasLuxuryBedSuite)) {
+          // Padded Headboard
+          const hbH = 1.05;
+          const headboard = new THREE.Mesh(new THREE.BoxGeometry(bW + 0.08, hbH, 0.08), materials.sofaBoucleMaterial);
+          headboard.position.set(opts.x, 0.15 + hbH / 2, headZ);
+          headboard.castShadow = true;
+          bedGroup.add(headboard);
 
-        // Bed frame plinth & platform
-        const frameH = 0.22;
-        const bedFrame = new THREE.Mesh(new THREE.BoxGeometry(bW, frameH, bL), materials.sofaWoodFrameMaterial);
-        bedFrame.position.set(opts.x, 0.15 + frameH / 2, centerZ);
-        bedFrame.castShadow = true;
-        bedGroup.add(bedFrame);
+          // Bed frame plinth & platform
+          const frameH = 0.22;
+          const bedFrame = new THREE.Mesh(new THREE.BoxGeometry(bW, frameH, bL), materials.sofaWoodFrameMaterial);
+          bedFrame.position.set(opts.x, 0.15 + frameH / 2, centerZ);
+          bedFrame.castShadow = true;
+          bedGroup.add(bedFrame);
 
-        // Mattress with pillow-top feel
-        const matH = 0.22;
-        const mattress = new THREE.Mesh(new THREE.BoxGeometry(bW - 0.04, matH, bL - 0.04), materials.bedLinenMaterial);
-        mattress.position.set(opts.x, 0.15 + frameH + matH / 2, centerZ);
-        bedGroup.add(mattress);
+          // Mattress with pillow-top feel
+          const matH = 0.22;
+          const mattress = new THREE.Mesh(new THREE.BoxGeometry(bW - 0.04, matH, bL - 0.04), materials.bedLinenMaterial);
+          mattress.position.set(opts.x, 0.15 + frameH + matH / 2, centerZ);
+          bedGroup.add(mattress);
 
-        // Layered Duvet / Comforter
-        const duvetL = bL * 0.64;
-        const duvetZ = centerZ + dir * ((bL - duvetL) / 4);
-        const duvet = new THREE.Mesh(new THREE.BoxGeometry(bW - 0.02, 0.12, duvetL), materials.bedDuvetMaterial);
-        duvet.position.set(opts.x, 0.15 + frameH + matH + 0.06, duvetZ);
-        bedGroup.add(duvet);
+          // Layered Duvet / Comforter
+          const duvetL = bL * 0.64;
+          const duvetZ = centerZ + dir * ((bL - duvetL) / 4);
+          const duvet = new THREE.Mesh(new THREE.BoxGeometry(bW - 0.02, 0.12, duvetL), materials.bedDuvetMaterial);
+          duvet.position.set(opts.x, 0.15 + frameH + matH + 0.06, duvetZ);
+          bedGroup.add(duvet);
 
-        // Bed runner accent throw blanket at foot of bed
-        const runnerL = 0.38;
-        const runnerZ = centerZ + dir * (bL / 2 - runnerL / 2 - 0.06);
-        const runner = new THREE.Mesh(new THREE.BoxGeometry(bW + 0.02, 0.015, runnerL), materials.bedAccentThrowMaterial || materials.sofaBoucleMaterial);
-        runner.position.set(opts.x, 0.15 + frameH + matH + 0.125, runnerZ);
-        bedGroup.add(runner);
+          // Bed runner accent throw blanket at foot of bed
+          const runnerL = 0.38;
+          const runnerZ = centerZ + dir * (bL / 2 - runnerL / 2 - 0.06);
+          const runner = new THREE.Mesh(new THREE.BoxGeometry(bW + 0.02, 0.015, runnerL), materials.bedAccentThrowMaterial || materials.sofaBoucleMaterial);
+          runner.position.set(opts.x, 0.15 + frameH + matH + 0.125, runnerZ);
+          bedGroup.add(runner);
 
-        // Pillows (4 pillows: 2 back upright, 2 front angled)
-        const pillowZ = headZ + dir * 0.24;
-        [-bW * 0.24, bW * 0.24].forEach((px) => {
-          const pillowBack = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.12, 0.30), materials.bedLinenMaterial);
-          pillowBack.position.set(opts.x + px, 0.15 + frameH + matH + 0.06, pillowZ);
-          const pillowFront = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.10, 0.26), materials.bedAccentThrowMaterial || materials.bedLinenMaterial);
-          pillowFront.position.set(opts.x + px, 0.15 + frameH + matH + 0.08, pillowZ + dir * 0.14);
-          bedGroup.add(pillowBack, pillowFront);
-        });
-
-        // Bedside Nightstands & Warm Ambient Table Lamps (Proportionally fitted with zero wall clipping)
-        if (opts.hasNightstands !== false) {
-          const standW = 0.20;
-          const standH = 0.38;
-          const standD = 0.28;
-          [-bW / 2 - standW / 2 - 0.02, bW / 2 + standW / 2 + 0.02].forEach((nx) => {
-            const stand = new THREE.Mesh(new THREE.BoxGeometry(standW, standH, standD), materials.nightstandWoodMaterial);
-            stand.position.set(opts.x + nx, 0.15 + standH / 2, pillowZ);
-            stand.castShadow = true;
-
-            // Brass drawer knob
-            const knob = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 8), materials.brassHandleMaterial || materials.metalTrimMaterial);
-            knob.position.set(opts.x + nx, 0.15 + standH * 0.65, pillowZ + dir * (standD / 2 + 0.015));
-
-            // Table Lamp: Ceramic base + Glowing shade
-            const lampBase = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.07, 12), materials.ceramicVesselMaterial || materials.metalTrimMaterial);
-            lampBase.position.set(opts.x + nx, 0.15 + standH + 0.035, pillowZ);
-            const lampShade = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.14, 16), materials.lampGlowMaterial);
-            lampShade.position.set(opts.x + nx, 0.15 + standH + 0.13, pillowZ);
-
-            bedGroup.add(stand, knob, lampBase, lampShade);
+          // Pillows (4 pillows: 2 back upright, 2 front angled)
+          const pillowZ = headZ + dir * 0.24;
+          [-bW * 0.24, bW * 0.24].forEach((px) => {
+            const pillowBack = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.12, 0.30), materials.bedLinenMaterial);
+            pillowBack.position.set(opts.x + px, 0.15 + frameH + matH + 0.06, pillowZ);
+            const pillowFront = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.10, 0.26), materials.bedAccentThrowMaterial || materials.bedLinenMaterial);
+            pillowFront.position.set(opts.x + px, 0.15 + frameH + matH + 0.08, pillowZ + dir * 0.14);
+            bedGroup.add(pillowBack, pillowFront);
           });
+
+          // Bedside Nightstands & Warm Ambient Table Lamps (Proportionally fitted with zero wall clipping)
+          if (opts.hasNightstands !== false) {
+            const standW = 0.20;
+            const standH = 0.38;
+            const standD = 0.28;
+            [-bW / 2 - standW / 2 - 0.02, bW / 2 + standW / 2 + 0.02].forEach((nx) => {
+              const stand = new THREE.Mesh(new THREE.BoxGeometry(standW, standH, standD), materials.nightstandWoodMaterial);
+              stand.position.set(opts.x + nx, 0.15 + standH / 2, pillowZ);
+              stand.castShadow = true;
+
+              // Brass drawer knob
+              const knob = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 8), materials.brassHandleMaterial || materials.metalTrimMaterial);
+              knob.position.set(opts.x + nx, 0.15 + standH * 0.65, pillowZ + dir * (standD / 2 + 0.015));
+
+              // Table Lamp: Ceramic base + Glowing shade
+              const lampBase = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.07, 12), materials.ceramicVesselMaterial || materials.metalTrimMaterial);
+              lampBase.position.set(opts.x + nx, 0.15 + standH + 0.035, pillowZ);
+              const lampShade = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.14, 16), materials.lampGlowMaterial);
+              lampShade.position.set(opts.x + nx, 0.15 + standH + 0.13, pillowZ);
+
+              bedGroup.add(stand, knob, lampBase, lampShade);
+            });
+          }
         }
 
-        // Full-Height Wardrobe Closet with Panel Seams & Vertical Handles (Optional Turnkey Furniture)
-        const shouldRenderWardrobe = Boolean(state.hasWardrobe) && opts.hasWardrobe !== false;
+        // Full-Height Wardrobe Closet with Panel Seams & Vertical Handles (Turnkey / Layout Furniture)
+        const shouldRenderWardrobe = opts.hasWardrobe === true || (opts.hasWardrobe !== false && Boolean(state.hasWardrobe));
         if (shouldRenderWardrobe && opts.wardrobeX !== undefined && opts.wardrobeZ !== undefined) {
           const wH = 2.22;
           const wD = opts.wardrobeD || 0.52;
@@ -2868,84 +2958,180 @@ export function buildHomeModel(
         target.add(bedGroup);
       };
 
-      // Reusable Helper: Gourmet Kitchenette Module with Refrigerator & LED Task Lighting
-      // Positioned along the rear wall matching the 2D floor plan diagram with guaranteed zero wall bleeding
-      const buildKitchen = (target: THREE.Group, kX?: number, kZ?: number, kLen = 1.85, hasFridge = true) => {
+      // Reusable Helper: Single Integrated "L"-Shaped Kitchenette Module
+      // Engineered as ONLY ONE continuous, seamless L-shaped kitchenette unit for 20ft, 30ft, and 40ft models:
+      // - Single integrated base carcass & quartz waterfall countertop forming an authentic 'L' in the rear-left corner
+      // - Rear run: spans along rear wall with undermount double sink & designer gooseneck faucet centered directly under the rear window
+      // - Left return run: extends along left wall with 2-burner ceramic induction cooktop with glowing amber/red burner rings
+      // - Strict Open Architecture: ZERO separate cabinets next to it, ZERO overhead wall cabinets, and ZERO heat extractor
+      // - 100% unobstructed daylight and views through both windows
+      // - Exactly ONE L-shaped kitchenette in the entire residence for 20ft, 30ft, and 40ft
+      const buildKitchen = (target: THREE.Group, kX?: number, kZ?: number, kLen = 1.85, hasFridge = false) => {
         if (state.hasKitchenetteModule === false) return;
         const kGroup = new THREE.Group();
-        const kD = 0.54; // counter depth along Z (540mm)
+        const kD = 0.54; // counter depth along Z & X (540mm)
         const kH = 0.88; // counter height (880mm)
+        const counterThick = 0.04; // quartz countertop thickness (40mm)
         const rearWallClearance = 0.05; // 50mm clearance in front of rear exterior wall
         const leftWallClearance = 0.05; // 50mm clearance inside left exterior wall
 
-        const fW = 0.60; // fridge width along X (600mm)
-        const fD = 0.56; // fridge depth along Z (560mm)
-        const fH = 1.88; // fridge height (1880mm)
-
-        let startX = leftWallX + leftWallClearance;
+        const startX = leftWallX + leftWallClearance;
         const kitchenRearZ = zRear + rearWallClearance;
 
-        if (hasFridge) {
-          const fX = startX + fW / 2;
-          const fZ = kitchenRearZ + fD / 2;
-          const fridge = new THREE.Mesh(new THREE.BoxGeometry(fW, fH, fD), materials.chassisMaterial);
-          fridge.position.set(fX, 0.15 + fH / 2, fZ);
-          fridge.castShadow = true;
+        // Window Aperture Boundaries (Rear & Side Windows)
+        const rearWinCenter = -expandableWidth / 3; // rx1
+        const sideWinCenter = is40ft ? -houseDepth / 3 : is10ft ? 0 : -houseDepth * 0.25;
+        const sideWinHalfW = 0.46; // winW / 2
+        const sideWinMinZ = sideWinCenter - sideWinHalfW; // Z where side window starts
 
-          // Brushed aluminum door split & vertical bar handle on front face facing room (+Z)
-          const doorLine = new THREE.Mesh(new THREE.BoxGeometry(fW, fH, 0.01), materials.metalTrimMaterial);
-          doorLine.position.set(fX, 0.15 + fH / 2, fZ + fD / 2 + 0.005);
-          const fHandle = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.45, 0.02), materials.brassHandleMaterial || materials.metalTrimMaterial);
-          fHandle.position.set(fX + fW / 4, 0.15 + 1.10, fZ + fD / 2 + 0.015);
+        // ---------------------------------------------------------------------
+        // 1. SINGLE UNIFIED "L"-SHAPED FOOTPRINT (ZERO SEPARATE CABINETS)
+        // ---------------------------------------------------------------------
+        // Exactly ONE L-shaped kitchenette module in the residence across 10ft, 20ft, 30ft, and 40ft models.
+        // No separate cabinet close to it, no tall pantry unit, no overhead cabinets, and no heat extractor.
+        const spineWallX = -coreWidth / 2 - 0.06;
+        const armXEnd = spineWallX - 0.04; // Extends cleanly up to spine wall with 40mm expansion clearance
 
-          kGroup.add(fridge, doorLine, fHandle);
-          startX += fW + 0.02;
-        }
+        // ---------------------------------------------------------------------
+        // 2. DIMENSIONS OF THE SINGLE "L"-SHAPED KITCHENETTE
+        // ---------------------------------------------------------------------
+        const armX = armXEnd - startX; // Total width across rear wall (X-axis)
+        // Return arm length along left wall (Z-axis): stops safely before side window
+        const maxReturnZ = sideWinMinZ - 0.15; // 150mm clearance before side window starts
+        const targetArmZ = is40ft ? 1.25 : is30ft ? 1.15 : is10ft ? 0.85 : 0.95;
+        const armZ = Math.max(0.65, Math.min(targetArmZ, maxReturnZ - kitchenRearZ));
 
-        // Base Cabinets running across along X from fridge towards center core
-        // Ensure cabinets do not collide with center spine wall at -coreWidth / 2
-        const maxAvailableLen = Math.max(1.10, (-coreWidth / 2 - 0.06) - startX);
-        const actualLen = Math.min(kLen, maxAvailableLen);
-        const cabCenterX = startX + actualLen / 2;
-        const cabCenterZ = kitchenRearZ + kD / 2;
+        // ---------------------------------------------------------------------
+        // 3. UNIFIED "L"-SHAPED BASE CABINET CARCASS
+        // ---------------------------------------------------------------------
+        // Section A: Left wall wing (runs from kitchenRearZ to kitchenRearZ + armZ)
+        const leftBaseCab = new THREE.Mesh(
+          new THREE.BoxGeometry(kD, kH - counterThick, armZ),
+          materials.cabinetMaterial
+        );
+        leftBaseCab.position.set(
+          startX + kD / 2,
+          0.15 + (kH - counterThick) / 2,
+          kitchenRearZ + armZ / 2
+        );
+        leftBaseCab.castShadow = true;
 
-        const baseCab = new THREE.Mesh(new THREE.BoxGeometry(actualLen, kH, kD), materials.cabinetMaterial);
-        baseCab.position.set(cabCenterX, 0.15 + kH / 2, cabCenterZ);
-        baseCab.castShadow = true;
+        // Section B: Rear wall wing (connects seamlessly to leftBaseCab at X = startX + kD)
+        const rearBaseW = armX - kD;
+        const rearBaseCab = new THREE.Mesh(
+          new THREE.BoxGeometry(rearBaseW, kH - counterThick, kD),
+          materials.cabinetMaterial
+        );
+        rearBaseCab.position.set(
+          startX + kD + rearBaseW / 2,
+          0.15 + (kH - counterThick) / 2,
+          kitchenRearZ + kD / 2
+        );
+        rearBaseCab.castShadow = true;
 
-        // Quartz / Marble Waterfall Countertop
-        const counter = new THREE.Mesh(new THREE.BoxGeometry(actualLen + 0.02, 0.04, kD + 0.03), materials.countertopMaterial);
-        counter.position.set(cabCenterX, 0.15 + kH + 0.02, cabCenterZ + 0.01);
-        counter.castShadow = true;
+        kGroup.add(leftBaseCab, rearBaseCab);
 
-        // Stainless Undermount Sink & Curved Gooseneck Faucet (prep zone)
-        const sinkX = startX + actualLen * 0.32;
-        const sink = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.10, 0.38), materials.chassisMaterial);
-        sink.position.set(sinkX, 0.15 + kH - 0.04, cabCenterZ + 0.01);
-        const faucet = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 8, 16, Math.PI), materials.metalTrimMaterial);
-        faucet.position.set(sinkX, 0.15 + kH + 0.14, cabCenterZ - 0.12);
+        // ---------------------------------------------------------------------
+        // 4. SEAMLESS "L"-SHAPED QUARTZ WATERFALL COUNTERTOP
+        // ---------------------------------------------------------------------
+        const counterY = 0.15 + (kH - counterThick) + counterThick / 2;
 
-        // Black Ceramic Induction Cooktop with Illuminated Red/Amber Rings (cook zone)
-        const cookX = startX + actualLen * 0.72;
-        const cooktop = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.012, 0.36), materials.applianceGlassMaterial);
-        cooktop.position.set(cookX, 0.15 + kH + 0.025, cabCenterZ + 0.01);
-        [-0.12, 0.12].forEach((ox) => {
-          const ring = new THREE.Mesh(new THREE.RingGeometry(0.06, 0.075, 16), materials.ledStripMaterial);
+        // Left Countertop Slab (continuous from rear corner along return arm)
+        const leftTop = new THREE.Mesh(
+          new THREE.BoxGeometry(kD + 0.02, counterThick, armZ + 0.02),
+          materials.countertopMaterial
+        );
+        leftTop.position.set(
+          startX + kD / 2,
+          counterY,
+          kitchenRearZ + armZ / 2
+        );
+        leftTop.castShadow = true;
+
+        // Rear Countertop Slab (connects perfectly flush to left slab at X = startX + kD)
+        const rearTop = new THREE.Mesh(
+          new THREE.BoxGeometry(rearBaseW, counterThick, kD + 0.02),
+          materials.countertopMaterial
+        );
+        rearTop.position.set(
+          startX + kD + rearBaseW / 2,
+          counterY,
+          kitchenRearZ + kD / 2
+        );
+        rearTop.castShadow = true;
+
+        // Waterfall edge at the end of the return arm
+        const waterfallReturn = new THREE.Mesh(
+          new THREE.BoxGeometry(kD + 0.02, kH, 0.02),
+          materials.countertopMaterial
+        );
+        waterfallReturn.position.set(
+          startX + kD / 2,
+          0.15 + kH / 2,
+          kitchenRearZ + armZ + 0.01
+        );
+        waterfallReturn.castShadow = true;
+
+        kGroup.add(leftTop, rearTop, waterfallReturn);
+
+        // ---------------------------------------------------------------------
+        // 5. UNDERMOUNT DOUBLE SINK & DESIGNER GOOSENECK FAUCET
+        // ---------------------------------------------------------------------
+        // Center the sink under the rear exterior window for natural light & outdoor views
+        const sinkX = Math.max(startX + kD + 0.25, Math.min(armXEnd - 0.35, rearWinCenter));
+        const sink = new THREE.Mesh(
+          new THREE.BoxGeometry(0.46, 0.12, 0.38),
+          materials.chassisMaterial
+        );
+        sink.position.set(sinkX, 0.15 + kH - 0.04, kitchenRearZ + kD / 2);
+
+        const faucet = new THREE.Mesh(
+          new THREE.TorusGeometry(0.065, 0.012, 8, 16, Math.PI),
+          materials.brassHandleMaterial || materials.metalTrimMaterial
+        );
+        faucet.position.set(sinkX, 0.15 + kH + 0.15, kitchenRearZ + 0.12);
+
+        kGroup.add(sink, faucet);
+
+        // ---------------------------------------------------------------------
+        // 6. 2-BURNER INDUCTION COOKTOP ON L-RETURN ARM
+        // ---------------------------------------------------------------------
+        const cookZ = kitchenRearZ + kD + (armZ - kD) * 0.50;
+        const cooktop = new THREE.Mesh(
+          new THREE.BoxGeometry(0.38, 0.012, 0.48),
+          materials.applianceGlassMaterial
+        );
+        cooktop.position.set(startX + kD / 2, 0.15 + kH + 0.005, cookZ);
+        [-0.11, 0.11].forEach((oz) => {
+          const ring = new THREE.Mesh(
+            new THREE.RingGeometry(0.055, 0.07, 16),
+            materials.ledStripMaterial
+          );
           ring.rotation.x = -Math.PI / 2;
-          ring.position.set(cookX + ox, 0.15 + kH + 0.032, cabCenterZ + 0.01);
+          ring.position.set(startX + kD / 2, 0.15 + kH + 0.012, cookZ + oz);
           kGroup.add(ring);
         });
 
-        // Upper Wall Cupboards with Under-Cabinet Warm LED Task Strip
-        const upperD = 0.32;
-        const upperH = 0.62;
-        const upperCab = new THREE.Mesh(new THREE.BoxGeometry(actualLen, upperH, upperD), materials.cabinetMaterial);
-        upperCab.position.set(cabCenterX, 0.15 + kH + 0.60 + upperH / 2, kitchenRearZ + upperD / 2);
+        // Architectural Cabinet Drawer / Door Handles
+        for (let di = 0; di < 2; di++) {
+          const hY = 0.15 + kH * (0.35 + di * 0.35);
+          const handle = new THREE.Mesh(
+            new THREE.BoxGeometry(0.015, 0.015, 0.20),
+            materials.brassHandleMaterial || materials.metalTrimMaterial
+          );
+          handle.position.set(startX + kD + 0.01, hY, kitchenRearZ + kD + (armZ - kD) * (di === 0 ? 0.30 : 0.70));
+          kGroup.add(handle);
+        }
+        const rearDoorHandle = new THREE.Mesh(
+          new THREE.BoxGeometry(0.20, 0.015, 0.015),
+          materials.brassHandleMaterial || materials.metalTrimMaterial
+        );
+        rearDoorHandle.position.set(startX + kD + rearBaseW * 0.50, 0.15 + kH * 0.70, kitchenRearZ + kD + 0.01);
+        kGroup.add(rearDoorHandle);
 
-        const underLed = new THREE.Mesh(new THREE.BoxGeometry(actualLen - 0.08, 0.01, 0.03), materials.ledStripMaterial);
-        underLed.position.set(cabCenterX, 0.15 + kH + 0.59, kitchenRearZ + upperD - 0.02);
+        kGroup.add(cooktop);
 
-        kGroup.add(baseCab, counter, sink, faucet, cooktop, upperCab, underLed);
+        // Open Wall Overhead: Clean perimeter with zero upper cabinets and zero heat extractor
         target.add(kGroup);
       };
 
@@ -2972,14 +3158,16 @@ export function buildHomeModel(
         if (isFacingEast) {
           // =================================================================
           // 1. SOFA: SCANDINAVIAN / ITALIAN LUXURY MODULAR SOFA (Facing East)
+          // Only rendered if user adds Designer Living Room Sofa Suite via Add-on Manager
           // =================================================================
-          // Sofa rests against the LEFT exterior wall (X = leftWallX), facing EAST (+X)
-          const sofaX = leftWallX + sD / 2 + 0.08;
-          const sofaZ = opts.sZ;
-          const armW = 0.16;
-          const usableSeatW = sW - armW * 2;
-          const numCushions = sW >= 2.0 ? 3 : 2;
-          const cushionW = (usableSeatW - 0.03 * (numCushions - 1)) / numCushions;
+          if (Boolean(state.hasLivingSofa)) {
+            // Sofa rests against the LEFT exterior wall (X = leftWallX), facing EAST (+X)
+            const sofaX = leftWallX + sD / 2 + 0.08;
+            const sofaZ = opts.sZ;
+            const armW = 0.16;
+            const usableSeatW = sW - armW * 2;
+            const numCushions = sW >= 2.0 ? 3 : 2;
+            const cushionW = (usableSeatW - 0.03 * (numCushions - 1)) / numCushions;
 
           // A. Architectural Tapered Metal Legs & Recessed Walnut Plinth
           const legH = 0.08;
@@ -3239,15 +3427,17 @@ export function buildHomeModel(
           lampBulb.position.set(lampX, rugTopY + 1.35, lampZ);
 
           lGroup.add(lampBase, lampStem, lampShade, lampBulb);
+        }
 
           // =================================================================
           // 3. ARCHITECTURAL FEATURE MEDIA WALL & WALL-MOUNTED 65" 4K OLED TV
+          // Optional Add-on: Only rendered if selected in Add-ons section
           // =================================================================
-          if (opts.tvOnWall !== false) {
+          if (opts.tvOnWall !== false && Boolean(state.hasTvConsole)) {
             // Wall position along central corridor spine:
             // Right side of walkway is at X = coreWidth / 2 (+1.10m), facing West (-X) into walkway & living room
             const tvWallX = opts.tvWallX !== undefined ? opts.tvWallX : coreWidth / 2;
-            const tvZ = opts.tvWallZ !== undefined ? opts.tvWallZ : sofaZ;
+            const tvZ = opts.tvWallZ !== undefined ? opts.tvWallZ : opts.sZ;
             const mediaWallLength = opts.mediaWallLength || 1.70;
             const mediaWallH = 2.30;
             const isRightWall = tvWallX > 0;
@@ -3420,13 +3610,15 @@ export function buildHomeModel(
         } else {
           // =================================================================
           // SOUTH-FACING SOFA CONFIGURATION (With detailed cushions & plinth)
+          // Only rendered if user adds Designer Living Room Sofa Suite via Add-on Manager
           // =================================================================
-          const sX = opts.sX;
-          const sZ = opts.sZ;
-          const armW = 0.16;
-          const usableSeatW = sW - armW * 2;
-          const numCushions = sW >= 2.0 ? 3 : 2;
-          const cushionW = (usableSeatW - 0.03 * (numCushions - 1)) / numCushions;
+          if (Boolean(state.hasLivingSofa)) {
+            const sX = opts.sX;
+            const sZ = opts.sZ;
+            const armW = 0.16;
+            const usableSeatW = sW - armW * 2;
+            const numCushions = sW >= 2.0 ? 3 : 2;
+            const cushionW = (usableSeatW - 0.03 * (numCushions - 1)) / numCushions;
 
           // A. Walnut Plinth Base & Metal Legs
           const legH = 0.08;
@@ -3560,6 +3752,7 @@ export function buildHomeModel(
           rug.castShadow = true;
 
           lGroup.add(tbl, rug);
+          }
         }
 
         target.add(lGroup);
@@ -3633,7 +3826,7 @@ export function buildHomeModel(
       if (state.hasLuxuryBathPod) {
         const bathGroup = new THREE.Group();
         const bWidth = coreWidth; // 2.20m across X: perfectly flush with spine partition boundaries [-coreWidth / 2, +coreWidth / 2]
-        const bDepth = 1.50; // 1.50m along Z [zRear, zRear + bDepth]
+        const bDepth = is10ft ? 1.30 : 1.50; // 1.30m along Z for 10ft micro, 1.50m for 20ft/30ft/40ft
         const bHeight = 2.30;
         const bCenterZ = zRear + bDepth / 2;
 
@@ -3667,18 +3860,14 @@ export function buildHomeModel(
         // ENTRANCE ACCESS DOORWAY & FRONT PARTITION WALL (At Z = zRear + bDepth - intWallT / 2)
         // ===================================================================
         // Total pod width = 2.20m across X [-1.10m, +1.10m].
-        // Layout:
-        // Left Solid Wall (X = -1.10m to -0.60m): 0.50m wide solid wall segment
-        // Entrance Doorway (X = -0.60m to +0.20m): 0.80m wide architectural doorway
-        // Right Solid Wall (X = +0.20m to +1.10m): 0.90m wide solid privacy wall
-        // Guaranteed 100% seamless enclosure: 0.50m + 0.80m + 0.90m = 2.20m (ZERO GAPS)
-        const bDoorW = 0.80;
+        // Seamlessly split between left solid wall, entrance doorway, and right privacy wall
+        const bDoorW = is10ft ? 0.72 : 0.80;
         const bDoorH = 2.10;
-        const doorOpeningX = -0.20; // Center of entrance doorway
+        const doorOpeningX = is10ft ? -0.25 : -0.20; // Center of entrance doorway
         const frontWallZ = zRear + bDepth - intWallT / 2;
 
-        const leftFrontW = 0.50;
-        const leftFrontX = -bWidth / 2 + leftFrontW / 2; // X = -0.85m
+        const leftFrontW = Math.abs((-bWidth / 2) - (doorOpeningX - bDoorW / 2));
+        const leftFrontX = -bWidth / 2 + leftFrontW / 2;
         const leftFrontWall = new THREE.Mesh(
           new THREE.BoxGeometry(leftFrontW, bHeight, intWallT),
           materials.bambooCharcoalWallMaterial
@@ -3687,8 +3876,8 @@ export function buildHomeModel(
         leftFrontWall.castShadow = true;
         bathGroup.add(leftFrontWall);
 
-        const rightFrontW = 0.90;
-        const rightFrontX = bWidth / 2 - rightFrontW / 2; // X = +0.65m
+        const rightFrontW = bWidth / 2 - (doorOpeningX + bDoorW / 2);
+        const rightFrontX = bWidth / 2 - rightFrontW / 2;
         const rightFrontWall = new THREE.Mesh(
           new THREE.BoxGeometry(rightFrontW, bHeight, intWallT),
           materials.bambooCharcoalWallMaterial
@@ -3776,8 +3965,8 @@ export function buildHomeModel(
         // ===================================================================
         // Spans: Left wall (X = -1.06m) to X = -0.18m (width 0.88m)
         // Z: zRear + intWallT (Z = zRear + 0.075m) to Z = zRear + 0.995m (depth 0.92m)
-        const showerTrayW = 0.88;
-        const showerTrayD = 0.92;
+        const showerTrayW = is10ft ? 0.80 : 0.88;
+        const showerTrayD = is10ft ? 0.86 : 0.92;
         const showerCenterX = -bWidth / 2 + intWallT + showerTrayW / 2; // X = -0.62m
         const showerCenterZ = zRear + intWallT + showerTrayD / 2; // Z = zRear + 0.535m
 
@@ -3867,11 +4056,11 @@ export function buildHomeModel(
         // Flush against the rear wall lining (Z = zRear + intWallT)
         // Dry zone spans from shower glass (X = -0.18m) to right wall (X = +1.025m)
         // Centered at X = +0.40m with generous legroom (0.88m open space in front)
-        const toiletX = 0.40;
+        const toiletX = is10ft ? 0.35 : 0.40;
         const toiletRearZ = zRear + intWallT;
-        const bowlW = 0.36;
-        const bowlL = 0.54;
-        const bowlCenterZ = toiletRearZ + bowlL / 2; // Z = zRear + 0.345m
+        const bowlW = is10ft ? 0.34 : 0.36;
+        const bowlL = is10ft ? 0.48 : 0.54;
+        const bowlCenterZ = toiletRearZ + bowlL / 2;
 
         // 1. Ceramic Pedestal Base & Sculpted Bowl
         const tPedestal = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.22, bowlL - 0.08), materials.ceramicVesselMaterial || materials.countertopMaterial);
@@ -3941,15 +4130,17 @@ export function buildHomeModel(
         // ===================================================================
         // Mounted flush along the solid RIGHT WALL (X = +1.025m), facing LEFT (-X)
         // Perfectly positioned in the front quadrant:
-        // Length along Z = 0.68m [Z = zRear + 0.72m to Z = zRear + 1.40m]
-        // Depth along X = 0.40m [extends from X = +1.025m inward to X = +0.625m]
-        // Provides seamless open clearance between toilet and vanity, with no overlaps!
-        const vW = 0.68; // Length along Z
-        const vD = 0.40; // Depth along X
+        // Positioned safely behind the front partition wall with zero door/wall intersection!
+        const vW = is10ft ? 0.48 : 0.68; // Length along Z
+        const vD = is10ft ? 0.36 : 0.40; // Depth along X
         const vH = 0.46; // Height
         const vanityRightX = bWidth / 2 - intWallT; // Flush against right wall at X = +1.025m
-        const vanityX = vanityRightX - vD / 2; // X = +0.825m
-        const vanityZ = zRear + intWallT + 0.98; // Z = zRear + 1.055m
+        const vanityX = vanityRightX - vD / 2; // X = +0.845m (10ft) / +0.825m (others)
+        const frontWallInnerZ = frontWallZ - intWallT / 2;
+        const vanityFrontClearance = is10ft ? 0.08 : 0.06;
+        const vanityZ = is10ft
+          ? (frontWallInnerZ - vanityFrontClearance - vW / 2)
+          : (zRear + intWallT + 0.98);
 
         // 1. Floating Fluted Oak Vanity Cabinet with soft-close drawers
         const vanityCab = new THREE.Mesh(
@@ -3964,15 +4155,16 @@ export function buildHomeModel(
         const drawerSplit = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.008, vW - 0.04), materials.chassisMaterial);
         drawerSplit.position.set(frontFaceX - 0.003, 0.15 + 0.36 + vH / 2, vanityZ);
 
-        const pull1 = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.015, 0.28), materials.brassHandleMaterial || materials.metalTrimMaterial);
+        const pull1 = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.015, Math.min(0.28, vW - 0.12)), materials.brassHandleMaterial || materials.metalTrimMaterial);
         pull1.position.set(frontFaceX - 0.012, 0.15 + 0.36 + vH * 0.75, vanityZ);
-        const pull2 = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.015, 0.28), materials.brassHandleMaterial || materials.metalTrimMaterial);
+        const pull2 = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.015, Math.min(0.28, vW - 0.12)), materials.brassHandleMaterial || materials.metalTrimMaterial);
         pull2.position.set(frontFaceX - 0.012, 0.15 + 0.36 + vH * 0.25, vanityZ);
 
         // Lower open shelf with three rolled luxury guest towels
         const towelShelf = new THREE.Mesh(new THREE.BoxGeometry(vD - 0.06, 0.02, vW - 0.06), materials.cabinetMaterial);
         towelShelf.position.set(vanityX, 0.15 + 0.20, vanityZ);
-        [-0.15, 0, 0.15].forEach((tz) => {
+        const towelStep = is10ft ? 0.11 : 0.15;
+        [-towelStep, 0, towelStep].forEach((tz) => {
           const rolledTowel = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, vD - 0.10, 12), materials.bedLinenMaterial);
           rolledTowel.rotation.z = Math.PI / 2;
           rolledTowel.position.set(vanityX, 0.15 + 0.25, vanityZ + tz);
@@ -3989,49 +4181,52 @@ export function buildHomeModel(
         splashback.position.set(vanityRightX - 0.01, 0.15 + 0.36 + vH + 0.035 + 0.04, vanityZ);
 
         // 3. Contemporary Porcelain Vessel Basin Sink (Centered on Countertop)
-        const basinW = 0.44; // Along Z
-        const basinD = 0.28; // Along X
-        const basinH = 0.12;
+        const basinW = is10ft ? 0.34 : 0.44; // Along Z
+        const basinD = is10ft ? 0.24 : 0.28; // Along X
+        const basinH = is10ft ? 0.11 : 0.12;
         const basinY = 0.15 + 0.36 + vH + 0.035 + basinH / 2;
+        const basinInsetFromWall = is10ft ? 0.065 : 0.06;
+        const basinX = vanityRightX - basinInsetFromWall - basinD / 2;
 
         const vesselBasin = new THREE.Mesh(new THREE.BoxGeometry(basinD, basinH, basinW), materials.ceramicVesselMaterial || materials.countertopMaterial);
-        vesselBasin.position.set(vanityX - 0.02, basinY, vanityZ);
+        vesselBasin.position.set(basinX, basinY, vanityZ);
         vesselBasin.castShadow = true;
 
         // Sloped inner basin cavity
         const basinCavity = new THREE.Mesh(new THREE.BoxGeometry(basinD - 0.05, basinH - 0.02, basinW - 0.06), materials.applianceGlassMaterial);
-        basinCavity.position.set(vanityX - 0.02, basinY + 0.015, vanityZ);
+        basinCavity.position.set(basinX, basinY + 0.015, vanityZ);
 
         // Chrome pop-up drain stopper centered in basin
         const popUpDrain = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.01, 16), materials.metalTrimMaterial);
-        popUpDrain.position.set(vanityX - 0.02, basinY - basinH / 2 + 0.015, vanityZ);
+        popUpDrain.position.set(basinX, basinY - basinH / 2 + 0.015, vanityZ);
 
         // 4. Tall Designer Mono-Bloc Mixer Faucet (Mounted behind vessel basin near Right Wall)
-        const faucetX = vanityRightX - 0.06;
+        const faucetX = vanityRightX - 0.045;
         const faucetStem = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.22, 12), materials.brassHandleMaterial || materials.metalTrimMaterial);
         faucetStem.position.set(faucetX, basinY + 0.06, vanityZ);
-        const faucetSpout = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.015, 0.015), materials.brassHandleMaterial || materials.metalTrimMaterial);
-        faucetSpout.position.set(faucetX - 0.06, basinY + 0.16, vanityZ);
+        const faucetSpout = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.015, 0.015), materials.brassHandleMaterial || materials.metalTrimMaterial);
+        faucetSpout.position.set(faucetX - 0.05, basinY + 0.16, vanityZ);
         const faucetLever = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.01, 0.015), materials.brassHandleMaterial || materials.metalTrimMaterial);
         faucetLever.position.set(faucetX, basinY + 0.17, vanityZ);
 
         // 5. Amber Glass Soap Dispenser Bottle on counter
+        const soapZ = vanityZ - (is10ft ? 0.14 : 0.20);
         const soapBottle = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.10, 12), materials.candleGlowMaterial || materials.applianceGlassMaterial);
-        soapBottle.position.set(vanityX + 0.08, 0.15 + 0.36 + vH + 0.035 + 0.05, vanityZ - 0.20);
+        soapBottle.position.set(vanityX + (is10ft ? 0.05 : 0.08), 0.15 + 0.36 + vH + 0.035 + 0.05, soapZ);
         const soapPump = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.04, 8), materials.metalTrimMaterial);
-        soapPump.position.set(vanityX + 0.08, 0.15 + 0.36 + vH + 0.035 + 0.11, vanityZ - 0.20);
+        soapPump.position.set(vanityX + (is10ft ? 0.05 : 0.08), 0.15 + 0.36 + vH + 0.035 + 0.11, soapZ);
 
         // 6. Wall-Mounted Hand Towel Ring with Plush Hand Towel on Front Wall beside Vanity
         const towelRing = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.008, 8, 16), materials.brassHandleMaterial || materials.metalTrimMaterial);
-        towelRing.position.set(vanityX - 0.12, 0.15 + 1.15, frontWallZ - intWallT / 2 - 0.01);
+        towelRing.position.set(vanityX - 0.10, 0.15 + 1.15, frontWallInnerZ - 0.01);
         const hangingTowel = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.28, 0.02), materials.bedLinenMaterial);
-        hangingTowel.position.set(vanityX - 0.12, 0.15 + 0.98, frontWallZ - intWallT / 2 - 0.01);
+        hangingTowel.position.set(vanityX - 0.10, 0.15 + 0.98, frontWallInnerZ - 0.01);
 
         // 7. Oversized Smart LED Backlit Mirror Mounted Flush Against Right Wall
         // Centered directly over the vanity at vanityZ, facing left (-X) into the bathroom
-        const mirrorW = 0.54; // Along Z
-        const mirrorH = 0.82; // Along Y
-        const mirrorY = 0.15 + 1.50;
+        const mirrorW = is10ft ? 0.42 : 0.54; // Along Z
+        const mirrorH = is10ft ? 0.74 : 0.82; // Along Y
+        const mirrorY = 0.15 + (is10ft ? 1.45 : 1.50);
         const mirrorWallX = vanityRightX - 0.01;
 
         // Ambient halo glow behind mirror on right wall
@@ -4082,8 +4277,47 @@ export function buildHomeModel(
       const partGroup = new THREE.Group();
       const rightDividerZ = 0.10;
       const leftDividerZ = 0.10;
+      if (is10ft) {
+        // =================================================================
+        // 10FT DUAL-WING EXPANDABLE: DEDICATED 1-BEDROOM ARCHITECTURE
+        // =================================================================
+        // Right Wing: Open-Concept Master Bedroom Suite (No dividing wall, no door access)
+        // The room flows directly into the central living space without restrictive interior doors
+        const wardrobeZ = 0.75;
 
-      switch (activeFloorPlan) {
+        // Right Wing Furniture: 1 Luxury Bedroom Suite
+        buildBedSuite(interiorGroup, {
+          x: rightWingCenterX,
+          z: zRear + 0.10 + 1.85 / 2,
+          headZ: zRear + 0.10,
+          bedW: 1.35,
+          bedL: 1.85,
+          dirZ: 1,
+          hasNightstands: true,
+          hasWardrobe: Boolean(state.hasWardrobe),
+          wardrobeX: rightWallX - 0.26,
+          wardrobeZ: wardrobeZ,
+          wardrobeW: 0.75,
+          wardrobeD: 0.45,
+          isWardrobeAlongZ: true,
+        });
+
+        // Left Wing: Optional "L"-Shaped Kitchenette & Open Studio Space
+        if (state.hasKitchenetteModule) {
+          buildKitchen(interiorGroup, undefined, undefined, 1.45, true);
+        } else {
+          // Open living studio lounge when kitchenette is omitted
+          buildLiving(interiorGroup, {
+            sX: leftWingCenterX,
+            sZ: 0.10,
+            sW: 1.85,
+            facing: 'east',
+            tvOnWall: true,
+            tvWallX: -coreWidth / 2,
+          });
+        }
+      } else {
+        switch (activeFloorPlan) {
         case '2-bed-1-bath': {
           // =================================================================
           // PLAN 1: 2 BEDROOMS, 1 RESTROOM, 1 LIVING ROOM (EXECUTIVE FAMILY)
@@ -4166,87 +4400,203 @@ export function buildHomeModel(
           // =================================================================
           // PLAN 2: 3 BEDROOMS, 1 RESTROOM, 1 LIVING ROOM (SPLIT-WING)
           // =================================================================
-          // Left Wing: Kitchen/Dining (Rear-Left), Divider Wall, Bedroom 1 (Front-Left)
-          const leftWingWidth = Math.abs(leftWallX - (-coreWidth / 2));
-          const leftDividerX = (-coreWidth / 2 + leftWallX) / 2;
-          addWallSegment(partGroup, leftDividerX, height / 2 + 0.15, leftDividerZ, leftWingWidth, height, intWallT);
+          if (is40ft) {
+            // -----------------------------------------------------------------
+            // 40FT FLAGSHIP 3-BEDROOM EXPANDABLE LAYOUT (11.8m Length, 3 Bays)
+            // - Right Wing: 3 Private Enclosed Bedroom Suites (Rear, Mid, Front)
+            //   separated at structural column posts Z = -1.97m and Z = +1.97m.
+            //   Each bedroom has its own private door and dedicated side window!
+            // - Left Wing: 11.8m Great Room with Chef's Kitchen, Dining Table,
+            //   Living Room Lounge with 3-seater sofa & 65" TV, and Executive Study
+            // - Central Spine: Bathroom Pod + Central Corridor + Main Patio Entry
+            // -----------------------------------------------------------------
+            const rightWingWidth = rightWallX - coreWidth / 2;
+            const rightDividerX = coreWidth / 2 + rightWingWidth / 2;
 
-          // Corridor partition along X = -coreWidth / 2 with private door to Bed 1
-          const b1DoorZ = leftDividerZ + 0.55;
-          addWallSegment(partGroup, -coreWidth / 2, height / 2 + 0.15, (leftDividerZ + b1DoorZ - 0.41) / 2, intWallT, height, (b1DoorZ - 0.41) - leftDividerZ);
-          addDoorOpening(partGroup, -coreWidth / 2, b1DoorZ, 0.82, 2.10, true, true);
-          addWallSegment(partGroup, -coreWidth / 2, height / 2 + 0.15, (b1DoorZ + 0.41 + zFront) / 2, intWallT, height, zFront - (b1DoorZ + 0.41));
+            // 1. Two Transverse Divider Walls on Right Wing at Structural Posts Z = -1.97m & Z = +1.97m
+            addWallSegment(partGroup, rightDividerX, height / 2 + 0.15, -1.97, rightWingWidth, height, intWallT);
+            addWallSegment(partGroup, rightDividerX, height / 2 + 0.15, 1.97, rightWingWidth, height, intWallT);
 
-          // Right Wing: Divider Wall with Bed 2 (Rear) & Bed 3 (Front)
-          const rightWingWidth = rightWallX - coreWidth / 2;
-          const rightDividerX = coreWidth / 2 + rightWingWidth / 2;
-          addWallSegment(partGroup, rightDividerX, height / 2 + 0.15, rightDividerZ, rightWingWidth, height, intWallT);
+            // 2. Right Corridor Partition along X = coreWidth / 2 with 3 Private Bedroom Doors
+            const b1DoorZ = -2.55;
+            const b2DoorZ = -0.50;
+            const b3DoorZ = 2.55;
 
-          const rDoor1Z = rightDividerZ - 0.55;
-          const rDoor2Z = rightDividerZ + 0.55;
-          addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (zRear + rDoor1Z - 0.41) / 2, intWallT, height, (rDoor1Z - 0.41) - zRear);
-          addDoorOpening(partGroup, coreWidth / 2, rDoor1Z, 0.82, 2.10, true, true);
-          addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (rDoor1Z + 0.41 + rightDividerZ) / 2, intWallT, height, rightDividerZ - (rDoor1Z + 0.41));
-          addDoorOpening(partGroup, coreWidth / 2, rDoor2Z, 0.82, 2.10, true, true);
-          addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (rDoor2Z + 0.41 + zFront) / 2, intWallT, height, zFront - (rDoor2Z + 0.41));
+            // Segment 1: from rear wall (-5.90) to Bed 1 Door
+            addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (zRear + (b1DoorZ - 0.41)) / 2, intWallT, height, (b1DoorZ - 0.41) - zRear);
+            addDoorOpening(partGroup, coreWidth / 2, b1DoorZ, 0.82, 2.10, true, true);
 
-          // Furniture:
-          // Top-Left Kitchenette + Breakfast Dining Table & Chairs (Matching 2D Diagram)
-          buildKitchen(interiorGroup, undefined, undefined, 1.45, true);
-          buildDining(interiorGroup, leftWingCenterX, -0.65, 4);
+            // Segment 2: between Bed 1 Door and Post 1 (-1.97) to Bed 2 Door
+            addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (b1DoorZ + 0.41 + (b2DoorZ - 0.41)) / 2, intWallT, height, (b2DoorZ - 0.41) - (b1DoorZ + 0.41));
+            addDoorOpening(partGroup, coreWidth / 2, b2DoorZ, 0.82, 2.10, true, true);
 
-          // Bottom-Left Bedroom 1: Bed headboard against front wall, doorway into open foyer
-          buildBedSuite(interiorGroup, {
-            x: leftWingCenterX,
-            z: zFront - 0.08 - 1.85 / 2,
-            headZ: zFront - 0.08,
-            bedW: 1.25,
-            bedL: 1.85,
-            dirZ: -1,
-            hasNightstands: true,
-            hasWardrobe: Boolean(state.hasWardrobe),
-            wardrobeX: leftWallX + 0.26,
-            wardrobeZ: b1DoorZ,
-            wardrobeW: 0.80,
-            wardrobeD: 0.50,
-            isWardrobeAlongZ: true,
-          });
+            // Segment 3: between Bed 2 Door and Bed 3 Door
+            addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (b2DoorZ + 0.41 + (b3DoorZ - 0.41)) / 2, intWallT, height, (b3DoorZ - 0.41) - (b2DoorZ + 0.41));
+            addDoorOpening(partGroup, coreWidth / 2, b3DoorZ, 0.82, 2.10, true, true);
 
-          // Top-Right Bedroom 2: Bed headboard against rear wall, doorway into open foyer
-          buildBedSuite(interiorGroup, {
-            x: rightWingCenterX,
-            z: zRear + 0.08 + 1.85 / 2,
-            headZ: zRear + 0.08,
-            bedW: 1.25,
-            bedL: 1.85,
-            dirZ: 1,
-            hasNightstands: true,
-            hasWardrobe: Boolean(state.hasWardrobe),
-            wardrobeX: rightWallX - 0.26,
-            wardrobeZ: rDoor1Z,
-            wardrobeW: 0.80,
-            wardrobeD: 0.50,
-            isWardrobeAlongZ: true,
-          });
+            // Segment 4: from Bed 3 Door to front wall (+5.90)
+            addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (b3DoorZ + 0.41 + zFront) / 2, intWallT, height, zFront - (b3DoorZ + 0.41));
 
-          // Bottom-Right Bedroom 3: Bed headboard against front wall, doorway into open foyer
-          buildBedSuite(interiorGroup, {
-            x: rightWingCenterX,
-            z: zFront - 0.08 - 1.85 / 2,
-            headZ: zFront - 0.08,
-            bedW: 1.25,
-            bedL: 1.85,
-            dirZ: -1,
-            hasNightstands: true,
-            hasWardrobe: Boolean(state.hasWardrobe),
-            wardrobeX: rightWallX - 0.26,
-            wardrobeZ: rDoor2Z,
-            wardrobeW: 0.80,
-            wardrobeD: 0.50,
-            isWardrobeAlongZ: true,
-          });
+            // 3. Right Wing Bedroom Suites (3 Bedrooms aligned with the 3 side windows)
+            // Bedroom 1 (Master Bedroom, Rear-Right, Bay 1):
+            buildBedSuite(interiorGroup, {
+              x: rightWingCenterX,
+              z: -4.80,
+              headZ: zRear + 0.08,
+              bedW: 1.35,
+              bedL: 1.95,
+              dirZ: 1,
+              hasNightstands: true,
+              hasWardrobe: Boolean(state.hasWardrobe),
+              wardrobeX: rightWallX - 0.26,
+              wardrobeZ: -3.30,
+              wardrobeW: 0.80,
+              wardrobeD: 0.50,
+              isWardrobeAlongZ: true,
+            });
 
-          // Central Corridor Spine: Dining / Gathering credenza & smart console
+            // Bedroom 2 (Middle-Right, Bay 2):
+            buildBedSuite(interiorGroup, {
+              x: rightWingCenterX,
+              z: -0.90,
+              headZ: -1.97 + 0.08,
+              bedW: 1.30,
+              bedL: 1.90,
+              dirZ: 1,
+              hasNightstands: true,
+              hasWardrobe: Boolean(state.hasWardrobe),
+              wardrobeX: rightWallX - 0.26,
+              wardrobeZ: 0.85,
+              wardrobeW: 0.80,
+              wardrobeD: 0.50,
+              isWardrobeAlongZ: true,
+            });
+
+            // Bedroom 3 (Front-Right, Bay 3):
+            buildBedSuite(interiorGroup, {
+              x: rightWingCenterX,
+              z: 4.80,
+              headZ: zFront - 0.08,
+              bedW: 1.30,
+              bedL: 1.90,
+              dirZ: -1,
+              hasNightstands: true,
+              hasWardrobe: Boolean(state.hasWardrobe),
+              wardrobeX: rightWallX - 0.26,
+              wardrobeZ: 3.30,
+              wardrobeW: 0.80,
+              wardrobeD: 0.50,
+              isWardrobeAlongZ: true,
+            });
+
+            // 4. Left Wing 11.8m Great Room:
+            // Top: Chef's Kitchen & Dining
+            buildKitchen(interiorGroup, undefined, undefined, 1.80, true);
+            buildDining(interiorGroup, leftWingCenterX, -3.20, 6);
+
+            // Middle: Living Room Lounge with 3-Seater Sofa & 65" TV
+            buildLiving(interiorGroup, {
+              sX: leftWingCenterX,
+              sZ: 0.00,
+              sW: 2.15,
+              facing: 'east',
+              tvOnWall: true,
+              tvWallX: coreWidth / 2,
+              tvWallZ: 0.80,
+              mediaWallLength: 1.70,
+              hasExistingWall: true,
+            });
+
+            // Front: Executive Study & Foyer
+            const deskGeo = new THREE.BoxGeometry(1.30, 0.76, 0.60);
+            const deskMesh = new THREE.Mesh(deskGeo, materials.cabinetMaterial);
+            deskMesh.position.set(leftWingCenterX, 0.15 + 0.76 / 2, 3.80);
+            deskMesh.castShadow = true;
+            const chairGeo = new THREE.BoxGeometry(0.50, 0.85, 0.50);
+            const chairMesh = new THREE.Mesh(chairGeo, materials.chassisMaterial);
+            chairMesh.position.set(leftWingCenterX, 0.15 + 0.85 / 2, 4.30);
+            chairMesh.castShadow = true;
+            interiorGroup.add(deskMesh, chairMesh);
+          } else {
+            // Standard 20ft / 30ft Left Wing: Kitchen/Dining (Rear-Left), Divider Wall, Bedroom 1 (Front-Left)
+            const leftWingWidth = Math.abs(leftWallX - (-coreWidth / 2));
+            const leftDividerX = (-coreWidth / 2 + leftWallX) / 2;
+            addWallSegment(partGroup, leftDividerX, height / 2 + 0.15, leftDividerZ, leftWingWidth, height, intWallT);
+
+            // Corridor partition along X = -coreWidth / 2 with private door to Bed 1
+            const b1DoorZ = leftDividerZ + 0.55;
+            addWallSegment(partGroup, -coreWidth / 2, height / 2 + 0.15, (leftDividerZ + b1DoorZ - 0.41) / 2, intWallT, height, (b1DoorZ - 0.41) - leftDividerZ);
+            addDoorOpening(partGroup, -coreWidth / 2, b1DoorZ, 0.82, 2.10, true, true);
+            addWallSegment(partGroup, -coreWidth / 2, height / 2 + 0.15, (b1DoorZ + 0.41 + zFront) / 2, intWallT, height, zFront - (b1DoorZ + 0.41));
+
+            // Right Wing: Divider Wall with Bed 2 (Rear) & Bed 3 (Front)
+            const rightWingWidth = rightWallX - coreWidth / 2;
+            const rightDividerX = coreWidth / 2 + rightWingWidth / 2;
+            addWallSegment(partGroup, rightDividerX, height / 2 + 0.15, rightDividerZ, rightWingWidth, height, intWallT);
+
+            const rDoor1Z = rightDividerZ - 0.55;
+            const rDoor2Z = rightDividerZ + 0.55;
+            addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (zRear + rDoor1Z - 0.41) / 2, intWallT, height, (rDoor1Z - 0.41) - zRear);
+            addDoorOpening(partGroup, coreWidth / 2, rDoor1Z, 0.82, 2.10, true, true);
+            addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (rDoor1Z + 0.41 + rightDividerZ) / 2, intWallT, height, rightDividerZ - (rDoor1Z + 0.41));
+            addDoorOpening(partGroup, coreWidth / 2, rDoor2Z, 0.82, 2.10, true, true);
+            addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (rDoor2Z + 0.41 + zFront) / 2, intWallT, height, zFront - (rDoor2Z + 0.41));
+
+            // Furniture:
+            buildKitchen(interiorGroup, undefined, undefined, 1.45, true);
+            buildDining(interiorGroup, leftWingCenterX, -0.65, 4);
+
+            // Bottom-Left Bedroom 1: Bed headboard against front wall, doorway into open foyer
+            buildBedSuite(interiorGroup, {
+              x: leftWingCenterX,
+              z: zFront - 0.08 - 1.85 / 2,
+              headZ: zFront - 0.08,
+              bedW: 1.25,
+              bedL: 1.85,
+              dirZ: -1,
+              hasNightstands: true,
+              hasWardrobe: Boolean(state.hasWardrobe),
+              wardrobeX: leftWallX + 0.26,
+              wardrobeZ: b1DoorZ,
+              wardrobeW: 0.80,
+              wardrobeD: 0.50,
+              isWardrobeAlongZ: true,
+            });
+
+            // Top-Right Bedroom 2: Bed headboard against rear wall, doorway into open foyer
+            buildBedSuite(interiorGroup, {
+              x: rightWingCenterX,
+              z: zRear + 0.08 + 1.85 / 2,
+              headZ: zRear + 0.08,
+              bedW: 1.25,
+              bedL: 1.85,
+              dirZ: 1,
+              hasNightstands: true,
+              hasWardrobe: Boolean(state.hasWardrobe),
+              wardrobeX: rightWallX - 0.26,
+              wardrobeZ: rDoor1Z,
+              wardrobeW: 0.80,
+              wardrobeD: 0.50,
+              isWardrobeAlongZ: true,
+            });
+
+            // Bottom-Right Bedroom 3: Bed headboard against front wall, doorway into open foyer
+            buildBedSuite(interiorGroup, {
+              x: rightWingCenterX,
+              z: zFront - 0.08 - 1.85 / 2,
+              headZ: zFront - 0.08,
+              bedW: 1.25,
+              bedL: 1.85,
+              dirZ: -1,
+              hasNightstands: true,
+              hasWardrobe: Boolean(state.hasWardrobe),
+              wardrobeX: rightWallX - 0.26,
+              wardrobeZ: rDoor2Z,
+              wardrobeW: 0.80,
+              wardrobeD: 0.50,
+              isWardrobeAlongZ: true,
+            });
+          }
           break;
         }
 
@@ -4254,110 +4604,222 @@ export function buildHomeModel(
           // =================================================================
           // PLAN 3: 3 BEDROOMS, 1 RESTROOM, 1 LIVING (PENINSULA KITCHEN)
           // =================================================================
-          // Left Wing: Bedroom 1 (Rear), Kitchen Peninsula divider in middle, Living Lounge (Front)
-          const leftWingWidth = Math.abs(leftWallX - (-coreWidth / 2));
-          const leftDividerX = (-coreWidth / 2 + leftWallX) / 2;
-          const kDivZ = -0.32;
-          addWallSegment(partGroup, leftDividerX, height / 2 + 0.15, kDivZ, leftWingWidth, height, intWallT);
+          if (is40ft) {
+            // 40FT Dual-Wing 3-Bedroom Suite:
+            // - Master Bedroom 1 in Rear-Left Bay (Z = -5.90 to -1.97)
+            // - Peninsula Bar & Dining in Mid-Left Bay (Z = -1.97 to +1.97)
+            // - Front Living Room Lounge in Front-Left Bay (Z = +1.97 to +5.90)
+            // - Bedroom 2 (Rear-Right) & Bedroom 3 (Front-Right)
+            // - Mid-Right Bay: Media Study & Work Nook
+            const leftWingWidth = Math.abs(leftWallX - (-coreWidth / 2));
+            const leftDividerX = (-coreWidth / 2 + leftWallX) / 2;
+            const rightWingWidth = rightWallX - coreWidth / 2;
+            const rightDividerX = coreWidth / 2 + rightWingWidth / 2;
 
-          // Corridor partition with door to Bedroom 1 (near divider wall so it never overlaps bed)
-          const b1DoorZ = kDivZ - 0.55;
-          addWallSegment(partGroup, -coreWidth / 2, height / 2 + 0.15, (zRear + b1DoorZ - 0.41) / 2, intWallT, height, (b1DoorZ - 0.41) - zRear);
-          addDoorOpening(partGroup, -coreWidth / 2, b1DoorZ, 0.82, 2.10, true, true);
-          addWallSegment(partGroup, -coreWidth / 2, height / 2 + 0.15, (b1DoorZ + 0.41 + kDivZ) / 2, intWallT, height, kDivZ - (b1DoorZ + 0.41));
+            // Master Suite Wall on Left Wing at Post 1 (Z = -1.97m)
+            addWallSegment(partGroup, leftDividerX, height / 2 + 0.15, -1.97, leftWingWidth, height, intWallT);
+            const mDoorZ = -2.55;
+            addWallSegment(partGroup, -coreWidth / 2, height / 2 + 0.15, (zRear + (mDoorZ - 0.41)) / 2, intWallT, height, (mDoorZ - 0.41) - zRear);
+            addDoorOpening(partGroup, -coreWidth / 2, mDoorZ, 0.82, 2.10, true, true);
+            addWallSegment(partGroup, -coreWidth / 2, height / 2 + 0.15, (mDoorZ + 0.41 + -1.97) / 2, intWallT, height, -1.97 - (mDoorZ + 0.41));
 
-          // Right Wing: Divider Wall with Bed 2 (Rear) & Bed 3 (Front)
-          const rightWingWidth = rightWallX - coreWidth / 2;
-          const rightDividerX = coreWidth / 2 + rightWingWidth / 2;
-          addWallSegment(partGroup, rightDividerX, height / 2 + 0.15, rightDividerZ, rightWingWidth, height, intWallT);
+            // Right Wing Dividers at Posts Z = -1.97m and Z = +1.97m
+            addWallSegment(partGroup, rightDividerX, height / 2 + 0.15, -1.97, rightWingWidth, height, intWallT);
+            addWallSegment(partGroup, rightDividerX, height / 2 + 0.15, 1.97, rightWingWidth, height, intWallT);
 
-          const rDoor1Z = rightDividerZ - 0.55;
-          const rDoor2Z = rightDividerZ + 0.55;
-          addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (zRear + rDoor1Z - 0.41) / 2, intWallT, height, (rDoor1Z - 0.41) - zRear);
-          addDoorOpening(partGroup, coreWidth / 2, rDoor1Z, 0.82, 2.10, true, true);
-          addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (rDoor1Z + 0.41 + rightDividerZ) / 2, intWallT, height, rightDividerZ - (rDoor1Z + 0.41));
-          addDoorOpening(partGroup, coreWidth / 2, rDoor2Z, 0.82, 2.10, true, true);
-          addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (rDoor2Z + 0.41 + zFront) / 2, intWallT, height, zFront - (rDoor2Z + 0.41));
+            const rDoor1Z = -2.55;
+            const rDoor3Z = 2.55;
+            addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (zRear + (rDoor1Z - 0.41)) / 2, intWallT, height, (rDoor1Z - 0.41) - zRear);
+            addDoorOpening(partGroup, coreWidth / 2, rDoor1Z, 0.82, 2.10, true, true);
+            addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (rDoor1Z + 0.41 + (rDoor3Z - 0.41)) / 2, intWallT, height, (rDoor3Z - 0.41) - (rDoor1Z + 0.41));
+            addDoorOpening(partGroup, coreWidth / 2, rDoor3Z, 0.82, 2.10, true, true);
+            addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (rDoor3Z + 0.41 + zFront) / 2, intWallT, height, zFront - (rDoor3Z + 0.41));
 
-          // Furniture:
-          // Bedroom 1 (Rear-Left): Enclosed bedroom with bed at rear wall, door in walkway
-          buildBedSuite(interiorGroup, {
-            x: leftWingCenterX,
-            z: zRear + 0.08 + 1.85 / 2,
-            headZ: zRear + 0.08,
-            bedW: 1.25,
-            bedL: 1.85,
-            dirZ: 1,
-            hasNightstands: true,
-            hasWardrobe: Boolean(state.hasWardrobe),
-            wardrobeX: leftWallX + 0.26,
-            wardrobeZ: b1DoorZ,
-            wardrobeW: 0.80,
-            wardrobeD: 0.50,
-            isWardrobeAlongZ: true,
-          });
+            // Furniture:
+            // Master Bedroom 1 (Rear-Left):
+            buildBedSuite(interiorGroup, {
+              x: leftWingCenterX,
+              z: -4.80,
+              headZ: zRear + 0.08,
+              bedW: 1.35,
+              bedL: 1.95,
+              dirZ: 1,
+              hasNightstands: true,
+              hasWardrobe: Boolean(state.hasWardrobe),
+              wardrobeX: leftWallX + 0.26,
+              wardrobeZ: -3.30,
+              wardrobeW: 0.80,
+              wardrobeD: 0.50,
+              isWardrobeAlongZ: true,
+            });
 
-          // Kitchen Peninsula Counter with Induction Burners & Bar Stools
-          const pWidth = leftWingWidth - 0.35;
-          const pCounter = new THREE.Mesh(new THREE.BoxGeometry(pWidth, 0.88, 0.54), materials.countertopMaterial);
-          pCounter.position.set(leftDividerX - 0.08, 0.15 + 0.44, kDivZ + 0.32);
-          pCounter.castShadow = true;
-          // Dual induction rings on peninsula
-          [-0.22, 0.08].forEach((px) => {
-            const ring = new THREE.Mesh(new THREE.RingGeometry(0.065, 0.08, 16), materials.ledStripMaterial);
-            ring.rotation.x = -Math.PI / 2;
-            ring.position.set(leftDividerX - 0.08 + px, 0.15 + 0.88 + 0.015, kDivZ + 0.32);
-            interiorGroup.add(ring);
-          });
-          interiorGroup.add(pCounter);
+            // Kitchen Peninsula in Middle-Left Bay
+            const pWidth = leftWingWidth - 0.35;
+            const pCounter = new THREE.Mesh(new THREE.BoxGeometry(pWidth, 0.88, 0.54), materials.countertopMaterial);
+            pCounter.position.set(leftDividerX - 0.08, 0.15 + 0.44, -0.20);
+            pCounter.castShadow = true;
+            [-0.22, 0.08].forEach((px) => {
+              const ring = new THREE.Mesh(new THREE.RingGeometry(0.065, 0.08, 16), materials.ledStripMaterial);
+              ring.rotation.x = -Math.PI / 2;
+              ring.position.set(leftDividerX - 0.08 + px, 0.15 + 0.88 + 0.015, -0.20);
+              interiorGroup.add(ring);
+            });
+            interiorGroup.add(pCounter);
 
-          // Front-Left Living Lounge: Sofa against left exterior wall facing EAST (+X), coffee table, rug,
-          // and TV console mounted on the wall of the RIGHT side of the walkway just before Bedroom 3 entrance
-          // In 40ft flagship expandable, positioned closer to the main entrance (tvWallZ = 3.45m) to clear the intermediate pillar
-          const tvWallZ = is40ft ? 3.45 : (is30ft ? 2.30 : 1.90);
-          buildLiving(interiorGroup, {
-            sX: leftWingCenterX,
-            sZ: tvWallZ,
-            sW: is40ft ? 1.85 : 1.65,
-            facing: 'east',
-            tvOnWall: true,
-            tvWallX: coreWidth / 2, // Right side of walkway (+1.10m)
-            tvWallZ: tvWallZ,
-            mediaWallLength: 1.70,
-            hasExistingWall: true,
-          });
+            // Front Living Room Lounge
+            buildLiving(interiorGroup, {
+              sX: leftWingCenterX,
+              sZ: 3.45,
+              sW: 2.10,
+              facing: 'east',
+              tvOnWall: true,
+              tvWallX: coreWidth / 2,
+              tvWallZ: 3.45,
+              mediaWallLength: 1.70,
+              hasExistingWall: true,
+            });
 
-          // Bedroom 2 (Rear-Right) & Bedroom 3 (Front-Right): Headboards at end walls, doors never overlap beds
-          buildBedSuite(interiorGroup, {
-            x: rightWingCenterX,
-            z: zRear + 0.08 + 1.85 / 2,
-            headZ: zRear + 0.08,
-            bedW: 1.25,
-            bedL: 1.85,
-            dirZ: 1,
-            hasNightstands: true,
-            hasWardrobe: Boolean(state.hasWardrobe),
-            wardrobeX: rightWallX - 0.26,
-            wardrobeZ: rDoor1Z,
-            wardrobeW: 0.80,
-            wardrobeD: 0.50,
-            isWardrobeAlongZ: true,
-          });
-          buildBedSuite(interiorGroup, {
-            x: rightWingCenterX,
-            z: zFront - 0.08 - 1.85 / 2,
-            headZ: zFront - 0.08,
-            bedW: 1.25,
-            bedL: 1.85,
-            dirZ: -1,
-            hasNightstands: true,
-            hasWardrobe: Boolean(state.hasWardrobe),
-            wardrobeX: rightWallX - 0.26,
-            wardrobeZ: rDoor2Z,
-            wardrobeW: 0.80,
-            wardrobeD: 0.50,
-            isWardrobeAlongZ: true,
-          });
+            // Bedroom 2 (Rear-Right):
+            buildBedSuite(interiorGroup, {
+              x: rightWingCenterX,
+              z: -4.80,
+              headZ: zRear + 0.08,
+              bedW: 1.35,
+              bedL: 1.95,
+              dirZ: 1,
+              hasNightstands: true,
+              hasWardrobe: Boolean(state.hasWardrobe),
+              wardrobeX: rightWallX - 0.26,
+              wardrobeZ: -3.30,
+              wardrobeW: 0.80,
+              wardrobeD: 0.50,
+              isWardrobeAlongZ: true,
+            });
+
+            // Mid-Right Work Desk / Media Nook
+            const nookDesk = new THREE.Mesh(new THREE.BoxGeometry(1.40, 0.76, 0.60), materials.cabinetMaterial);
+            nookDesk.position.set(rightWingCenterX, 0.15 + 0.76 / 2, 0.00);
+            interiorGroup.add(nookDesk);
+
+            // Bedroom 3 (Front-Right):
+            buildBedSuite(interiorGroup, {
+              x: rightWingCenterX,
+              z: 4.80,
+              headZ: zFront - 0.08,
+              bedW: 1.35,
+              bedL: 1.90,
+              dirZ: -1,
+              hasNightstands: true,
+              hasWardrobe: Boolean(state.hasWardrobe),
+              wardrobeX: rightWallX - 0.26,
+              wardrobeZ: 3.30,
+              wardrobeW: 0.80,
+              wardrobeD: 0.50,
+              isWardrobeAlongZ: true,
+            });
+          } else {
+            // Standard 20ft / 30ft Left Wing: Bedroom 1 (Rear), Kitchen Peninsula divider in middle, Living Lounge (Front)
+            const leftWingWidth = Math.abs(leftWallX - (-coreWidth / 2));
+            const leftDividerX = (-coreWidth / 2 + leftWallX) / 2;
+            const kDivZ = -0.32;
+            addWallSegment(partGroup, leftDividerX, height / 2 + 0.15, kDivZ, leftWingWidth, height, intWallT);
+
+            // Corridor partition with door to Bedroom 1 (near divider wall so it never overlaps bed)
+            const b1DoorZ = kDivZ - 0.55;
+            addWallSegment(partGroup, -coreWidth / 2, height / 2 + 0.15, (zRear + b1DoorZ - 0.41) / 2, intWallT, height, (b1DoorZ - 0.41) - zRear);
+            addDoorOpening(partGroup, -coreWidth / 2, b1DoorZ, 0.82, 2.10, true, true);
+            addWallSegment(partGroup, -coreWidth / 2, height / 2 + 0.15, (b1DoorZ + 0.41 + kDivZ) / 2, intWallT, height, kDivZ - (b1DoorZ + 0.41));
+
+            // Right Wing: Divider Wall with Bed 2 (Rear) & Bed 3 (Front)
+            const rightWingWidth = rightWallX - coreWidth / 2;
+            const rightDividerX = coreWidth / 2 + rightWingWidth / 2;
+            addWallSegment(partGroup, rightDividerX, height / 2 + 0.15, rightDividerZ, rightWingWidth, height, intWallT);
+
+            const rDoor1Z = rightDividerZ - 0.55;
+            const rDoor2Z = rightDividerZ + 0.55;
+            addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (zRear + rDoor1Z - 0.41) / 2, intWallT, height, (rDoor1Z - 0.41) - zRear);
+            addDoorOpening(partGroup, coreWidth / 2, rDoor1Z, 0.82, 2.10, true, true);
+            addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (rDoor1Z + 0.41 + rightDividerZ) / 2, intWallT, height, rightDividerZ - (rDoor1Z + 0.41));
+            addDoorOpening(partGroup, coreWidth / 2, rDoor2Z, 0.82, 2.10, true, true);
+            addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (rDoor2Z + 0.41 + zFront) / 2, intWallT, height, zFront - (rDoor2Z + 0.41));
+
+            // Furniture:
+            buildBedSuite(interiorGroup, {
+              x: leftWingCenterX,
+              z: zRear + 0.08 + 1.85 / 2,
+              headZ: zRear + 0.08,
+              bedW: 1.25,
+              bedL: 1.85,
+              dirZ: 1,
+              hasNightstands: true,
+              hasWardrobe: Boolean(state.hasWardrobe),
+              wardrobeX: leftWallX + 0.26,
+              wardrobeZ: b1DoorZ,
+              wardrobeW: 0.80,
+              wardrobeD: 0.50,
+              isWardrobeAlongZ: true,
+            });
+
+            // Kitchen Peninsula Counter with Induction Burners & Bar Stools
+            const pWidth = leftWingWidth - 0.35;
+            const pCounter = new THREE.Mesh(new THREE.BoxGeometry(pWidth, 0.88, 0.54), materials.countertopMaterial);
+            pCounter.position.set(leftDividerX - 0.08, 0.15 + 0.44, kDivZ + 0.32);
+            pCounter.castShadow = true;
+            [-0.22, 0.08].forEach((px) => {
+              const ring = new THREE.Mesh(new THREE.RingGeometry(0.065, 0.08, 16), materials.ledStripMaterial);
+              ring.rotation.x = -Math.PI / 2;
+              ring.position.set(leftDividerX - 0.08 + px, 0.15 + 0.88 + 0.015, kDivZ + 0.32);
+              interiorGroup.add(ring);
+            });
+            interiorGroup.add(pCounter);
+
+            // Front-Left Living Lounge: Sofa against left exterior wall facing EAST (+X), coffee table, rug,
+            // and TV console mounted on the wall of the RIGHT side of the walkway just before Bedroom 3 entrance
+            const tvWallZ = is30ft ? 2.30 : 1.90;
+            buildLiving(interiorGroup, {
+              sX: leftWingCenterX,
+              sZ: tvWallZ,
+              sW: 1.65,
+              facing: 'east',
+              tvOnWall: true,
+              tvWallX: coreWidth / 2,
+              tvWallZ: tvWallZ,
+              mediaWallLength: 1.70,
+              hasExistingWall: true,
+            });
+
+            // Bedroom 2 (Rear-Right) & Bedroom 3 (Front-Right): Headboards at end walls, doors never overlap beds
+            buildBedSuite(interiorGroup, {
+              x: rightWingCenterX,
+              z: zRear + 0.08 + 1.85 / 2,
+              headZ: zRear + 0.08,
+              bedW: 1.25,
+              bedL: 1.85,
+              dirZ: 1,
+              hasNightstands: true,
+              hasWardrobe: Boolean(state.hasWardrobe),
+              wardrobeX: rightWallX - 0.26,
+              wardrobeZ: rDoor1Z,
+              wardrobeW: 0.80,
+              wardrobeD: 0.50,
+              isWardrobeAlongZ: true,
+            });
+            buildBedSuite(interiorGroup, {
+              x: rightWingCenterX,
+              z: zFront - 0.08 - 1.85 / 2,
+              headZ: zFront - 0.08,
+              bedW: 1.25,
+              bedL: 1.85,
+              dirZ: -1,
+              hasNightstands: true,
+              hasWardrobe: Boolean(state.hasWardrobe),
+              wardrobeX: rightWallX - 0.26,
+              wardrobeZ: rDoor2Z,
+              wardrobeW: 0.80,
+              wardrobeD: 0.50,
+              isWardrobeAlongZ: true,
+            });
+          }
           break;
         }
 
@@ -4466,13 +4928,15 @@ export function buildHomeModel(
           buildKitchen(interiorGroup, undefined, undefined, 1.80, true);
           buildDining(interiorGroup, leftWingCenterX, 1.15, 4);
 
-          // Wall-mounted TV Credenza on corridor partition
-          const tvX = -coreWidth / 2 + 0.03;
-          const tvScreen = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.72, 1.20), materials.applianceGlassMaterial);
-          tvScreen.position.set(tvX, 0.15 + 1.30, 0.65);
-          const credenza = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.28, 1.30), materials.cabinetMaterial);
-          credenza.position.set(tvX + 0.12, 0.15 + 0.42, 0.65);
-          interiorGroup.add(tvScreen, credenza);
+          // Wall-mounted TV Credenza on corridor partition (Optional Add-on)
+          if (Boolean(state.hasTvConsole)) {
+            const tvX = -coreWidth / 2 + 0.03;
+            const tvScreen = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.72, 1.20), materials.applianceGlassMaterial);
+            tvScreen.position.set(tvX, 0.15 + 1.30, 0.65);
+            const credenza = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.28, 1.30), materials.cabinetMaterial);
+            credenza.position.set(tvX + 0.12, 0.15 + 0.42, 0.65);
+            interiorGroup.add(tvScreen, credenza);
+          }
           break;
         }
 
@@ -4480,103 +4944,245 @@ export function buildHomeModel(
           // =================================================================
           // PLAN 6: 4 BEDROOMS, 1 RESTROOM (QUAD-SUITE)
           // =================================================================
-          // Left Wing: Divider Wall separating Bed 1 (Rear) from Bed 2 (Front)
-          const leftWingWidth = Math.abs(leftWallX - (-coreWidth / 2));
-          const leftDividerX = (-coreWidth / 2 + leftWallX) / 2;
-          addWallSegment(partGroup, leftDividerX, height / 2 + 0.15, leftDividerZ, leftWingWidth, height, intWallT);
+          if (is40ft) {
+            // -----------------------------------------------------------------
+            // 40FT FLAGSHIP 4-BEDROOM EXPANDABLE LAYOUT (11.8m Length, 3 Bays)
+            // - Right Wing: 3 Private Enclosed Bedroom Suites (Rear, Mid, Front)
+            //   separated at structural column posts Z = -1.97m and Z = +1.97m.
+            //   Each bedroom has its own private door and dedicated side window!
+            // - Left Wing:
+            //   * Rear Bay (Bay 1): Chef's Kitchen & 4-Person Dining Table
+            //   * Middle Bay (Bay 2): Living Room Lounge with 3-Seater Sofa & 65" TV
+            //   * Front Bay (Bay 3): Enclosed 4th Bedroom Suite with private door,
+            //     queen bed, wardrobe, and dedicated side window
+            // - Central Spine: Bathroom Pod + Central Corridor + Main Patio Entry
+            // -----------------------------------------------------------------
+            const rightWingWidth = rightWallX - coreWidth / 2;
+            const rightDividerX = coreWidth / 2 + rightWingWidth / 2;
 
-          // Left corridor wall with 2 private doors near divider wall (never overlapping beds)
-          const lDoor1Z = leftDividerZ - 0.55;
-          const lDoor2Z = leftDividerZ + 0.55;
-          addWallSegment(partGroup, -coreWidth / 2, height / 2 + 0.15, (zRear + lDoor1Z - 0.41) / 2, intWallT, height, (lDoor1Z - 0.41) - zRear);
-          addDoorOpening(partGroup, -coreWidth / 2, lDoor1Z, 0.82, 2.10, true, true);
-          addWallSegment(partGroup, -coreWidth / 2, height / 2 + 0.15, (lDoor1Z + 0.41 + leftDividerZ) / 2, intWallT, height, leftDividerZ - (lDoor1Z + 0.41));
-          addDoorOpening(partGroup, -coreWidth / 2, lDoor2Z, 0.82, 2.10, true, true);
-          addWallSegment(partGroup, -coreWidth / 2, height / 2 + 0.15, (lDoor2Z + 0.41 + zFront) / 2, intWallT, height, zFront - (lDoor2Z + 0.41));
+            // 1. Two Transverse Divider Walls on Right Wing at Structural Posts Z = -1.97m & Z = +1.97m
+            addWallSegment(partGroup, rightDividerX, height / 2 + 0.15, -1.97, rightWingWidth, height, intWallT);
+            addWallSegment(partGroup, rightDividerX, height / 2 + 0.15, 1.97, rightWingWidth, height, intWallT);
 
-          // Right Wing: Divider Wall separating Bed 3 (Rear) from Bed 4 (Front)
-          const rightWingWidth = rightWallX - coreWidth / 2;
-          const rightDividerX = coreWidth / 2 + rightWingWidth / 2;
-          addWallSegment(partGroup, rightDividerX, height / 2 + 0.15, rightDividerZ, rightWingWidth, height, intWallT);
+            // 2. Right Corridor Partition along X = coreWidth / 2 with 3 Private Bedroom Doors
+            const b1DoorZ = -2.55;
+            const b2DoorZ = -0.50;
+            const b3DoorZ = 2.55;
 
-          // Right corridor wall with 2 private doors near divider wall (never overlapping beds)
-          const rDoor1Z = rightDividerZ - 0.55;
-          const rDoor2Z = rightDividerZ + 0.55;
-          addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (zRear + rDoor1Z - 0.41) / 2, intWallT, height, (rDoor1Z - 0.41) - zRear);
-          addDoorOpening(partGroup, coreWidth / 2, rDoor1Z, 0.82, 2.10, true, true);
-          addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (rDoor1Z + 0.41 + rightDividerZ) / 2, intWallT, height, rightDividerZ - (rDoor1Z + 0.41));
-          addDoorOpening(partGroup, coreWidth / 2, rDoor2Z, 0.82, 2.10, true, true);
-          addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (rDoor2Z + 0.41 + zFront) / 2, intWallT, height, zFront - (rDoor2Z + 0.41));
+            // Segment 1: from rear wall (-5.90) to Bed 1 Door
+            addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (zRear + (b1DoorZ - 0.41)) / 2, intWallT, height, (b1DoorZ - 0.41) - zRear);
+            addDoorOpening(partGroup, coreWidth / 2, b1DoorZ, 0.82, 2.10, true, true);
 
-          // Bed 1: Rear-Left Bedroom (headboard against rear wall)
-          buildBedSuite(interiorGroup, {
-            x: leftWingCenterX,
-            z: zRear + 0.08 + 1.85 / 2,
-            headZ: zRear + 0.08,
-            bedW: 1.25,
-            bedL: 1.85,
-            dirZ: 1,
-            hasNightstands: true,
-            hasWardrobe: Boolean(state.hasWardrobe),
-            wardrobeX: leftWallX + 0.26,
-            wardrobeZ: lDoor1Z,
-            wardrobeW: 0.80,
-            wardrobeD: 0.50,
-            isWardrobeAlongZ: true,
-          });
+            // Segment 2: between Bed 1 Door and Bed 2 Door
+            addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (b1DoorZ + 0.41 + (b2DoorZ - 0.41)) / 2, intWallT, height, (b2DoorZ - 0.41) - (b1DoorZ + 0.41));
+            addDoorOpening(partGroup, coreWidth / 2, b2DoorZ, 0.82, 2.10, true, true);
 
-          // Bed 2: Front-Left Bedroom (headboard against front wall)
-          buildBedSuite(interiorGroup, {
-            x: leftWingCenterX,
-            z: zFront - 0.08 - 1.85 / 2,
-            headZ: zFront - 0.08,
-            bedW: 1.25,
-            bedL: 1.85,
-            dirZ: -1,
-            hasNightstands: true,
-            hasWardrobe: Boolean(state.hasWardrobe),
-            wardrobeX: leftWallX + 0.26,
-            wardrobeZ: lDoor2Z,
-            wardrobeW: 0.80,
-            wardrobeD: 0.50,
-            isWardrobeAlongZ: true,
-          });
+            // Segment 3: between Bed 2 Door and Bed 3 Door
+            addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (b2DoorZ + 0.41 + (b3DoorZ - 0.41)) / 2, intWallT, height, (b3DoorZ - 0.41) - (b2DoorZ + 0.41));
+            addDoorOpening(partGroup, coreWidth / 2, b3DoorZ, 0.82, 2.10, true, true);
 
-          // Bed 3: Rear-Right Bedroom (headboard against rear wall)
-          buildBedSuite(interiorGroup, {
-            x: rightWingCenterX,
-            z: zRear + 0.08 + 1.85 / 2,
-            headZ: zRear + 0.08,
-            bedW: 1.25,
-            bedL: 1.85,
-            dirZ: 1,
-            hasNightstands: true,
-            hasWardrobe: Boolean(state.hasWardrobe),
-            wardrobeX: rightWallX - 0.26,
-            wardrobeZ: rDoor1Z,
-            wardrobeW: 0.80,
-            wardrobeD: 0.50,
-            isWardrobeAlongZ: true,
-          });
+            // Segment 4: from Bed 3 Door to front wall (+5.90)
+            addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (b3DoorZ + 0.41 + zFront) / 2, intWallT, height, zFront - (b3DoorZ + 0.41));
 
-          // Bed 4: Front-Right Bedroom (headboard against front wall)
-          buildBedSuite(interiorGroup, {
-            x: rightWingCenterX,
-            z: zFront - 0.08 - 1.85 / 2,
-            headZ: zFront - 0.08,
-            bedW: 1.25,
-            bedL: 1.85,
-            dirZ: -1,
-            hasNightstands: true,
-            hasWardrobe: Boolean(state.hasWardrobe),
-            wardrobeX: rightWallX - 0.26,
-            wardrobeZ: rDoor2Z,
-            wardrobeW: 0.80,
-            wardrobeD: 0.50,
-            isWardrobeAlongZ: true,
-          });
+            // 3. Right Wing Bedroom Suites (3 Bedrooms aligned with the 3 side windows)
+            // Bedroom 1 (Master Bedroom, Rear-Right, Bay 1):
+            buildBedSuite(interiorGroup, {
+              x: rightWingCenterX,
+              z: -4.80,
+              headZ: zRear + 0.08,
+              bedW: 1.35,
+              bedL: 1.95,
+              dirZ: 1,
+              hasNightstands: true,
+              hasWardrobe: Boolean(state.hasWardrobe),
+              wardrobeX: rightWallX - 0.26,
+              wardrobeZ: -3.30,
+              wardrobeW: 0.80,
+              wardrobeD: 0.50,
+              isWardrobeAlongZ: true,
+            });
+
+            // Bedroom 2 (Middle-Right, Bay 2):
+            buildBedSuite(interiorGroup, {
+              x: rightWingCenterX,
+              z: -0.90,
+              headZ: -1.97 + 0.08,
+              bedW: 1.30,
+              bedL: 1.90,
+              dirZ: 1,
+              hasNightstands: true,
+              hasWardrobe: Boolean(state.hasWardrobe),
+              wardrobeX: rightWallX - 0.26,
+              wardrobeZ: 0.85,
+              wardrobeW: 0.80,
+              wardrobeD: 0.50,
+              isWardrobeAlongZ: true,
+            });
+
+            // Bedroom 3 (Front-Right, Bay 3):
+            buildBedSuite(interiorGroup, {
+              x: rightWingCenterX,
+              z: 4.80,
+              headZ: zFront - 0.08,
+              bedW: 1.30,
+              bedL: 1.90,
+              dirZ: -1,
+              hasNightstands: true,
+              hasWardrobe: Boolean(state.hasWardrobe),
+              wardrobeX: rightWallX - 0.26,
+              wardrobeZ: 3.30,
+              wardrobeW: 0.80,
+              wardrobeD: 0.50,
+              isWardrobeAlongZ: true,
+            });
+
+            // 4. Left Wing:
+            const leftWingWidth = Math.abs(leftWallX - (-coreWidth / 2));
+            const leftDividerX = (-coreWidth / 2 + leftWallX) / 2;
+
+            // Partition Wall enclosing Bedroom 4 in Bay 3 (Z = 1.97m)
+            addWallSegment(partGroup, leftDividerX, height / 2 + 0.15, 1.97, leftWingWidth, height, intWallT);
+
+            // Corridor Partition Wall along X = -coreWidth / 2 for Bedroom 4 Door
+            const b4DoorZ = 2.55;
+            addWallSegment(partGroup, -coreWidth / 2, height / 2 + 0.15, (1.97 + (b4DoorZ - 0.41)) / 2, intWallT, height, (b4DoorZ - 0.41) - 1.97);
+            addDoorOpening(partGroup, -coreWidth / 2, b4DoorZ, 0.82, 2.10, true, true);
+            addWallSegment(partGroup, -coreWidth / 2, height / 2 + 0.15, (b4DoorZ + 0.41 + zFront) / 2, intWallT, height, zFront - (b4DoorZ + 0.41));
+
+            // Bedroom 4 (Front-Left Suite, Bay 3):
+            buildBedSuite(interiorGroup, {
+              x: leftWingCenterX,
+              z: 4.80,
+              headZ: zFront - 0.08,
+              bedW: 1.30,
+              bedL: 1.90,
+              dirZ: -1,
+              hasNightstands: true,
+              hasWardrobe: Boolean(state.hasWardrobe),
+              wardrobeX: leftWallX + 0.26,
+              wardrobeZ: 3.30,
+              wardrobeW: 0.80,
+              wardrobeD: 0.50,
+              isWardrobeAlongZ: true,
+            });
+
+            // Rear Bay: Chef's Kitchen & 4-Person Dining
+            buildKitchen(interiorGroup, undefined, undefined, 1.80, true);
+            buildDining(interiorGroup, leftWingCenterX, -3.20, 4);
+
+            // Middle Bay: Living Room Lounge with 3-Seater Sofa & 65" TV
+            buildLiving(interiorGroup, {
+              sX: leftWingCenterX,
+              sZ: 0.00,
+              sW: 2.15,
+              facing: 'east',
+              tvOnWall: true,
+              tvWallX: coreWidth / 2,
+              tvWallZ: 0.00,
+              mediaWallLength: 1.70,
+              hasExistingWall: true,
+            });
+          } else {
+            // Standard 20ft / 30ft Quad Dormitory Plan
+            // Left Wing: Divider Wall separating Bed 1 (Rear) from Bed 2 (Front)
+            const leftWingWidth = Math.abs(leftWallX - (-coreWidth / 2));
+            const leftDividerX = (-coreWidth / 2 + leftWallX) / 2;
+            addWallSegment(partGroup, leftDividerX, height / 2 + 0.15, leftDividerZ, leftWingWidth, height, intWallT);
+
+            // Left corridor wall with 2 private doors near divider wall (never overlapping beds)
+            const lDoor1Z = leftDividerZ - 0.55;
+            const lDoor2Z = leftDividerZ + 0.55;
+            addWallSegment(partGroup, -coreWidth / 2, height / 2 + 0.15, (zRear + lDoor1Z - 0.41) / 2, intWallT, height, (lDoor1Z - 0.41) - zRear);
+            addDoorOpening(partGroup, -coreWidth / 2, lDoor1Z, 0.82, 2.10, true, true);
+            addWallSegment(partGroup, -coreWidth / 2, height / 2 + 0.15, (lDoor1Z + 0.41 + leftDividerZ) / 2, intWallT, height, leftDividerZ - (lDoor1Z + 0.41));
+            addDoorOpening(partGroup, -coreWidth / 2, lDoor2Z, 0.82, 2.10, true, true);
+            addWallSegment(partGroup, -coreWidth / 2, height / 2 + 0.15, (lDoor2Z + 0.41 + zFront) / 2, intWallT, height, zFront - (lDoor2Z + 0.41));
+
+            // Right Wing: Divider Wall separating Bed 3 (Rear) from Bed 4 (Front)
+            const rightWingWidth = rightWallX - coreWidth / 2;
+            const rightDividerX = coreWidth / 2 + rightWingWidth / 2;
+            addWallSegment(partGroup, rightDividerX, height / 2 + 0.15, rightDividerZ, rightWingWidth, height, intWallT);
+
+            // Right corridor wall with 2 private doors near divider wall (never overlapping beds)
+            const rDoor1Z = rightDividerZ - 0.55;
+            const rDoor2Z = rightDividerZ + 0.55;
+            addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (zRear + rDoor1Z - 0.41) / 2, intWallT, height, (rDoor1Z - 0.41) - zRear);
+            addDoorOpening(partGroup, coreWidth / 2, rDoor1Z, 0.82, 2.10, true, true);
+            addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (rDoor1Z + 0.41 + rightDividerZ) / 2, intWallT, height, rightDividerZ - (rDoor1Z + 0.41));
+            addDoorOpening(partGroup, coreWidth / 2, rDoor2Z, 0.82, 2.10, true, true);
+            addWallSegment(partGroup, coreWidth / 2, height / 2 + 0.15, (rDoor2Z + 0.41 + zFront) / 2, intWallT, height, zFront - (rDoor2Z + 0.41));
+
+            // Bed 1: Rear-Left Bedroom (headboard against rear wall)
+            buildBedSuite(interiorGroup, {
+              x: leftWingCenterX,
+              z: zRear + 0.08 + 1.85 / 2,
+              headZ: zRear + 0.08,
+              bedW: 1.25,
+              bedL: 1.85,
+              dirZ: 1,
+              hasNightstands: true,
+              hasWardrobe: Boolean(state.hasWardrobe),
+              wardrobeX: leftWallX + 0.26,
+              wardrobeZ: lDoor1Z,
+              wardrobeW: 0.80,
+              wardrobeD: 0.50,
+              isWardrobeAlongZ: true,
+            });
+
+            // Bed 2: Front-Left Bedroom (headboard against front wall)
+            buildBedSuite(interiorGroup, {
+              x: leftWingCenterX,
+              z: zFront - 0.08 - 1.85 / 2,
+              headZ: zFront - 0.08,
+              bedW: 1.25,
+              bedL: 1.85,
+              dirZ: -1,
+              hasNightstands: true,
+              hasWardrobe: Boolean(state.hasWardrobe),
+              wardrobeX: leftWallX + 0.26,
+              wardrobeZ: lDoor2Z,
+              wardrobeW: 0.80,
+              wardrobeD: 0.50,
+              isWardrobeAlongZ: true,
+            });
+
+            // Bed 3: Rear-Right Bedroom (headboard against rear wall)
+            buildBedSuite(interiorGroup, {
+              x: rightWingCenterX,
+              z: zRear + 0.08 + 1.85 / 2,
+              headZ: zRear + 0.08,
+              bedW: 1.25,
+              bedL: 1.85,
+              dirZ: 1,
+              hasNightstands: true,
+              hasWardrobe: Boolean(state.hasWardrobe),
+              wardrobeX: rightWallX - 0.26,
+              wardrobeZ: rDoor1Z,
+              wardrobeW: 0.80,
+              wardrobeD: 0.50,
+              isWardrobeAlongZ: true,
+            });
+
+            // Bed 4: Front-Right Bedroom (headboard against front wall)
+            buildBedSuite(interiorGroup, {
+              x: rightWingCenterX,
+              z: zFront - 0.08 - 1.85 / 2,
+              headZ: zFront - 0.08,
+              bedW: 1.25,
+              bedL: 1.85,
+              dirZ: -1,
+              hasNightstands: true,
+              hasWardrobe: Boolean(state.hasWardrobe),
+              wardrobeX: rightWallX - 0.26,
+              wardrobeZ: rDoor2Z,
+              wardrobeW: 0.80,
+              wardrobeD: 0.50,
+              isWardrobeAlongZ: true,
+            });
+          }
           break;
         }
+      }
       }
 
       interiorGroup.add(partGroup);
@@ -4584,17 +5190,104 @@ export function buildHomeModel(
       // ---------------------------------------------------------------------
       // 7. HVAC MINI-SPLIT & SMART HOME AUTOMATION
       // ---------------------------------------------------------------------
-      if (state.hasHvacMiniSplit) {
-        // Indoor blower unit mounted above the bathroom entry in the central spine
-        const indoorHvac = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.28, 0.18), materials.cabinetMaterial);
-        indoorHvac.position.set(0, 0.15 + 2.15, zRear + 1.45);
-        interiorGroup.add(indoorHvac);
+      if (Boolean(state.hasHvacMiniSplit)) {
+        // =====================================================================
+        // HVAC MINI-SPLIT SYSTEM (User Add-on: Indoor Head + Outdoor Heat Pump)
+        // Relocated to the main Living Lounge / Great Room zone for 20ft, 30ft, and 40ft models
+        // Mounted high on the front exterior wall header (X = leftWingCenterX, Y = 2.20m)
+        // blowing conditioned air down the full length of the living & dining space
+        // =====================================================================
+        const hvacGroup = new THREE.Group();
 
-        // Outdoor heat-pump compressor unit mounted on rear chassis spine
-        const outdoorComp = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.65, 0.35), materials.q235SteelMaterial || materials.chassisMaterial);
-        outdoorComp.position.set(0, 0.55, -houseDepth / 2 - 0.22);
+        // 1. Indoor High-Efficiency Wall-Mounted Blower Unit (Living Room)
+        const inW = 0.88;
+        const inH = 0.28;
+        const inD = 0.19;
+        const inX = leftWingCenterX;
+        const inY = 0.15 + height - 0.35; // ~2.22m, mounted cleanly below ceiling
+        const inZ = zFront - inD / 2 - 0.01;
+
+        // Main sleek appliance-white casing
+        const indoorCasing = new THREE.Mesh(
+          new THREE.BoxGeometry(inW, inH, inD),
+          materials.countertopMaterial || materials.cabinetMaterial
+        );
+        indoorCasing.position.set(inX, inY, inZ);
+        indoorCasing.castShadow = true;
+
+        // Top recessed air intake grille
+        const intakeGrille = new THREE.Mesh(
+          new THREE.BoxGeometry(inW - 0.08, 0.02, inD - 0.04),
+          materials.metalTrimMaterial
+        );
+        intakeGrille.position.set(inX, inY + inH / 2 - 0.01, inZ);
+
+        // Bottom motorized air discharge swing louver / vane (angled into room)
+        const airLouver = new THREE.Mesh(
+          new THREE.BoxGeometry(inW - 0.06, 0.035, 0.04),
+          materials.metalTrimMaterial
+        );
+        airLouver.rotation.x = 0.25; // Angled downward to disperse conditioned airflow
+        airLouver.position.set(inX, inY - inH / 2 + 0.02, inZ - inD / 2 + 0.01);
+
+        // Digital LED status / temperature indicator badge on front face
+        const ledDisplay = new THREE.Mesh(
+          new THREE.BoxGeometry(0.08, 0.035, 0.005),
+          materials.capsuleGlowMaterial || materials.ledStripMaterial
+        );
+        ledDisplay.position.set(inX + inW * 0.30, inY, inZ - inD / 2 - 0.003);
+
+        hvacGroup.add(indoorCasing, intakeGrille, airLouver, ledDisplay);
+        interiorGroup.add(hvacGroup);
+
+        // 2. Outdoor Inverter Heat-Pump Condenser Unit
+        // Mounted on heavy-duty vibration-damped chassis brackets at rear exterior of left wing
+        const outW = 0.88;
+        const outH = 0.68;
+        const outD = 0.35;
+        const outX = leftWingCenterX;
+        const outY = 0.52;
+        const outZ = -houseDepth / 2 - outD / 2 - 0.06;
+
+        const outdoorComp = new THREE.Mesh(
+          new THREE.BoxGeometry(outW, outH, outD),
+          materials.q235SteelMaterial || materials.chassisMaterial
+        );
+        outdoorComp.position.set(outX, outY, outZ);
         outdoorComp.castShadow = true;
-        rootGroup.add(outdoorComp);
+
+        // Circular condenser exhaust fan grille with center motor hub
+        const fanOuterRing = new THREE.Mesh(
+          new THREE.RingGeometry(0.18, 0.24, 24),
+          materials.metalTrimMaterial
+        );
+        fanOuterRing.position.set(outX - 0.10, outY + 0.04, outZ - outD / 2 - 0.005);
+
+        const fanHub = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.06, 0.06, 0.02, 16),
+          materials.chassisMaterial
+        );
+        fanHub.rotation.x = Math.PI / 2;
+        fanHub.position.set(outX - 0.10, outY + 0.04, outZ - outD / 2 - 0.01);
+
+        // Heavy-duty dual mounting feet
+        [-outW * 0.35, outW * 0.35].forEach((fx) => {
+          const foot = new THREE.Mesh(
+            new THREE.BoxGeometry(0.08, 0.05, outD + 0.10),
+            materials.q235SteelMaterial || materials.chassisMaterial
+          );
+          foot.position.set(outX + fx, outY - outH / 2 + 0.025, outZ);
+          rootGroup.add(foot);
+        });
+
+        // Insulated copper refrigerant line conduit entering exterior wall
+        const conduit = new THREE.Mesh(
+          new THREE.BoxGeometry(0.06, 0.06, 0.12),
+          materials.metalTrimMaterial
+        );
+        conduit.position.set(outX + outW * 0.32, outY + 0.18, -houseDepth / 2 - 0.06);
+
+        rootGroup.add(outdoorComp, fanOuterRing, fanHub, conduit);
       }
 
       // Smart digital home automation pad by entrance door
@@ -4888,7 +5581,7 @@ export function buildHomeModel(
 
       // D. Designer Living Room Lounge
       const hasSpaceForLounge = length > 6.2 || modelSeries === 'space-capsule';
-      if (hasSpaceForLounge) {
+      if (hasSpaceForLounge && Boolean(state.hasLivingSofa)) {
         const loungeGroup = new THREE.Group();
         let sofaX = 0;
         let sofaZ = 0.2;
@@ -5009,20 +5702,22 @@ export function buildHomeModel(
         table.castShadow = true;
         loungeGroup.add(table);
 
-        // Wall-Mounted TV on Front Wall
-        const tvWallZ = effectiveDepth / 2 - wallThickness;
-        const tvY = 0.15 + 1.25;
-        const tvScreen = new THREE.Mesh(new THREE.BoxGeometry(Math.min(1.35, sofaW * 0.85), 0.76, 0.025), materials.chassisMaterial);
-        tvScreen.position.set(sofaX, tvY, tvWallZ - 0.02);
-        const tvGlass = new THREE.Mesh(new THREE.BoxGeometry(Math.min(1.32, sofaW * 0.85 - 0.03), 0.73, 0.005), materials.applianceGlassMaterial);
-        tvGlass.position.set(sofaX, tvY, tvWallZ - 0.035);
-        const tvGlow = new THREE.Mesh(new THREE.BoxGeometry(Math.min(1.36, sofaW * 0.85 + 0.04), 0.78, 0.008), materials.ledStripMaterial);
-        tvGlow.position.set(sofaX, tvY, tvWallZ - 0.005);
+        // Wall-Mounted TV on Front Wall (Optional Add-on)
+        if (Boolean(state.hasTvConsole)) {
+          const tvWallZ = effectiveDepth / 2 - wallThickness;
+          const tvY = 0.15 + 1.25;
+          const tvScreen = new THREE.Mesh(new THREE.BoxGeometry(Math.min(1.35, sofaW * 0.85), 0.76, 0.025), materials.chassisMaterial);
+          tvScreen.position.set(sofaX, tvY, tvWallZ - 0.02);
+          const tvGlass = new THREE.Mesh(new THREE.BoxGeometry(Math.min(1.32, sofaW * 0.85 - 0.03), 0.73, 0.005), materials.applianceGlassMaterial);
+          tvGlass.position.set(sofaX, tvY, tvWallZ - 0.035);
+          const tvGlow = new THREE.Mesh(new THREE.BoxGeometry(Math.min(1.36, sofaW * 0.85 + 0.04), 0.78, 0.008), materials.ledStripMaterial);
+          tvGlow.position.set(sofaX, tvY, tvWallZ - 0.005);
 
-        // Floating media shelf under TV
-        const mediaShelf = new THREE.Mesh(new THREE.BoxGeometry(Math.min(1.45, sofaW * 0.9), 0.18, 0.22), materials.cabinetMaterial);
-        mediaShelf.position.set(sofaX, 0.15 + 0.50, tvWallZ - 0.11);
-        loungeGroup.add(tvScreen, tvGlass, tvGlow, mediaShelf);
+          // Floating media shelf under TV
+          const mediaShelf = new THREE.Mesh(new THREE.BoxGeometry(Math.min(1.45, sofaW * 0.9), 0.18, 0.22), materials.cabinetMaterial);
+          mediaShelf.position.set(sofaX, 0.15 + 0.50, tvWallZ - 0.11);
+          loungeGroup.add(tvScreen, tvGlass, tvGlow, mediaShelf);
+        }
 
         interiorGroup.add(loungeGroup);
       }

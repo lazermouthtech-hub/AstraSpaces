@@ -1,0 +1,106 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User account profile for 10Apples modular home clients",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user"
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Full name of the user",
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user",
+          "maxLength": 256
+        },
+        "phone": {
+          "type": "string",
+          "description": "Contact phone number",
+          "maxLength": 32
+        },
+        "role": {
+          "type": "string",
+          "enum": ["customer", "admin"],
+          "description": "Account authorization role"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Account registration timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Profile last updated timestamp"
+        }
+      },
+      "required": ["id", "fullName", "email"]
+    },
+    "SavedProject": {
+      "title": "SavedProject",
+      "description": "Customized 3D modular home project configuration",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the project"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Project title or model name",
+          "maxLength": 128
+        },
+        "modelId": {
+          "type": "string",
+          "description": "Home model identifier",
+          "maxLength": 64
+        },
+        "modelName": {
+          "type": "string",
+          "description": "Formatted home model name",
+          "maxLength": 128
+        },
+        "totalPrice": {
+          "type": "number",
+          "description": "Total customized build investment amount"
+        },
+        "currency": {
+          "type": "string",
+          "description": "Currency code (USD, GHS)",
+          "maxLength": 10
+        },
+        "savedAt": {
+          "type": "string",
+          "description": "Save timestamp"
+        },
+        "state": {
+          "type": "object",
+          "description": "Customization state options object"
+        }
+      },
+      "required": ["id", "userId", "modelId", "totalPrice", "savedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "User profile documents indexed by Firebase Auth UID"
+    },
+    "/users/{userId}/projects/{projectId}": {
+      "schema": {
+        "$ref": "#/entities/SavedProject"
+      },
+      "description": "Custom modular home designs created and saved by the user"
+    }
+  }
+}

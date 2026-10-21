@@ -121,6 +121,41 @@ export function createBambooWoodFiberWallTexture(): THREE.CanvasTexture {
   return texture;
 }
 
+export function createWhiteInteriorWallTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    // Pure clean architectural white interior finish
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Ultra-subtle bamboo wood fiber micro-texture
+    ctx.fillStyle = '#f8fafc';
+    for (let i = 0; i < 2500; i++) {
+      const fx = Math.floor(Math.random() * 512);
+      const fy = Math.floor(Math.random() * 512);
+      ctx.fillRect(fx, fy, 2, 1);
+    }
+
+    // Modular V-groove architectural board seams (representing 600mm panels)
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1.2;
+    for (let x = 0; x < 512; x += 128) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, 512);
+      ctx.stroke();
+    }
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(4, 2);
+  return texture;
+}
+
 export function createBambooGrapheneWallTexture(): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
@@ -1505,12 +1540,63 @@ export function createSolarGridTexture(): THREE.CanvasTexture {
   return texture;
 }
 
+export function createDarkRoofTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    // Deep dark architectural charcoal / slate weatherproof roof base
+    ctx.fillStyle = '#1e232b';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Weatherproof micro-speckle composite grain
+    for (let i = 0; i < 3500; i++) {
+      const px = Math.floor(Math.random() * 512);
+      const py = Math.floor(Math.random() * 512);
+      ctx.fillStyle = Math.random() > 0.5 ? '#151920' : '#282f3a';
+      ctx.fillRect(px, py, 1.5, 1.5);
+    }
+
+    // High-end standing seam / continuous panel joinery lines
+    for (let x = 0; x < 512; x += 64) {
+      // Seam drop shadow
+      ctx.strokeStyle = '#12151b';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, 512);
+      ctx.stroke();
+
+      // Subtle metallic highlight next to seam for realistic 3D panel depth
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x + 2, 0);
+      ctx.lineTo(x + 2, 512);
+      ctx.stroke();
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(4, 4);
+  texture.generateMipmaps = true;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  return texture;
+}
+
 export interface MaterialLibrary {
   wallMaterial: THREE.MeshPhysicalMaterial;
   chassisMaterial: THREE.MeshStandardMaterial;
   glassMaterial: THREE.MeshPhysicalMaterial;
   floorMaterial: THREE.MeshStandardMaterial;
   roofMaterial: THREE.MeshStandardMaterial;
+  expandableRoofMaterial: THREE.MeshStandardMaterial;
+  whiteCeilingMaterial: THREE.MeshStandardMaterial;
+  whiteInteriorWallMaterial: THREE.MeshPhysicalMaterial;
   solarMaterial: THREE.MeshStandardMaterial;
   ledStripMaterial: THREE.MeshStandardMaterial;
   downlightMaterial: THREE.MeshStandardMaterial;
@@ -2240,10 +2326,10 @@ export function createMaterialLibrary(
     // Legacy Fallbacks
     case 'bamboo-charcoal-offwhite':
     default:
-      intWallColor = '#f8fafc';
-      intWallRoughness = 0.55;
-      intWallMetalness = 0.05;
-      intWallMap = createBambooWoodFiberWallTexture();
+      intWallColor = '#ffffff';
+      intWallRoughness = 0.35;
+      intWallMetalness = 0.02;
+      intWallMap = createWhiteInteriorWallTexture();
       break;
     case 'graphene-insulation-board':
       intWallColor = '#f1f5f9';
@@ -2347,9 +2433,31 @@ export function createMaterialLibrary(
       polygonOffsetUnits: 1,
     }),
     roofMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#334155'),
-      roughness: 0.4,
-      metalness: 0.3,
+      map: createDarkRoofTexture(),
+      color: new THREE.Color('#1f242d'), // Dark architectural charcoal slate external roof finish
+      roughness: 0.48,
+      metalness: 0.25,
+    }),
+    expandableRoofMaterial: new THREE.MeshStandardMaterial({
+      map: createDarkRoofTexture(),
+      color: new THREE.Color('#1f242d'), // Dark external roof for expandable modular series
+      roughness: 0.48,
+      metalness: 0.25,
+      side: THREE.DoubleSide,
+    }),
+    whiteCeilingMaterial: new THREE.MeshStandardMaterial({
+      color: new THREE.Color('#ffffff'), // Pure brilliant white for expandable house interior ceiling
+      roughness: 0.32,
+      metalness: 0.04,
+      side: THREE.DoubleSide,
+    }),
+    whiteInteriorWallMaterial: new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color('#ffffff'), // Pure brilliant white interior wallboards across 20ft, 30ft, 40ft
+      map: createWhiteInteriorWallTexture(),
+      roughness: 0.32,
+      metalness: 0.02,
+      clearcoat: 0.05,
+      side: THREE.DoubleSide,
     }),
     solarMaterial: new THREE.MeshStandardMaterial({
       map: createSolarGridTexture(),
@@ -2369,9 +2477,9 @@ export function createMaterialLibrary(
       roughness: 0.1,
     }),
     woodDeckMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#a16207'),
-      roughness: 0.7,
-      metalness: 0.05,
+      color: new THREE.Color('#334155'),
+      roughness: 0.5,
+      metalness: 0.1,
     }),
     interiorWallMaterial: new THREE.MeshPhysicalMaterial({
       color: intWallMap ? new THREE.Color('#ffffff') : new THREE.Color(intWallColor),
@@ -2384,7 +2492,7 @@ export function createMaterialLibrary(
       side: THREE.DoubleSide,
     }),
     countertopMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#f1f5f9'),
+      color: new THREE.Color('#f8fafc'),
       roughness: 0.2,
       metalness: 0.1,
     }),
@@ -2394,13 +2502,13 @@ export function createMaterialLibrary(
       metalness: cabinetMetalness,
     }),
     cabinetWoodNicheMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#92400e'),
-      roughness: 0.6,
+      color: new THREE.Color('#18181b'), // sleek architectural matte black
+      roughness: 0.45,
       metalness: 0.05,
     }),
     brassHandleMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#e2b36e'),
-      roughness: 0.25,
+      color: new THREE.Color('#18181b'), // architectural matte black
+      roughness: 0.35,
       metalness: 0.85,
     }),
     applianceGlassMaterial: new THREE.MeshStandardMaterial({
@@ -2419,7 +2527,7 @@ export function createMaterialLibrary(
       metalness: 0.8,
     }),
     furnitureFabricMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#64748b'),
+      color: new THREE.Color('#334155'), // sleek charcoal gray
       roughness: 0.8,
       metalness: 0.05,
       polygonOffset: true,
@@ -2427,7 +2535,7 @@ export function createMaterialLibrary(
       polygonOffsetUnits: -1,
     }),
     rugMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#ded9d0'), // luxury warm heathered oatmeal wool
+      color: new THREE.Color('#e2e8f0'), // clean architectural soft light gray wool
       roughness: 0.96,
       metalness: 0.01,
       polygonOffset: true,
@@ -2435,75 +2543,75 @@ export function createMaterialLibrary(
       polygonOffsetUnits: -2,
     }),
     bedLinenMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#f8fafc'),
+      color: new THREE.Color('#ffffff'), // crisp pure white linen
       roughness: 0.82,
       metalness: 0.02,
     }),
     bedDuvetMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#94a3b8'),
+      color: new THREE.Color('#94a3b8'), // modern slate gray
       roughness: 0.75,
       metalness: 0.03,
     }),
     bedAccentThrowMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#78350f'),
+      color: new THREE.Color('#1e293b'), // chic charcoal black accent
       roughness: 0.88,
       metalness: 0.02,
     }),
     nightstandWoodMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#451a03'),
-      roughness: 0.55,
+      color: new THREE.Color('#18181b'), // sleek matte black oak
+      roughness: 0.45,
       metalness: 0.05,
     }),
     lampGlowMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#fffbeb'),
-      emissive: new THREE.Color('#fef08a'),
-      emissiveIntensity: 0.75,
+      color: new THREE.Color('#ffffff'), // clean neutral soft white
+      emissive: new THREE.Color('#ffffff'),
+      emissiveIntensity: 0.6,
       roughness: 0.2,
     }),
     sofaBoucleMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#e2ded8'),
+      color: new THREE.Color('#f1f5f9'), // clean Scandinavian off-white / light gray bouclé
       roughness: 0.86,
       metalness: 0.02,
     }),
     sofaWoodFrameMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#3e2723'),
+      color: new THREE.Color('#18181b'), // sleek architectural matte black
       roughness: 0.45,
       metalness: 0.05,
     }),
     sofaLegMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#1e293b'),
+      color: new THREE.Color('#18181b'), // matte black steel
       roughness: 0.35,
       metalness: 0.85,
     }),
     sofaCushionAccent1: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#9a3412'),
+      color: new THREE.Color('#18181b'), // deep matte black accent cushion
       roughness: 0.55,
       metalness: 0.08,
     }),
     sofaCushionAccent2: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#3f4f3e'),
+      color: new THREE.Color('#cbd5e1'), // soft architectural light gray accent cushion
       roughness: 0.78,
       metalness: 0.03,
     }),
     sofaThrowBlanketMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#475569'),
+      color: new THREE.Color('#334155'), // refined charcoal slate gray
       roughness: 0.92,
       metalness: 0.02,
     }),
     travertineTableMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#f5f0eb'),
-      roughness: 0.65,
+      color: new THREE.Color('#f8fafc'), // pure white polished travertine/marble
+      roughness: 0.45,
       metalness: 0.04,
     }),
     ceramicVesselMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#c2410c'),
-      roughness: 0.88,
+      color: new THREE.Color('#ffffff'), // pure white porcelain for vessel basins, toilets, and styling vases
+      roughness: 0.22,
       metalness: 0.02,
     }),
     candleGlowMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#d97706'),
-      emissive: new THREE.Color('#f59e0b'),
-      emissiveIntensity: 0.6,
+      color: new THREE.Color('#f8fafc'), // clean white glass / soft white glow
+      emissive: new THREE.Color('#ffffff'),
+      emissiveIntensity: 0.35,
       roughness: 0.15,
       metalness: 0.1,
     }),
@@ -2597,15 +2705,15 @@ export function createMaterialLibrary(
       metalness: 0.25,
     }),
     darkDoorFrameMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#2b303a'),
-      roughness: 0.4,
-      metalness: 0.6,
+      color: new THREE.Color('#141416'), // Deep architectural black broken-bridge finish
+      roughness: 0.35,
+      metalness: 0.70,
     }),
     windowFrameMaterial: new THREE.MeshStandardMaterial({
       color: new THREE.Color(
-        state.glazing === 'aluminum-alloy-double-door' || state.glazing === 'broken-bridge-grille-door'
+        state.glazing === 'aluminum-alloy-double-door'
           ? '#f8fafc'
-          : '#1a1f26' // Deep architectural broken-bridge charcoal slate
+          : '#141416' // Deep architectural black broken-bridge finish by default
       ),
       roughness: 0.32,
       metalness: 0.75,
@@ -2616,7 +2724,7 @@ export function createMaterialLibrary(
       metalness: 0.05,
     }),
     windowSillMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#242932'), // Extruded aluminum drip-edge sub-sill
+      color: new THREE.Color('#1a1a1c'), // Extruded black aluminum drip-edge sub-sill
       roughness: 0.28,
       metalness: 0.80,
     }),

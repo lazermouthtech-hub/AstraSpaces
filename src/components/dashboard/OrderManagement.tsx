@@ -20,7 +20,14 @@ import {
 import { useAppConfig } from '../../context/AppConfigContext';
 import { formatCurrency, normalizeCurrency, TWO_CURRENCIES, PrimaryCurrencyCode } from '../../utils/currency';
 import { BASE_MODELS } from '../../data/models';
+import {
+  COUNTRIES,
+  getCountryByCode,
+  getSubdivisions,
+  getDistricts,
+} from '../../data/regions';
 import { OrderWorkOrderSheet } from './OrderWorkOrderSheet';
+import { DevelopmentProgressManager } from './DevelopmentProgressManager';
 import { exportElementToPDF } from '../../utils/pdfGenerator';
 import {
   Search,
@@ -56,6 +63,7 @@ import {
   Check,
   Loader2,
   Compass,
+  Activity,
 } from 'lucide-react';
 
 interface OrderManagementProps {
@@ -171,7 +179,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ onGoToConfigur
   const [newNoteText, setNewNoteText] = useState('');
   const [isEditingCustomer, setIsEditingCustomer] = useState(false);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
-  const [dossierTab, setDossierTab] = useState<'work_order' | 'crm'>('work_order');
+  const [dossierTab, setDossierTab] = useState<'work_order' | 'crm' | 'progress'>('work_order');
   const printableWorkOrderRef = React.useRef<HTMLDivElement>(null);
   const [editedCustomer, setEditedCustomer] = useState({
     fullName: '',
@@ -194,6 +202,28 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ onGoToConfigur
     status: 'deposit_received' as OrderStatus,
     notes: '',
   });
+
+  const [manualCountryCode, setManualCountryCode] = useState(config.currency === 'GHS' ? 'GH' : 'US');
+  const manualCountry = getCountryByCode(manualCountryCode);
+  const manualSubdivisions = getSubdivisions(manualCountryCode);
+  const [manualSubdivisionId, setManualSubdivisionId] = useState(manualSubdivisions[0]?.id || '');
+  const manualDistricts = getDistricts(manualCountryCode, manualSubdivisionId);
+  const [manualDistrict, setManualDistrict] = useState(manualDistricts[0] || '');
+
+  const handleManualCountryChange = (code: string) => {
+    setManualCountryCode(code);
+    const newSubs = getSubdivisions(code);
+    const firstSub = newSubs[0]?.id || '';
+    setManualSubdivisionId(firstSub);
+    const newDistricts = getDistricts(code, firstSub);
+    setManualDistrict(newDistricts[0] || '');
+  };
+
+  const handleManualSubdivisionChange = (subId: string) => {
+    setManualSubdivisionId(subId);
+    const newDistricts = getDistricts(manualCountryCode, subId);
+    setManualDistrict(newDistricts[0] || '');
+  };
 
   // Switch unified currency across entire order book and application
   const handleCurrencySwitch = (newCurrency: PrimaryCurrencyCode) => {
@@ -292,15 +322,29 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ onGoToConfigur
     const totalPrice = basePrice + freight + sitePrep;
     const deposit = config.branding?.reservationFee || 250;
 
+    const subObj = manualSubdivisions.find((s) => s.id === manualSubdivisionId);
+    const subName = subObj?.name || manualSubdivisionId;
+    const fullDeliveryAddr = [
+      manualOrder.deliveryAddress.trim(),
+      manualDistrict,
+      subName,
+      manualCountry.name,
+    ]
+      .filter(Boolean)
+      .join(', ');
+
     const newOrder = addOrder({
       status: manualOrder.status,
       customer: {
         fullName: manualOrder.fullName.trim(),
         email: manualOrder.email.trim(),
         phone: manualOrder.phone.trim(),
-        deliveryAddress: manualOrder.deliveryAddress.trim() || undefined,
+        deliveryAddress: fullDeliveryAddr,
         zipCode: manualOrder.zipCode.trim(),
         landStatus: manualOrder.landStatus,
+        country: manualCountry.name,
+        stateOrRegion: subName,
+        districtOrCounty: manualDistrict,
         notes: manualOrder.notes.trim() || undefined,
       },
       customization: {
@@ -833,11 +877,34 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ onGoToConfigur
                           </select>
                           <ChevronRight className="w-3 h-3 text-gray-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none rotate-90" />
                         </div>
+                        {/* Progress level bar */}
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <div className="w-14 bg-gray-200 h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className="bg-orange-500 h-full rounded-full transition-all"
+                              style={{ width: `${order.progress?.progressPercent ?? 25}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] font-mono font-bold text-gray-500">
+                            {order.progress?.progressPercent ?? 25}%
+                          </span>
+                        </div>
                       </td>
 
                       {/* Actions */}
                       <td className="py-4 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => {
+                              setSelectedOrder(order);
+                              setDossierTab('progress');
+                            }}
+                            className="p-1.5 text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors cursor-pointer border border-orange-200 flex items-center gap-1"
+                            title="Manage Factory Progress & Live Sync"
+                          >
+                            <Activity className="w-3.5 h-3.5" />
+                            <span className="text-[10px] font-bold hidden xl:inline">Progress</span>
+                          </button>
                           <button
                             onClick={() => setSelectedOrder(order)}
                             className="p-1.5 text-gray-500 hover:text-gray-950 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
@@ -979,6 +1046,19 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ onGoToConfigur
                   >
                     <Truck className="w-4 h-4 text-orange-400" />
                     <span>📋 Pipeline Status &amp; Operations Notes (CRM)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDossierTab('progress')}
+                    className={`px-4 py-2 text-xs font-black rounded-xl transition-all flex items-center gap-2 cursor-pointer ${
+                      dossierTab === 'progress'
+                        ? 'bg-black text-white shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <Activity className="w-4 h-4 text-orange-400" />
+                    <span>🏗️ Factory Progress &amp; Customer Live Sync</span>
                   </button>
                 </div>
 
@@ -1399,6 +1479,18 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ onGoToConfigur
                   </div>
                 </div>
               )}
+
+              {/* TAB 3: DEVELOPMENT PROGRESS & LIVE CUSTOMER SYNC */}
+              {dossierTab === 'progress' && (
+                <DevelopmentProgressManager
+                  order={selectedOrder}
+                  onUpdateOrder={(updated) => {
+                    setSelectedOrder(updated);
+                    setOrders(getOrders(activeCurrency));
+                  }}
+                  activeCurrency={activeCurrency}
+                />
+              )}
             </div>
 
             {/* Modal Footer */}
@@ -1509,16 +1601,70 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ onGoToConfigur
                 </div>
               </div>
 
+              {/* Dynamic Country, State/Region, and District Hierarchy */}
+              <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200 space-y-3">
+                <div className="font-bold text-gray-700 text-xs flex items-center justify-between">
+                  <span>Destination Logistics</span>
+                  <span className="text-[10px] text-gray-400 font-mono">{manualCountry.flag} {manualCountry.name}</span>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-600 mb-1 text-[11px]">Country</label>
+                  <select
+                    value={manualCountryCode}
+                    onChange={(e) => handleManualCountryChange(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500 text-xs bg-white cursor-pointer font-semibold"
+                  >
+                    {COUNTRIES.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.flag} {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block font-bold text-gray-600 mb-1 text-[11px]">{manualCountry.subdivisionLabel}</label>
+                    <select
+                      value={manualSubdivisionId}
+                      onChange={(e) => handleManualSubdivisionChange(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500 text-xs bg-white cursor-pointer font-medium"
+                    >
+                      {manualSubdivisions.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-gray-600 mb-1 text-[11px]">{manualCountry.districtLabel}</label>
+                    <select
+                      value={manualDistrict}
+                      onChange={(e) => setManualDistrict(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500 text-xs bg-white cursor-pointer font-medium"
+                    >
+                      {manualDistricts.map((d, idx) => (
+                        <option key={idx} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-gray-700 mb-1">Delivery Zip Code</label>
+                  <label className="block font-bold text-gray-700 mb-1">{manualCountry.postalLabel}</label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. 78701"
+                    placeholder={manualCountry.postalPlaceholder}
                     value={manualOrder.zipCode}
                     onChange={(e) => setManualOrder({ ...manualOrder, zipCode: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500 text-xs"
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500 text-xs font-mono"
                   />
                 </div>
                 <div>

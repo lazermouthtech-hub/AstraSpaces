@@ -214,6 +214,7 @@ export const OrderWorkOrderSheet: React.FC<OrderWorkOrderSheetProps> = ({
         <ProductLineDrawing
           modelId={order.customization.modelId}
           modelName={order.customization.modelName}
+          floorPlanId={order.customization.floorPlan || order.customization.floorPlanId}
           customization={order.customization}
           initialView="all"
         />

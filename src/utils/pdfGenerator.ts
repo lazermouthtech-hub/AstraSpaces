@@ -67,6 +67,20 @@ export async function exportElementToPDF(
             }
           });
 
+          // Ensure cloned spec sheet target element expands fully to capture all sections
+          const target = clonedDoc.querySelector('[data-spec-sheet="true"]') || clonedDoc.body;
+          if (target instanceof HTMLElement) {
+            target.style.overflow = 'visible';
+            target.style.maxHeight = 'none';
+            target.style.height = 'auto';
+            let p = target.parentElement;
+            while (p) {
+              p.style.overflow = 'visible';
+              p.style.maxHeight = 'none';
+              p = p.parentElement;
+            }
+          }
+
           // 3. Helper canvas context for exact sRGB color parsing
           const canvasHelper = document.createElement('canvas');
           canvasHelper.width = 1;

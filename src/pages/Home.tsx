@@ -1,12 +1,19 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppConfig, getActivePublicModelId } from '../context/AppConfigContext';
+import { useAuth } from '../context/AuthContext';
 import { BASE_MODELS } from '../data/models';
-import { formatCurrency, TWO_CURRENCIES, normalizeCurrency } from '../utils/currency';
+import {
+  formatCurrency,
+  TWO_CURRENCIES,
+  normalizeCurrency,
+  getCurrencySymbol,
+  getExchangeRate,
+} from '../utils/currency';
 import { syncOrdersCurrency } from '../utils/orderManager';
-import { ThreeViewer } from '../components/3d/ThreeViewer';
 import { SpecSheetModal } from '../components/SpecSheetModal';
-import { CustomizationState, HomeModelId, LightingMode, ViewPerspective } from '../types';
+import { ArchitecturalTrees } from '../components/ArchitecturalTrees';
+import { CustomizationState, HomeModelId } from '../types';
 import {
   ArrowRight,
   Box,
@@ -17,6 +24,7 @@ import {
   CheckCircle2,
   Clock,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   FileText,
   Sliders,
@@ -35,7 +43,7 @@ import {
   Info
 } from 'lucide-react';
 
-const INITIAL_PREVIEW_STATE: CustomizationState = {
+const DEFAULT_SPEC_STATE: CustomizationState = {
   modelId: 'expandable-20ft',
   wallCladding: 'fluoro-white',
   glazing: 'broken-bridge-sliding-door',
@@ -46,29 +54,78 @@ const INITIAL_PREVIEW_STATE: CustomizationState = {
   cabinetry: 'matte-black',
   hasKitchenetteModule: true,
   hasLuxuryBathPod: true,
-  hasLuxuryBedSuite: true,
-  hasHvacMiniSplit: true,
+  hasLuxuryBedSuite: false,
+  hasLivingSofa: false,
+  hasHvacMiniSplit: false,
   hasExteriorPergolaDeck: false,
   hasBioDigester: false,
-  hasSmartDoorLock: true,
+  hasSmartDoorLock: false,
   hasElectricBlinds: false,
   hasWardrobe: false,
+  hasTvConsole: false,
 };
+
+const HERO_SLIDER_IMAGES = [
+  {
+    url: 'https://res.cloudinary.com/ddaxljfgp/image/upload/v1791198071/10apples_expandable_model_b7lmst.png',
+    alt: '10Apples Expandable Modular House Model - Front Architectural Elevation',
+    title: 'Front Elevation',
+  },
+  {
+    url: 'https://res.cloudinary.com/ddaxljfgp/image/upload/v1791199226/10apples_expandable_model_1_bn56hd.png',
+    alt: '10Apples Expandable Modular House Model - Expanded Perspective View',
+    title: 'Double-Wing Expanded View',
+  },
+  {
+    url: 'https://res.cloudinary.com/ddaxljfgp/image/upload/v1791199659/10apples_expandable_model_2_ln3jfa.png',
+    alt: '10Apples Expandable Modular House Model - Expanded Architectural Perspective',
+    title: 'Expanded Perspective 2',
+  },
+];
 
 export default function Home() {
   const navigate = useNavigate();
   const { config, updateConfig, setCurrency } = useAppConfig();
+  const { currentUser } = useAuth();
 
-  // 3D Interactive Hero Preview State (Defaulted strictly to an available public model)
-  const [previewState, setPreviewState] = useState<CustomizationState>(() => ({
-    ...INITIAL_PREVIEW_STATE,
-    modelId: (getActivePublicModelId(config.models, config.defaultModelId) as HomeModelId),
-  }));
-  const [lightingMode, setLightingMode] = useState<LightingMode>('daylight');
-  const [cutawayMode, setCutawayMode] = useState<boolean>(false);
-  const [roofLiftPercent, setRoofLiftPercent] = useState<number>(0);
-  const [roofRemoved, setRoofRemoved] = useState<boolean>(false);
-  const [currentPerspective, setCurrentPerspective] = useState<ViewPerspective>('exterior-iso');
+  // Hero Image Slider State
+  const [heroSlideIndex, setHeroSlideIndex] = useState<number>(0);
+  const [isHeroSliderHovered, setIsHeroSliderHovered] = useState<boolean>(false);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+
+  // Auto-advance sliding images every 4.5s (pauses on hover)
+  useEffect(() => {
+    if (isHeroSliderHovered) return;
+    const interval = setInterval(() => {
+      setHeroSlideIndex((prev) => (prev + 1) % HERO_SLIDER_IMAGES.length);
+    }, 4500);
+    return () => clearInterval(interval);
+  }, [isHeroSliderHovered]);
+
+  const handlePrevSlide = () => {
+    setHeroSlideIndex((prev) => (prev - 1 + HERO_SLIDER_IMAGES.length) % HERO_SLIDER_IMAGES.length);
+  };
+
+  const handleNextSlide = () => {
+    setHeroSlideIndex((prev) => (prev + 1) % HERO_SLIDER_IMAGES.length);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartX(e.touches[0].clientX);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX === null) return;
+    const diff = touchStartX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) > 40) {
+      if (diff > 0) {
+        handleNextSlide();
+      } else {
+        handlePrevSlide();
+      }
+    }
+    setTouchStartX(null);
+  };
 
   // Spec Sheet Modal from Homepage
   const [specModalModelId, setSpecModalModelId] = useState<HomeModelId | null>(null);
@@ -95,17 +152,6 @@ export default function Home() {
     return list.filter((m: any) => m.isAvailable !== false && m.isActive !== false);
   }, [config.models]);
 
-  // Ensure 3D hero showcase preview always reflects a publicly available model
-  useEffect(() => {
-    if (publicModels.length > 0) {
-      const isPublic = publicModels.some((m: any) => m.id === previewState.modelId);
-      if (!isPublic) {
-        const targetId = getActivePublicModelId(config.models, config.defaultModelId) as HomeModelId;
-        setPreviewState((prev) => ({ ...prev, modelId: targetId }));
-      }
-    }
-  }, [publicModels, previewState.modelId, config.models, config.defaultModelId]);
-
   // Ensure turnkey estimator always reflects a publicly available model
   useEffect(() => {
     if (publicModels.length > 0) {
@@ -128,16 +174,6 @@ export default function Home() {
       return true;
     });
   }, [publicModels, homeModelFilter]);
-
-  // Active current model in preview
-  const currentPreviewModel = useMemo(() => {
-    return (
-      publicModels.find((m: any) => m.id === previewState.modelId) ||
-      config.models?.find((m: any) => m.id === previewState.modelId) ||
-      publicModels[0] ||
-      config.models?.[0]
-    );
-  }, [publicModels, config.models, previewState.modelId]);
 
   // Turnkey Estimator Calculation
   const estimatorTotal = useMemo(() => {
@@ -199,21 +235,12 @@ export default function Home() {
       <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-18 flex items-center justify-between gap-4">
           {/* Logo & Identity */}
-          <Link to="/" className="flex items-center gap-2.5 group shrink-0">
-            <div
-              className="w-9 h-9 rounded-lg flex items-center justify-center font-black text-white text-base tracking-tighter shadow-xs transition-transform group-hover:scale-105"
-              style={{ backgroundColor: config.branding?.primaryColor || '#000000' }}
-            >
-              {config.branding?.brandName ? config.branding.brandName.charAt(0).toUpperCase() : 'B'}
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-black tracking-tight text-gray-950">
-                {config.branding?.brandName || 'Boxabl'}
-              </span>
-              <span className="hidden sm:inline-block text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-gray-100 text-gray-600">
-                Modular
-              </span>
-            </div>
+          <Link to="/" className="flex items-center group shrink-0" title="10Apples">
+            <img
+              src="https://res.cloudinary.com/ddaxljfgp/image/upload/v1791201844/10apples_logo_main_eqm9wf.png"
+              alt="10Apples Logo"
+              className="h-9 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105"
+            />
           </Link>
 
           {/* Center Navigation Links - Clean, focused, and professional */}
@@ -233,38 +260,83 @@ export default function Home() {
           <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
             {/* Currency Switcher */}
             <div className="inline-flex h-9 p-0.5 bg-gray-100 rounded-lg border border-gray-200/80 items-center">
-              {TWO_CURRENCIES.map((curr) => {
-                const isActive = normalizeCurrency(config.currency) === curr.code;
-                return (
-                  <button
-                    key={curr.code}
-                    type="button"
-                    onClick={() => {
-                      if (setCurrency) {
-                        setCurrency(curr.code);
-                      } else {
-                        updateConfig({ ...config, currency: curr.code });
+              {(() => {
+                const activeCode = normalizeCurrency(config.currency);
+                const items = [
+                  { code: 'USD', symbol: '$' },
+                  ...(activeCode !== 'USD'
+                    ? [{ code: activeCode, symbol: getCurrencySymbol(activeCode) }]
+                    : [{ code: 'GHS', symbol: 'GH₵' }]),
+                ];
+                const uniqueItems = Array.from(new Map(items.map((i) => [i.code, i])).values());
+
+                return uniqueItems.map((curr) => {
+                  const isActive = activeCode === curr.code;
+                  const rate =
+                    curr.code === 'USD'
+                      ? 1.0
+                      : getExchangeRate(curr.code, config.exchangeRates);
+
+                  return (
+                    <button
+                      key={curr.code}
+                      type="button"
+                      onClick={() => {
+                        if (setCurrency) {
+                          setCurrency(curr.code);
+                        } else {
+                          updateConfig({ ...config, currency: curr.code });
+                        }
+                        syncOrdersCurrency(curr.code);
+                      }}
+                      className={`h-full px-2 sm:px-2.5 text-[11px] font-extrabold rounded-md transition-all flex items-center gap-1 cursor-pointer ${
+                        isActive
+                          ? curr.code === 'USD'
+                            ? 'bg-black text-white shadow-xs'
+                            : 'bg-orange-600 text-white shadow-xs'
+                          : 'text-gray-500 hover:text-gray-950'
+                      }`}
+                      title={
+                        curr.code === 'USD'
+                          ? 'Master Default: USD ($) · Baseline Rate: 1.0000'
+                          : `Switch to ${curr.code} (${curr.symbol}) · Prevailing Rate: 1 USD = ${rate} ${curr.code}`
                       }
-                      syncOrdersCurrency(curr.code);
-                    }}
-                    className={`h-full px-2 sm:px-2.5 text-[11px] font-extrabold rounded-md transition-all flex items-center gap-1 cursor-pointer ${
-                      isActive
-                        ? curr.code === 'GHS'
-                          ? 'bg-orange-600 text-white shadow-xs'
-                          : 'bg-black text-white shadow-xs'
-                        : 'text-gray-500 hover:text-gray-950'
-                    }`}
-                    title={`Switch currency across entire website: ${curr.name} (${curr.symbol})`}
-                  >
-                    <span className="font-mono text-[10px]">{curr.symbol}</span>
-                    <span>{curr.code}</span>
-                  </button>
-                );
-              })}
+                    >
+                      <span className="font-mono text-[10px]">{curr.symbol}</span>
+                      <span>{curr.code}</span>
+                    </button>
+                  );
+                });
+              })()}
             </div>
 
             {/* Subtle Divider */}
             <div className="hidden sm:block h-5 w-px bg-gray-200" />
+
+            {/* Customer Account / Firebase Login */}
+            {currentUser ? (
+              <Link
+                to="/user-dashboard"
+                className="h-9 px-3 bg-orange-50 hover:bg-orange-100 text-orange-950 border border-orange-200 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-bold"
+                title={`Signed in as ${currentUser.fullName}. Open User Dashboard.`}
+              >
+                <div className="w-5 h-5 rounded-full bg-orange-600 text-white flex items-center justify-center text-[10px] font-black">
+                  {currentUser.fullName.charAt(0).toUpperCase()}
+                </div>
+                <span className="hidden sm:inline max-w-[100px] truncate">{currentUser.fullName}</span>
+                <span className="text-[10px] bg-orange-200/80 text-orange-800 px-1 py-0.2 rounded font-mono font-bold">
+                  {currentUser.savedProjects?.length || 0}
+                </span>
+              </Link>
+            ) : (
+              <Link
+                to="/user-dashboard"
+                className="h-9 px-3 text-gray-700 hover:text-gray-950 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-bold"
+                title="Open User Dashboard"
+              >
+                <span>Dashboard</span>
+              </Link>
+            )}
 
             {/* Admin Link */}
             <Link
@@ -275,22 +347,12 @@ export default function Home() {
               <LayoutDashboard className="w-4 h-4 text-orange-600" />
               <span className="hidden lg:inline">Admin</span>
             </Link>
-
-            {/* Launch Configurator Primary CTA */}
-            <Link
-              to="/configurator"
-              className="h-9 sm:h-10 px-3.5 sm:px-5 rounded-lg text-xs font-extrabold text-white bg-black hover:bg-neutral-800 transition-all shadow-xs hover:shadow active:scale-95 flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider whitespace-nowrap"
-            >
-              <Box className="w-3.5 h-3.5 text-orange-400" />
-              <span>3D Configurator</span>
-              <ArrowRight className="w-3.5 h-3.5 hidden sm:inline" />
-            </Link>
           </div>
         </div>
       </header>
 
       {/* 2. HERO SECTION */}
-      <section className="relative overflow-hidden pt-12 pb-20 sm:pt-20 sm:pb-28 border-b border-gray-200 bg-white">
+      <section className="relative overflow-hidden pt-6 pb-16 sm:pt-10 sm:pb-24 border-b border-gray-200 bg-white">
         {/* Subtle Architectural Grid Background */}
         <div
           className="absolute inset-0 opacity-[0.03] pointer-events-none"
@@ -300,224 +362,147 @@ export default function Home() {
           }}
         />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
-            
-            {/* Left Column: Architectural Value Proposition */}
-            <div className="lg:col-span-6 space-y-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 border border-orange-200/80 text-orange-800 text-xs font-extrabold tracking-wide uppercase">
-                <span className="w-2 h-2 rounded-full bg-orange-600 animate-pulse" />
-                <span>Next-Gen Prefab Modular Architecture</span>
-              </div>
+        {/* Flat Architectural Vector Trees Background Layer */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+          <ArchitecturalTrees slideIndex={heroSlideIndex} />
+        </div>
 
-              <h1 className="text-4xl sm:text-5xl xl:text-6xl font-black text-gray-950 tracking-tight leading-[1.08]">
-                Precision Modular Homes.{' '}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-600">
-                  Engineered in 3D.
-                </span>
-              </h1>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+          {/* 1. TEXTS & CTAS: POSITIONED ABOVE THE HOUSE */}
+          {/* Architectural Badge */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-orange-50 border border-orange-200/80 text-orange-800 text-xs font-extrabold tracking-wide uppercase mx-auto mb-4">
+            <span className="w-2 h-2 rounded-full bg-orange-600 animate-pulse" />
+            <span>10Apples Modular Architecture · Expandable Series</span>
+          </div>
 
-              <p className="text-base sm:text-lg text-gray-600 leading-relaxed max-w-xl">
-                Experience factory-finished prefabricated architecture built on high-tensile galvanized steel chassis.
-                Customize wall cladding, panoramic glazing, interior bath and kitchen pods in real-time 3D, and generate instant manufacturing work orders.
-              </p>
+          {/* Main Headline */}
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-gray-950 tracking-tight leading-[1.08] max-w-4xl mx-auto">
+            A Home That Fits Your Life.{' '}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-600">
+              And Your Future.
+            </span>
+          </h1>
 
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-2">
-                <Link
-                  to="/configurator"
-                  className="inline-flex items-center justify-center gap-2.5 px-7 py-4 rounded-full text-base font-extrabold text-white bg-black hover:bg-neutral-800 transition-all shadow-xl hover:shadow-orange-500/10 active:scale-95 cursor-pointer uppercase tracking-wider text-center"
-                >
-                  <Box className="w-5 h-5 text-orange-400" />
-                  <span>Enter 3D Configurator</span>
-                  <ArrowRight className="w-5 h-5" />
-                </Link>
+          {/* Description */}
+          <p className="text-base sm:text-lg text-gray-600 leading-relaxed max-w-2xl mx-auto mt-4">
+            Whether you want to live, host, rent or invest, 10Apples makes it easier to create a beautiful modern space without the complexity of traditional construction.
+          </p>
 
-                <a
-                  href="#models"
-                  className="inline-flex items-center justify-center gap-2 px-6 py-4 rounded-full text-sm font-bold text-gray-800 bg-gray-100 hover:bg-gray-200 transition-colors border border-gray-200"
-                >
-                  <span>Explore Model Lineup</span>
-                  <ChevronDown className="w-4 h-4 text-gray-500" />
-                </a>
-              </div>
+          {/* Value Steps */}
+          <p className="text-sm sm:text-base font-bold text-gray-900 tracking-wide mt-3 max-w-2xl mx-auto">
+            Choose your home. Customize it. Get your price. Explore flexible ways to own it.
+          </p>
 
-              {/* Key Architectural Metric Badges */}
-              <div className="grid grid-cols-3 gap-3 pt-6 border-t border-gray-100">
-                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200/80">
-                  <div className="text-xl sm:text-2xl font-black text-gray-950 font-mono">154-620</div>
-                  <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">
-                    Sq Ft Footprints
+          {/* Primary CTA Cluster */}
+          <div className="flex items-center justify-center mt-7 mb-8 sm:mb-10">
+            {/* Primary CTA button saying Starting at GHC22,800 */}
+            <Link
+              to="/configurator?model=expandable-20ft"
+              className="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-full text-base font-black text-white bg-orange-600 hover:bg-orange-700 transition-all shadow-xl hover:shadow-orange-500/25 active:scale-95 cursor-pointer uppercase tracking-wider text-center group"
+            >
+              <span>Starting at GHC22,800</span>
+              <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+            </Link>
+          </div>
+
+          {/* 2. THE HOUSE: SLIDING HERO IMAGES (NO BORDER OR BOX) */}
+          <div
+            className="relative w-full max-w-4xl mx-auto mb-8 sm:mb-10 select-none group"
+            onMouseEnter={() => setIsHeroSliderHovered(true)}
+            onMouseLeave={() => setIsHeroSliderHovered(false)}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
+            {/* Sliding Viewport */}
+            <div className="relative w-full h-[280px] sm:h-[420px] md:h-[480px] flex items-center justify-center overflow-hidden">
+              {HERO_SLIDER_IMAGES.map((img, idx) => {
+                const isActive = idx === heroSlideIndex;
+                return (
+                  <div
+                    key={img.url}
+                    className={`absolute inset-0 flex items-center justify-center transition-all duration-700 ease-in-out ${
+                      isActive
+                        ? 'opacity-100 scale-100 translate-x-0 pointer-events-auto'
+                        : idx < heroSlideIndex
+                        ? 'opacity-0 scale-95 -translate-x-12 pointer-events-none'
+                        : 'opacity-0 scale-95 translate-x-12 pointer-events-none'
+                    }`}
+                  >
+                    <img
+                      src={img.url}
+                      alt={img.alt}
+                      className="w-full h-full max-h-[460px] sm:max-h-[500px] object-contain drop-shadow-xl"
+                      draggable={false}
+                    />
                   </div>
-                </div>
-                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200/80">
-                  <div className="text-xl sm:text-2xl font-black text-gray-950 font-mono">3-6 Wks</div>
-                  <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">
-                    Factory Delivery
-                  </div>
-                </div>
-                <div className="p-3 bg-gray-50 rounded-2xl border border-gray-200/80">
-                  <div className="text-xl sm:text-2xl font-black text-orange-600 font-mono">100%</div>
-                  <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">
-                    Plug &amp; Play Utilities
-                  </div>
-                </div>
-              </div>
+                );
+              })}
+
+              {/* Prev / Next Slide Navigation Buttons */}
+              <button
+                type="button"
+                onClick={handlePrevSlide}
+                aria-label="Previous slide"
+                className="absolute left-1 sm:left-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-white/80 hover:bg-white text-gray-800 hover:text-black shadow-md hover:shadow-lg backdrop-blur-xs flex items-center justify-center transition-all opacity-80 hover:opacity-100 hover:scale-105 cursor-pointer z-20"
+              >
+                <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleNextSlide}
+                aria-label="Next slide"
+                className="absolute right-1 sm:right-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-white/80 hover:bg-white text-gray-800 hover:text-black shadow-md hover:shadow-lg backdrop-blur-xs flex items-center justify-center transition-all opacity-80 hover:opacity-100 hover:scale-105 cursor-pointer z-20"
+              >
+                <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
+              </button>
             </div>
 
-            {/* Right Column: Interactive 3D Showcase Card */}
-            <div id="preview" className="lg:col-span-6">
-              <div className="bg-white rounded-3xl border border-gray-200/90 shadow-2xl overflow-hidden flex flex-col transition-all duration-300 ring-1 ring-black/5 hover:shadow-orange-500/10">
-                {/* Showcase Top Bar: Model Selector Pills & Public Status */}
-                <div className="p-3 sm:p-4 bg-gray-950 text-white flex items-center justify-between gap-2 border-b border-gray-800">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-2.5 w-2.5 relative">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                    </span>
-                    <span className="text-xs font-black uppercase tracking-wider text-gray-100 flex items-center gap-1.5">
-                      <span>3D Live Model</span>
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-bold text-emerald-400 normal-case hidden sm:inline-flex items-center gap-1">
-                        <Check className="w-3 h-3 text-emerald-400" />
-                        Publicly Available
-                      </span>
-                    </span>
-                  </div>
-
-                  {/* Model Switcher Pills (Strictly Public Models) */}
-                  <div className="flex items-center gap-1.5 overflow-x-auto max-w-[240px] sm:max-w-[340px] p-1 bg-gray-900 rounded-full border border-gray-800 scrollbar-none">
-                    {publicModels.slice(0, 6).map((model: any) => {
-                      const isSelected = model.id === previewState.modelId;
-                      return (
-                        <button
-                          key={model.id}
-                          type="button"
-                          onClick={() => setPreviewState((prev) => ({ ...prev, modelId: model.id }))}
-                          className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
-                            isSelected
-                              ? 'bg-orange-600 text-white shadow-xs'
-                              : 'text-gray-400 hover:text-white hover:bg-gray-800/80'
-                          }`}
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                          <span>{model.name.replace('Double-Wing ', '').slice(0, 18)}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* 3D Canvas Container */}
-                <div className="relative h-[400px] sm:h-[460px] bg-slate-950 overflow-hidden group">
-                  <ThreeViewer
-                    state={previewState}
-                    lightingMode={lightingMode}
-                    onLightingModeChange={setLightingMode}
-                    onSelectCategory={() => {}}
-                    roofLiftPercent={roofLiftPercent}
-                    onRoofLiftChange={setRoofLiftPercent}
-                    roofRemoved={roofRemoved}
-                    onRoofRemovedToggle={() => setRoofRemoved(!roofRemoved)}
-                    cutawayMode={cutawayMode}
-                    onCutawayModeToggle={() => setCutawayMode(!cutawayMode)}
-                    currentPerspective={currentPerspective}
-                    onPerspectiveChange={setCurrentPerspective}
-                    config={config}
+            {/* Slider Dots / Indicators */}
+            <div className="flex items-center justify-center gap-2 mt-3">
+              {HERO_SLIDER_IMAGES.map((img, idx) => {
+                const isActive = idx === heroSlideIndex;
+                return (
+                  <button
+                    key={img.url}
+                    type="button"
+                    onClick={() => setHeroSlideIndex(idx)}
+                    aria-label={`Go to slide ${idx + 1}: ${img.title}`}
+                    className={`h-2 rounded-full transition-all cursor-pointer ${
+                      isActive
+                        ? 'w-7 bg-orange-600'
+                        : 'w-2 bg-gray-300 hover:bg-gray-400'
+                    }`}
                   />
+                );
+              })}
+            </div>
+          </div>
 
-                  {/* Subtle Studio Vignette Overlay */}
-                  <div className="pointer-events-none absolute inset-0 bg-radial from-transparent via-transparent to-black/25 z-10" />
-
-                  {/* Overlaid Lighting & Mode Quick Controls */}
-                  <div className="absolute top-4 left-4 z-20 flex items-center gap-1.5 bg-black/70 backdrop-blur-md p-1 rounded-xl border border-white/10 text-white shadow-lg">
-                    <button
-                      type="button"
-                      onClick={() => setLightingMode('daylight')}
-                      className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
-                        lightingMode === 'daylight' ? 'bg-orange-600 text-white' : 'text-gray-300 hover:text-white'
-                      }`}
-                      title="Daylight illumination"
-                    >
-                      <Sun className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline text-[10px]">Day</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLightingMode('sunset')}
-                      className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
-                        lightingMode === 'sunset' ? 'bg-orange-600 text-white' : 'text-gray-300 hover:text-white'
-                      }`}
-                      title="Sunset golden hour"
-                    >
-                      <Sunset className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline text-[10px]">Sunset</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLightingMode('night')}
-                      className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
-                        lightingMode === 'night' ? 'bg-orange-600 text-white' : 'text-gray-300 hover:text-white'
-                      }`}
-                      title="Architectural night lighting"
-                    >
-                      <Moon className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline text-[10px]">Night</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCutawayMode(!cutawayMode)}
-                      className={`ml-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer ${
-                        cutawayMode ? 'bg-amber-500 text-black shadow-xs' : 'bg-white/10 text-white hover:bg-white/20'
-                      }`}
-                      title="Toggle interior cutaway"
-                    >
-                      <Layers className="w-3 h-3" />
-                      <span>{cutawayMode ? 'Interior' : 'Exterior'}</span>
-                    </button>
-                  </div>
-
-                  {/* Overlaid Interactive Hint */}
-                  <div className="absolute bottom-4 left-4 z-20 pointer-events-none bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 text-[11px] text-gray-200 flex items-center gap-2 shadow-sm">
-                    <Compass className="w-3.5 h-3.5 text-orange-400" />
-                    <span>Click &amp; drag to orbit 360° · Scroll to zoom</span>
-                  </div>
-                </div>
-
-                {/* Showcase Bottom Bar: Model specs & direct Launch CTA */}
-                <div className="p-4 sm:p-5 bg-white border-t border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-extrabold text-gray-950 text-base">
-                        {currentPreviewModel?.name}
-                      </h3>
-                      <span className="text-xs font-mono font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md">
-                        {currentPreviewModel?.sqft} sq ft
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 font-mono mt-0.5">
-                      {currentPreviewModel?.dimensions?.metricStr || '6,400mm × 5,900mm × 2,500mm'}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                    <div className="text-right">
-                      <div className="text-[10px] uppercase font-bold text-gray-400">
-                        Base Starting At
-                      </div>
-                      <div className="text-lg font-black text-gray-950 font-mono">
-                        {formatCurrency(currentPreviewModel?.basePrice || 22800, config.currency)}
-                      </div>
-                    </div>
-
-                    <Link
-                      to={`/configurator?model=${previewState.modelId}`}
-                      className="px-4 py-2.5 rounded-xl text-xs font-extrabold text-white bg-orange-600 hover:bg-orange-700 transition-all shadow-md active:scale-95 flex items-center gap-1.5 whitespace-nowrap cursor-pointer uppercase tracking-wider"
-                    >
-                      <span>Customize in 3D</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
-                  </div>
-                </div>
+          {/* Key Architectural Metric Badges */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-4xl mx-auto mt-10">
+            <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200/80">
+              <div className="text-xl sm:text-2xl font-black text-gray-950 font-mono">409 sq ft</div>
+              <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">
+                Expanded Footprint
+              </div>
+            </div>
+            <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200/80">
+              <div className="text-xl sm:text-2xl font-black text-gray-950 font-mono">3-6 Wks</div>
+              <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">
+                Factory Delivery
+              </div>
+            </div>
+            <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200/80">
+              <div className="text-xl sm:text-2xl font-black text-orange-600 font-mono">100%</div>
+              <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">
+                Plug &amp; Play Utilities
+              </div>
+            </div>
+            <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200/80">
+              <div className="text-xl sm:text-2xl font-black text-gray-950 font-mono">Q235</div>
+              <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">
+                Galvanized Steel
               </div>
             </div>
           </div>
@@ -987,8 +972,8 @@ export default function Home() {
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
                   1. Choose Architectural Footprint
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {config.models?.map((model: any) => {
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {publicModels.map((model: any) => {
                     const isSelected = model.id === estimatorModelId;
                     return (
                       <button
@@ -1237,20 +1222,16 @@ export default function Home() {
       <footer className="bg-white border-t border-gray-200 py-12 text-xs text-gray-500">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-white text-sm"
-              style={{ backgroundColor: config.branding?.primaryColor || '#000000' }}
-            >
-              {config.branding?.brandName ? config.branding.brandName.charAt(0).toUpperCase() : 'B'}
-            </div>
-            <div>
-              <span className="font-bold text-gray-900 text-sm">
-                {config.branding?.brandName || 'Boxabl'}
-              </span>
-              <span className="text-[11px] text-gray-400 ml-2">
-                © {new Date().getFullYear()} Modular Homes Inc. All rights reserved.
-              </span>
-            </div>
+            <Link to="/" className="inline-block" title="10Apples">
+              <img
+                src="https://res.cloudinary.com/ddaxljfgp/image/upload/v1791201844/10apples_logo_main_eqm9wf.png"
+                alt="10Apples Logo"
+                className="h-7 sm:h-8 w-auto object-contain opacity-90 hover:opacity-100 transition-opacity"
+              />
+            </Link>
+            <span className="text-[11px] text-gray-400 border-l border-gray-200 pl-3">
+              © {new Date().getFullYear()} 10Apples Modular Architecture. All rights reserved.
+            </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-6 font-semibold">
@@ -1273,7 +1254,7 @@ export default function Home() {
       {/* Spec Sheet Modal if triggered from model cards */}
       {specModalModelId && (
         <SpecSheetModal
-          state={{ ...INITIAL_PREVIEW_STATE, modelId: specModalModelId }}
+          state={{ ...DEFAULT_SPEC_STATE, modelId: specModalModelId }}
           onClose={() => setSpecModalModelId(null)}
           totalPrice={
             config.models?.find((m: any) => m.id === specModalModelId)?.basePrice || 54900

@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { CustomizationState, FloorPlanId } from '../types';
 import { useAppConfig } from '../context/AppConfigContext';
 import { BASE_MODELS } from '../data/models';
-import { FLOOR_PLAN_OPTIONS } from '../data/options';
+import { FLOOR_PLAN_OPTIONS, GLAZING_OPTIONS } from '../data/options';
 import { formatCurrency as formatCurrencyUtil } from '../utils/currency';
+import { getItemPriceForModel, getItemUnitSpec } from '../utils/pricingCalculator';
+import { DoorWindowDiagram } from './ConfiguratorPanel';
 import {
   DollarSign,
   Calendar,
@@ -11,13 +13,17 @@ import {
   ShieldCheck,
   ChevronUp,
   ChevronDown,
+  ChevronRight,
   X,
   CreditCard,
   Download,
+  FileText,
   CheckCircle2,
   Clock,
   Sparkles,
   LayoutGrid,
+  Lock,
+  Grid,
 } from 'lucide-react';
 
 interface CostBuildupPanelProps {
@@ -25,6 +31,9 @@ interface CostBuildupPanelProps {
   onStateChange: (updater: (prev: CustomizationState) => CustomizationState) => void;
   onOpenReserve: () => void;
   onOpenSpecSheet: () => void;
+  onToggleCollapse?: () => void;
+  isReserved?: boolean;
+  onSelectCategory?: (category: string) => void;
 }
 
 export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
@@ -32,10 +41,15 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
   onStateChange,
   onOpenReserve,
   onOpenSpecSheet,
+  onToggleCollapse,
+  isReserved = false,
+  onSelectCategory,
 }) => {
   const [isCollapsedMobile, setIsCollapsedMobile] = useState(false);
   const [includeFreight, setIncludeFreight] = useState(true);
   const [includeSitePrep, setIncludeSitePrep] = useState(true);
+  const [showDoorFeaturesModal, setShowDoorFeaturesModal] = useState(false);
+  const [doorModalSubFilter, setDoorModalSubFilter] = useState<'all' | 'Entrance Doors' | 'Windows'>('all');
   const { config } = useAppConfig();
 
   const currentModel =
@@ -66,8 +80,10 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
   const cabOpt =
     config.cabinetryOptions.find((o: any) => o.id === state.cabinetry) || config.cabinetryOptions[0];
 
-  // Active modular addons
-  const activeAddons = config.addons.filter((addon: any) => state[addon.id]);
+  // Active modular addons (excluding any hidden by admin)
+  const activeAddons = (config.addons || []).filter(
+    (addon: any) => state[addon.id] && addon.isAvailable !== false && addon.isActive !== false
+  );
 
   const freightCost = includeFreight ? (config.logistics?.freightCost || 4500) : 0;
   const sitePrepCost = includeSitePrep ? (config.logistics?.sitePrepCost || 5500) : 0;
@@ -82,20 +98,20 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
   const floorPlanOpt = isExpandableHouse && state.floorPlan
     ? FLOOR_PLAN_OPTIONS.find((f) => f.id === state.floorPlan)
     : null;
-  const floorPlanPrice = floorPlanOpt?.price || 0;
+  const floorPlanPrice = floorPlanOpt ? getItemPriceForModel(floorPlanOpt, state.modelId, config.models) : 0;
 
   // Calculate Subtotal & Total
   const upgradesTotal =
-    wallOpt.price +
-    (intWallOpt?.price || 0) +
+    getItemPriceForModel(wallOpt, state.modelId, config.models) +
+    getItemPriceForModel(intWallOpt, state.modelId, config.models) +
     floorPlanPrice +
-    glassOpt.price +
-    lightOpt.price +
-    elecOpt.price +
-    floorOpt.price +
-    roofOpt.price +
-    cabOpt.price +
-    activeAddons.reduce((acc: number, a: any) => acc + a.price, 0);
+    getItemPriceForModel(glassOpt, state.modelId, config.models) +
+    getItemPriceForModel(lightOpt, state.modelId, config.models) +
+    getItemPriceForModel(elecOpt, state.modelId, config.models) +
+    getItemPriceForModel(floorOpt, state.modelId, config.models) +
+    getItemPriceForModel(roofOpt, state.modelId, config.models) +
+    getItemPriceForModel(cabOpt, state.modelId, config.models) +
+    activeAddons.reduce((acc: number, a: any) => acc + getItemPriceForModel(a, state.modelId, config.models), 0);
 
   const homeFactoryTotal = currentModel.basePrice + upgradesTotal;
   const markupFactor = 1 + ((config.markup || 0) / 100);
@@ -116,7 +132,10 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
   );
 
   const formatCurrency = (val: number, opts?: { showPlus?: boolean }) => {
-    return formatCurrencyUtil(val, config.currency, opts);
+    return formatCurrencyUtil(val, config.currency, {
+      ...opts,
+      ratesMap: config.exchangeRates,
+    });
   };
 
   return (
@@ -148,6 +167,19 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
             <ChevronUp className="w-4 h-4" />
           )}
         </button>
+
+        {/* Desktop Hide / Collapse Button */}
+        {onToggleCollapse && (
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className="hidden lg:flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-gray-500 hover:text-gray-950 hover:bg-gray-200/70 transition-colors cursor-pointer group"
+            title="Hide Investment Breakdown (expands 3D viewer)"
+          >
+            <span>Hide</span>
+            <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+          </button>
+        )}
       </div>
 
       {/* Main Content Area */}
@@ -217,11 +249,11 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-mono font-bold text-gray-900">
-                    {floorPlanOpt.price === 0
+                    {floorPlanPrice === 0
                       ? 'Included'
-                      : `+${formatCurrency(floorPlanOpt.price * markupFactor)}`}
+                      : `+${formatCurrency(floorPlanPrice * markupFactor)}`}
                   </span>
-                  {floorPlanOpt.price > 0 && (
+                  {floorPlanPrice > 0 && (
                     <button
                       onClick={() =>
                         onStateChange((prev) => ({
@@ -241,7 +273,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
             )}
 
             {/* Custom Wall Cladding */}
-            {wallOpt.price > 0 && (
+            {getItemPriceForModel(wallOpt, state.modelId, config.models) > 0 && (
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200">
                 <div className="flex items-center gap-2.5">
                   <span
@@ -255,7 +287,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-mono font-bold text-gray-900">
-                    +{formatCurrency(wallOpt.price * markupFactor)}
+                    +{formatCurrency(getItemPriceForModel(wallOpt, state.modelId, config.models) * markupFactor)}
                   </span>
                   <button
                     onClick={() =>
@@ -274,7 +306,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
             )}
 
             {/* Interior Wall Panels */}
-            {intWallOpt && intWallOpt.price > 0 && (
+            {intWallOpt && getItemPriceForModel(intWallOpt, state.modelId, config.models) > 0 && (
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200">
                 <div>
                   <div className="font-semibold text-gray-900">{intWallOpt.name}</div>
@@ -282,7 +314,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-mono font-bold text-gray-900">
-                    +{formatCurrency(intWallOpt.price * markupFactor)}
+                    +{formatCurrency(getItemPriceForModel(intWallOpt, state.modelId, config.models) * markupFactor)}
                   </span>
                   <button
                     onClick={() =>
@@ -300,35 +332,68 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
               </div>
             )}
 
-            {/* Glazing */}
-            {glassOpt.price > 0 && (
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200">
-                <div>
-                  <div className="font-semibold text-gray-900">{glassOpt.name}</div>
-                  <div className="text-[10px] text-gray-400">Panoramic Glazing</div>
+            {/* Standard Entrance Door & Windows (Included at no other cost) */}
+            <div
+              onClick={() => {
+                setShowDoorFeaturesModal(true);
+                if (onSelectCategory) onSelectCategory('Glazing & Windows');
+              }}
+              className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200 hover:border-orange-300 hover:bg-orange-50/40 transition-all cursor-pointer group"
+              title="Click to view door or window features and select style at no additional cost ($0)"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-5 h-5 rounded-lg bg-orange-100 flex items-center justify-center shrink-0 text-xs group-hover:scale-105 transition-transform">
+                  🚪
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono font-bold text-gray-900">
-                    +{formatCurrency(glassOpt.price * markupFactor)}
-                  </span>
-                  <button
-                    onClick={() =>
-                      onStateChange((prev) => ({
-                        ...prev,
-                        glazing: 'low-e-clear',
-                      }))
-                    }
-                    className="text-gray-400 hover:text-red-500 p-0.5 cursor-pointer"
-                    title="Revert to standard"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+                <div>
+                  <div className="font-semibold text-gray-900 leading-tight flex items-center gap-1.5 flex-wrap">
+                    <span>{glassOpt?.name || 'Standard Entrance Door & Windows'}</span>
+                    <span className="text-[9px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded">
+                      Included ($0)
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-emerald-700 font-medium flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    <span>Door &amp; Window System · Included at $0</span>
+                    {onSelectCategory && (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowDoorFeaturesModal(true);
+                          if (onSelectCategory) {
+                            onSelectCategory('Glazing & Windows');
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.stopPropagation();
+                            setShowDoorFeaturesModal(true);
+                            if (onSelectCategory) onSelectCategory('Glazing & Windows');
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-zinc-900 hover:bg-orange-600 text-white font-bold text-[10px] shadow-2xs hover:shadow-xs transition-all active:scale-95 cursor-pointer ml-1 select-none"
+                        title="Click to view and choose from all entrance doors and window features"
+                      >
+                        <span>View Features</span>
+                        <ChevronRight className="w-3 h-3 text-white/80" />
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            )}
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 text-[11px]">
+                  Included ($0)
+                </span>
+                {onSelectCategory && (
+                  <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-orange-600 group-hover:translate-x-0.5 transition-transform" />
+                )}
+              </div>
+            </div>
 
             {/* Lighting */}
-            {lightOpt.price > 0 && (
+            {getItemPriceForModel(lightOpt, state.modelId, config.models) > 0 && (
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200">
                 <div>
                   <div className="font-semibold text-gray-900">{lightOpt.name}</div>
@@ -336,7 +401,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-mono font-bold text-gray-900">
-                    +{formatCurrency(lightOpt.price * markupFactor)}
+                    +{formatCurrency(getItemPriceForModel(lightOpt, state.modelId, config.models) * markupFactor)}
                   </span>
                   <button
                     onClick={() =>
@@ -355,7 +420,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
             )}
 
             {/* Electrical */}
-            {elecOpt.price > 0 && (
+            {getItemPriceForModel(elecOpt, state.modelId, config.models) > 0 && (
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200">
                 <div>
                   <div className="font-semibold text-gray-900">{elecOpt.name}</div>
@@ -363,7 +428,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-mono font-bold text-gray-900">
-                    +{formatCurrency(elecOpt.price * markupFactor)}
+                    +{formatCurrency(getItemPriceForModel(elecOpt, state.modelId, config.models) * markupFactor)}
                   </span>
                   <button
                     onClick={() =>
@@ -382,7 +447,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
             )}
 
             {/* Flooring */}
-            {floorOpt.price > 0 && (
+            {getItemPriceForModel(floorOpt, state.modelId, config.models) > 0 && (
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200">
                 <div>
                   <div className="font-semibold text-gray-900">{floorOpt.name}</div>
@@ -390,7 +455,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-mono font-bold text-gray-900">
-                    +{formatCurrency(floorOpt.price * markupFactor)}
+                    +{formatCurrency(getItemPriceForModel(floorOpt, state.modelId, config.models) * markupFactor)}
                   </span>
                   <button
                     onClick={() =>
@@ -409,7 +474,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
             )}
 
             {/* Roof Option */}
-            {roofOpt.price > 0 && (
+            {getItemPriceForModel(roofOpt, state.modelId, config.models) > 0 && (
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200">
                 <div>
                   <div className="font-semibold text-gray-900">{roofOpt.name}</div>
@@ -417,7 +482,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-mono font-bold text-gray-900">
-                    +{formatCurrency(roofOpt.price * markupFactor)}
+                    +{formatCurrency(getItemPriceForModel(roofOpt, state.modelId, config.models) * markupFactor)}
                   </span>
                   <button
                     onClick={() =>
@@ -436,7 +501,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
             )}
 
             {/* Cabinetry Option */}
-            {cabOpt.price > 0 && (
+            {getItemPriceForModel(cabOpt, state.modelId, config.models) > 0 && (
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200">
                 <div>
                   <div className="font-semibold text-gray-900">{cabOpt.name}</div>
@@ -444,7 +509,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-mono font-bold text-gray-900">
-                    +{formatCurrency(cabOpt.price * markupFactor)}
+                    +{formatCurrency(getItemPriceForModel(cabOpt, state.modelId, config.models) * markupFactor)}
                   </span>
                   <button
                     onClick={() =>
@@ -463,34 +528,96 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
             )}
 
             {/* Active Modular Add-ons */}
-            {activeAddons.map((addon) => (
-              <div
-                key={addon.id}
-                className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200"
-              >
-                <div>
-                  <div className="font-semibold text-gray-900">{addon.name}</div>
-                  <div className="text-[10px] text-gray-400">{addon.category}</div>
+            {activeAddons.map((addon) => {
+              const unitPrice = getItemPriceForModel(addon, state.modelId, config.models);
+              const unitSpec = getItemUnitSpec(addon, state.modelId);
+              const isDefaultModule = addon.id === 'hasLuxuryBathPod' || addon.id === 'hasKitchenetteModule';
+
+              return (
+                <div
+                  key={addon.id}
+                  className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200"
+                >
+                  <div className="min-w-0 pr-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-semibold text-gray-900">{addon.name}</span>
+                      {unitSpec.sizeLabel && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-orange-100 text-orange-800">
+                          {unitSpec.sizeLabel}
+                        </span>
+                      )}
+                      {isDefaultModule && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-blue-50 text-blue-800 border border-blue-200">
+                          Standard
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-gray-400">{addon.category}</div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="font-mono font-bold text-gray-900">
+                      +{formatCurrency(unitPrice * markupFactor)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onStateChange((prev) => ({
+                          ...prev,
+                          [addon.id]: false,
+                        }))
+                      }
+                      className="flex items-center gap-1 text-[10px] font-bold text-gray-500 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded-lg border border-gray-200 hover:border-red-200 cursor-pointer transition-colors"
+                      title={`Remove ${addon.name} from house`}
+                    >
+                      <X className="w-3 h-3 text-red-500" />
+                      <span>Remove</span>
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono font-bold text-gray-900">
-                    +{formatCurrency(addon.price * markupFactor)}
+              );
+            })}
+
+            {/* Notification & Quick Re-add if Bath Pod or Kitchenette was removed */}
+            {isExpandableHouse && (!state.hasLuxuryBathPod || !state.hasKitchenetteModule) && (
+              <div className="p-2.5 rounded-xl bg-amber-50/80 border border-amber-200/90 text-xs flex flex-col gap-1.5">
+                <div className="flex items-center justify-between text-amber-900">
+                  <span className="text-[10px] font-black uppercase tracking-wider">
+                    Removed Standard Modules
                   </span>
-                  <button
-                    onClick={() =>
-                      onStateChange((prev) => ({
-                        ...prev,
-                        [addon.id]: false,
-                      }))
-                    }
-                    className="text-gray-400 hover:text-red-500 p-0.5 cursor-pointer"
-                    title="Remove module"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+                  <span className="text-[10px] text-amber-700 font-medium">Shell layout</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {!state.hasLuxuryBathPod && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onStateChange((prev) => ({
+                          ...prev,
+                          hasLuxuryBathPod: true,
+                        }))
+                      }
+                      className="px-2 py-1 rounded-lg bg-white hover:bg-amber-100 text-amber-900 font-bold border border-amber-300 text-[10px] flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                    >
+                      <span>+ Re-add Bath Pod</span>
+                    </button>
+                  )}
+                  {!state.hasKitchenetteModule && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onStateChange((prev) => ({
+                          ...prev,
+                          hasKitchenetteModule: true,
+                        }))
+                      }
+                      className="px-2 py-1 rounded-lg bg-white hover:bg-amber-100 text-amber-900 font-bold border border-amber-300 text-[10px] flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                    >
+                      <span>+ Re-add Kitchenette</span>
+                    </button>
+                  )}
                 </div>
               </div>
-            ))}
+            )}
           </div>
         </div>
 
@@ -574,16 +701,153 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
           <CreditCard className="w-4 h-4" />
           <span>{config.branding.ctaText} ({formatCurrency(config.branding.reservationFee || 250)} Deposit)</span>
         </button>
-
-        <button
-          onClick={onOpenSpecSheet}
-          className="w-full py-2.5 px-3 bg-[#F8F9FB] hover:bg-gray-100 hover:text-gray-900 text-gray-700 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 cursor-pointer border border-gray-200/90 shadow-2xs hover:shadow-xs group"
-          title={`Download specification sheet for ${currentModel.name}`}
-        >
-          <Download className="w-3.5 h-3.5 text-gray-500 group-hover:text-gray-900 transition-colors shrink-0" />
-          <span className="truncate">Download {currentModel.name} Specification Sheet</span>
-        </button>
       </div>
+      {/* Interactive Door & Window Features Modal */}
+      {showDoorFeaturesModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setShowDoorFeaturesModal(false)}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl border border-gray-200 max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between bg-[#FAFAFC]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center text-lg font-bold shadow-2xs">
+                  🚪
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-extrabold text-gray-900 text-base sm:text-lg">
+                      Door &amp; Window Features
+                    </h3>
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
+                      All Included at $0
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Select any architectural entrance door or perimeter window system at no extra cost.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDoorFeaturesModal(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="flex items-center gap-2 px-5 pt-3 pb-2 border-b border-gray-100 bg-white">
+              {[
+                { id: 'all', label: 'All Options (9)' },
+                { id: 'Entrance Doors', label: 'Entrance Doors (5)' },
+                { id: 'Windows', label: 'Windows (4)' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setDoorModalSubFilter(tab.id as any)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    doorModalSubFilter === tab.id
+                      ? 'bg-zinc-900 text-white shadow-xs'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Modal List Body */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3">
+              {((config.glazingOptions && config.glazingOptions.length ? config.glazingOptions : GLAZING_OPTIONS) as any[])
+                .filter((opt) => {
+                  if (doorModalSubFilter === 'all') return true;
+                  return opt.category === doorModalSubFilter;
+                })
+                .map((opt) => {
+                  const isSelected = state.glazing === opt.id;
+                  return (
+                    <div
+                      key={opt.id}
+                      onClick={() => {
+                        onStateChange((prev) => ({ ...prev, glazing: opt.id }));
+                        if (onSelectCategory) onSelectCategory('Glazing & Windows');
+                      }}
+                      className={`p-3.5 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 cursor-pointer ${
+                        isSelected
+                          ? 'border-orange-500 bg-orange-50/30 ring-2 ring-orange-500/20 shadow-xs'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                        <div className="w-16 h-14 rounded-xl bg-slate-50 border border-gray-200 shrink-0 p-1 flex items-center justify-center">
+                          <DoorWindowDiagram id={opt.id} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-gray-900 text-sm">{opt.name}</span>
+                            {opt.badge && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-zinc-900 text-white shadow-2xs">
+                                {opt.badge}
+                              </span>
+                            )}
+                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                              Included ($0)
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-1 line-clamp-2 leading-relaxed">
+                            {opt.description}
+                          </p>
+                          {opt.specDetail && (
+                            <p className="text-[10px] text-gray-400 font-mono mt-1">
+                              Tech Spec: {opt.specDetail}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                        {isSelected ? (
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-600 text-white text-xs font-bold shadow-xs">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Selected</span>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-zinc-900 hover:text-white text-gray-700 text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            Apply Style
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-gray-100 bg-[#FAFAFC] flex items-center justify-between">
+              <span className="text-xs text-gray-500">
+                Doors &amp; windows are factory installed in architectural black broken-bridge aluminum.
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowDoorFeaturesModal(false)}
+                className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs transition-colors cursor-pointer shadow-xs"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 };

@@ -1,8 +1,170 @@
-import { CustomerOrder, OrderStatus, HomeModelId } from '../types';
+import {
+  CustomerOrder,
+  OrderStatus,
+  HomeModelId,
+  ProductionMilestone,
+  ProductionProgressInfo,
+  ProgressLogEntry,
+} from '../types';
 import { normalizeCurrency } from './currency';
 
 const STORAGE_KEY = 'boxabl_customer_orders';
 const ORDERS_EVENT = 'boxabl_orders_updated';
+
+export const DEFAULT_PRODUCTION_STAGES = [
+  {
+    stageKey: 'order_intake',
+    title: '1. Order Intake & Deposit Confirmed',
+    description: 'Production reservation secured; serial number and factory line assigned.',
+  },
+  {
+    stageKey: 'engineering_cad',
+    title: '2. Architectural CAD & Structural Permitting',
+    description: 'Engineering drawings generated with local snow/wind load stamp verification.',
+  },
+  {
+    stageKey: 'chassis_fabrication',
+    title: '3. Q235 Galvanized Chassis & Hinge Fabrication',
+    description: 'Robotic precision welding of chassis channels, corner castings, and hinge joints.',
+  },
+  {
+    stageKey: 'enclosure_assembly',
+    title: '4. Insulated Wall Panels & Low-E Glazing',
+    description: 'Class-A fireproof Rockwool sandwich panels, fluorocarbon skins, and panoramic windows.',
+  },
+  {
+    stageKey: 'interior_systems',
+    title: '5. Interior Fit-Out, Plumbing Pod & Electrical',
+    description: 'Factory bath pod installation, 200A wiring hub, MGO subfloor, and cabinetry.',
+  },
+  {
+    stageKey: 'qc_testing',
+    title: '6. 48-Point QC Inspection & Waterproof Testing',
+    description: 'Simulated hurricane rain chamber test, electrical megger testing, and QA signoff.',
+  },
+  {
+    stageKey: 'flatpack_transit',
+    title: '7. Flat-Pack Folding & Freight Dispatch',
+    description: 'Hydraulic scissor folding into ISO container transport footprint and carrier loading.',
+  },
+  {
+    stageKey: 'onsite_handover',
+    title: '8. Site Delivery, Unfolding & Handover',
+    description: 'Crane placement, mechanical wing expansion, utility connect, and keys handover.',
+  },
+];
+
+export const generateDefaultProgress = (
+  status: OrderStatus = 'deposit_received',
+  targetDelivery: string = '2026-11-15'
+): ProductionProgressInfo => {
+  let percent = 25;
+  let activeIndex = 1;
+
+  if (status === 'pending_review') {
+    percent = 10;
+    activeIndex = 0;
+  } else if (status === 'deposit_received') {
+    percent = 25;
+    activeIndex = 1;
+  } else if (status === 'site_assessment') {
+    percent = 38;
+    activeIndex = 2;
+  } else if (status === 'in_production') {
+    percent = 62;
+    activeIndex = 4;
+  } else if (status === 'quality_check') {
+    percent = 80;
+    activeIndex = 5;
+  } else if (status === 'ready_for_dispatch') {
+    percent = 90;
+    activeIndex = 6;
+  } else if (status === 'delivered') {
+    percent = 100;
+    activeIndex = 7;
+  }
+
+  const milestones: ProductionMilestone[] = DEFAULT_PRODUCTION_STAGES.map((s, idx) => {
+    const isCompleted = idx < activeIndex || (idx === activeIndex && percent >= 95);
+    const isCurrent = idx === activeIndex;
+    return {
+      id: `ms-${s.stageKey}`,
+      stageKey: s.stageKey,
+      title: s.title,
+      description: s.description,
+      completed: isCompleted,
+      current: isCurrent,
+      date: isCompleted ? 'Completed' : isCurrent ? 'Active Workstation' : 'Queued',
+      updatedBy: 'Plant Production Lead',
+      notes: isCompleted
+        ? 'Stage verified and QA stamped.'
+        : isCurrent
+        ? 'Active precision assembly on primary factory line.'
+        : undefined,
+    };
+  });
+
+  const defaultLogs: ProgressLogEntry[] = [
+    {
+      id: `log-intake-${idxSeed()}`,
+      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(),
+      stageTitle: '1. Order Intake & Deposit Confirmed',
+      percent: 15,
+      author: 'Operations Director',
+      message: 'Customer deposit verified. Production queue slot allocated and structural serial number assigned.',
+      category: 'milestone_completed',
+    },
+    {
+      id: `log-cad-${idxSeed()}`,
+      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
+      stageTitle: '2. Architectural CAD & Structural Permitting',
+      percent: 25,
+      author: 'Chief Structural Engineer',
+      message: 'Architectural blueprints generated and stamped. Foundation load calculations confirmed for local building codes.',
+      category: 'engineering_update',
+    },
+  ];
+
+  if (percent >= 38) {
+    defaultLogs.unshift({
+      id: `log-chassis-${idxSeed()}`,
+      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+      stageTitle: '3. Q235 Galvanized Chassis & Hinge Fabrication',
+      percent: 38,
+      author: 'Plant Lead • Line Alpha',
+      message: 'Robotic precision welding of high-tensile Q235 chassis channels completed. Ultrasonic weld test cleared 100%.',
+      category: 'inspection_passed',
+    });
+  }
+
+  if (percent >= 62) {
+    defaultLogs.unshift({
+      id: `log-interior-${idxSeed()}`,
+      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
+      stageTitle: '5. Interior Fit-Out, Plumbing Pod & Electrical',
+      percent: 62,
+      author: 'Lead Systems Technician',
+      message: 'Factory bathroom pod crane-installed. 200A electrical home-run harness and MGO floor substrate completed.',
+      category: 'engineering_update',
+    });
+  }
+
+  return {
+    progressPercent: percent,
+    currentStage: DEFAULT_PRODUCTION_STAGES[activeIndex]?.title || 'Factory Assembly',
+    estimatedCompletionDate: targetDelivery,
+    factoryFacility: '10Apples MegaFactory Plant #1 • Line Alpha',
+    lastUpdated: new Date().toISOString(),
+    milestones,
+    progressLogs: defaultLogs,
+    adminPublicNotes:
+      'Q235 galvanized chassis structural frame welding passed ultrasonic weld inspection. Framing meets seismic code Grade 8. Production proceeding on schedule.',
+  };
+};
+
+function idxSeed(): string {
+  return Math.random().toString(36).substring(2, 8);
+}
 
 export const getSystemCurrency = (): string => {
   try {
@@ -274,6 +436,7 @@ export const getOrders = (enforceCurrency?: string): CustomerOrder[] => {
         ...o.pricing,
         currency: activeCurrency,
       },
+      progress: o.progress || generateDefaultProgress(o.status, o.estimatedDeliveryDate),
     }));
   } catch (err) {
     console.error('Failed to load orders from localStorage:', err);
@@ -333,6 +496,7 @@ export const addOrder = (orderData: Omit<CustomerOrder, 'id' | 'createdAt' | 'up
       ...orderData.pricing,
       currency: activeCurrency,
     },
+    progress: orderData.progress || generateDefaultProgress(orderData.status || 'deposit_received', orderData.estimatedDeliveryDate),
     internalNotes: orderData.initialNote
       ? [
           {
@@ -462,4 +626,118 @@ export const deleteOrder = (orderId: string): boolean => {
 export const resetSampleOrders = (): CustomerOrder[] => {
   saveOrders(SAMPLE_ORDERS);
   return SAMPLE_ORDERS;
+};
+
+export const updateOrderProgress = (
+  orderId: string,
+  progressUpdates: Partial<ProductionProgressInfo>
+): CustomerOrder | null => {
+  const orders = getOrders();
+  const index = orders.findIndex((o) => o.id === orderId);
+  if (index === -1) return null;
+
+  const currentProgress = orders[index].progress || generateDefaultProgress(orders[index].status, orders[index].estimatedDeliveryDate);
+  const updatedProgress: ProductionProgressInfo = {
+    ...currentProgress,
+    ...progressUpdates,
+    lastUpdated: new Date().toISOString(),
+  };
+
+  const updatedOrder: CustomerOrder = {
+    ...orders[index],
+    updatedAt: new Date().toISOString(),
+    progress: updatedProgress,
+  };
+
+  orders[index] = updatedOrder;
+  saveOrders(orders);
+  return updatedOrder;
+};
+
+export const addProgressDispatch = (
+  orderId: string,
+  entry: {
+    message: string;
+    author: string;
+    stageTitle?: string;
+    percent?: number;
+    category?: 'milestone_completed' | 'inspection_passed' | 'engineering_update' | 'dispatch_ready' | 'general';
+  }
+): CustomerOrder | null => {
+  const orders = getOrders();
+  const index = orders.findIndex((o) => o.id === orderId);
+  if (index === -1) return null;
+
+  const currentProgress = orders[index].progress || generateDefaultProgress(orders[index].status, orders[index].estimatedDeliveryDate);
+  const now = new Date().toISOString();
+
+  const newLog: ProgressLogEntry = {
+    id: `log-${Date.now()}-${idxSeed()}`,
+    timestamp: now,
+    stageTitle: entry.stageTitle || currentProgress.currentStage,
+    percent: typeof entry.percent === 'number' ? entry.percent : currentProgress.progressPercent,
+    author: entry.author || 'Plant Operations Lead',
+    message: entry.message,
+    category: entry.category || 'engineering_update',
+  };
+
+  const updatedLogs = [newLog, ...(currentProgress.progressLogs || [])];
+
+  const updatedProgress: ProductionProgressInfo = {
+    ...currentProgress,
+    progressPercent: typeof entry.percent === 'number' ? entry.percent : currentProgress.progressPercent,
+    currentStage: entry.stageTitle || currentProgress.currentStage,
+    adminPublicNotes: entry.message,
+    progressLogs: updatedLogs,
+    lastUpdated: now,
+  };
+
+  const updatedOrder: CustomerOrder = {
+    ...orders[index],
+    updatedAt: now,
+    progress: updatedProgress,
+  };
+
+  orders[index] = updatedOrder;
+  saveOrders(orders);
+  return updatedOrder;
+};
+
+export const updateMilestoneStatus = (
+  orderId: string,
+  milestoneId: string,
+  milestoneUpdates: Partial<ProductionMilestone>
+): CustomerOrder | null => {
+  const orders = getOrders();
+  const index = orders.findIndex((o) => o.id === orderId);
+  if (index === -1) return null;
+
+  const currentProgress = orders[index].progress || generateDefaultProgress(orders[index].status, orders[index].estimatedDeliveryDate);
+  const now = new Date().toISOString();
+
+  const updatedMilestones = currentProgress.milestones.map((m) => {
+    if (m.id === milestoneId || m.stageKey === milestoneId) {
+      return {
+        ...m,
+        ...milestoneUpdates,
+      };
+    }
+    return m;
+  });
+
+  const updatedProgress: ProductionProgressInfo = {
+    ...currentProgress,
+    milestones: updatedMilestones,
+    lastUpdated: now,
+  };
+
+  const updatedOrder: CustomerOrder = {
+    ...orders[index],
+    updatedAt: now,
+    progress: updatedProgress,
+  };
+
+  orders[index] = updatedOrder;
+  saveOrders(orders);
+  return updatedOrder;
 };

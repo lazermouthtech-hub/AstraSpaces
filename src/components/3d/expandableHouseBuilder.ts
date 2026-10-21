@@ -436,22 +436,7 @@ export function buildExpandableInterior(params: ExpandableInteriorParams): void 
   kCooktop.position.set(kLongArmX + 0.28, floorY + kHeight + 0.025, kLongArmZ);
   kitchenGroup.add(kCooktop);
 
-  // Overhead wall cabinet with LED task light
-  const upperH = 0.65;
-  const upperCab = new THREE.Mesh(
-    new THREE.BoxGeometry(kLongArmW, upperH, 0.35),
-    materials.cabinetMaterial
-  );
-  upperCab.position.set(kLongArmX, floorY + kHeight + 0.65 + upperH / 2, kLongArmZ);
-  upperCab.castShadow = true;
-  kitchenGroup.add(upperCab);
-
-  const taskLed = new THREE.Mesh(
-    new THREE.BoxGeometry(kLongArmW - 0.1, 0.015, 0.02),
-    materials.ledStripMaterial
-  );
-  taskLed.position.set(kLongArmX, floorY + kHeight + 0.64, kLongArmZ);
-  kitchenGroup.add(taskLed);
+  // Open wall above L-shaped counter (overhead cabinet & extractor removed for open window views)
 
   interiorGroup.add(kitchenGroup);
 
@@ -501,29 +486,31 @@ export function buildExpandableInterior(params: ExpandableInteriorParams): void 
     rug.position.set(sofaX, floorY + 0.002, (sofaZ + tableZ) / 2);
     loungeGroup.add(rug);
 
-    // TV Console & 55" Widescreen Television
-    const tvConsole = new THREE.Mesh(
-      new THREE.BoxGeometry(1.20, 0.42, 0.34),
-      materials.cabinetMaterial
-    );
-    tvConsole.position.set(tvX, floorY + 0.21, tvZ);
-    tvConsole.castShadow = true;
-    loungeGroup.add(tvConsole);
+    // TV Console & 55" Widescreen Television (Optional Add-on)
+    if (Boolean(state.hasTvConsole)) {
+      const tvConsole = new THREE.Mesh(
+        new THREE.BoxGeometry(1.20, 0.42, 0.34),
+        materials.cabinetMaterial
+      );
+      tvConsole.position.set(tvX, floorY + 0.21, tvZ);
+      tvConsole.castShadow = true;
+      loungeGroup.add(tvConsole);
 
-    const tvScreen = new THREE.Mesh(
-      new THREE.BoxGeometry(1.15, 0.65, 0.03),
-      materials.chassisMaterial
-    );
-    tvScreen.position.set(tvX, floorY + 0.42 + 0.35, tvZ);
-    loungeGroup.add(tvScreen);
+      const tvScreen = new THREE.Mesh(
+        new THREE.BoxGeometry(1.15, 0.65, 0.03),
+        materials.chassisMaterial
+      );
+      tvScreen.position.set(tvX, floorY + 0.42 + 0.35, tvZ);
+      loungeGroup.add(tvScreen);
 
-    // TV Stand / Bezel
-    const tvBezel = new THREE.Mesh(
-      new THREE.BoxGeometry(1.18, 0.68, 0.015),
-      handleMat
-    );
-    tvBezel.position.set(tvX, floorY + 0.42 + 0.35, tvZ - 0.01);
-    loungeGroup.add(tvBezel);
+      // TV Stand / Bezel
+      const tvBezel = new THREE.Mesh(
+        new THREE.BoxGeometry(1.18, 0.68, 0.015),
+        handleMat
+      );
+      tvBezel.position.set(tvX, floorY + 0.42 + 0.35, tvZ - 0.01);
+      loungeGroup.add(tvBezel);
+    }
 
     interiorGroup.add(loungeGroup);
   };

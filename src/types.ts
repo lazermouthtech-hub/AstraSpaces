@@ -1,10 +1,11 @@
 export type HomeModelId =
-  | 'studio'
-  | 'one-bedroom'
-  | 'two-bedroom'
+  | 'expandable-10ft'
   | 'expandable-20ft'
   | 'expandable-30ft'
   | 'expandable-40ft'
+  | 'studio'
+  | 'one-bedroom'
+  | 'two-bedroom'
   | 'apple-cabin-ac01'
   | 'apple-cabin-ac02'
   | 'apple-cabin-ac03'
@@ -49,6 +50,8 @@ export interface ModelSpecification {
     power?: string;
     loading?: string;
   };
+  image?: string;
+  gallery?: string[];
 }
 
 export type WallCladdingId =
@@ -235,6 +238,7 @@ export type InteriorWallId =
   | string;
 
 export type FloorPlanId =
+  | '10ft-1bed' // 1 bedroom / 1 restroom (optional) / 1 living room (10FT Exclusive Fixed Floor Plan)
   | '2-bed-1-bath' // 2 bedrooms / 1 restroom / 1 living room (Executive Standard)
   | '3-bed-split-1-bath' // 3 bedrooms / 1 restroom / 1 living room (Dual Wing Split)
   | '3-bed-kitchen-lounge' // 3 bedrooms / 1 restroom / 1 living room (Kitchen Lounge Suite)
@@ -254,6 +258,8 @@ export interface FloorPlanOption {
   badge: string;
   recommendedFor: string;
   features: string[];
+  priceByModel?: Record<string, number>;
+  unitSpecs?: Record<string, { sizeLabel?: string; specDetail?: string; description?: string }>;
 }
 
 export interface CustomizationState {
@@ -302,6 +308,8 @@ export interface CustomizationOptionItem<T extends string> {
   color?: string;
   badge?: string;
   specDetail?: string;
+  priceByModel?: Record<string, number>;
+  unitSpecs?: Record<string, { sizeLabel?: string; specDetail?: string; description?: string }>;
 }
 
 export interface AddonOptionItem {
@@ -332,6 +340,10 @@ export interface AddonOptionItem {
   category: string;
   includedInDefault?: boolean;
   specDetail: string;
+  priceByModel?: Record<string, number>;
+  unitSpecs?: Record<string, { sizeLabel?: string; specDetail?: string; description?: string }>;
+  isAvailable?: boolean;
+  isActive?: boolean;
 }
 
 export type ViewPerspective =
@@ -369,6 +381,9 @@ export interface CustomerDetails {
   zipCode: string;
   landStatus: string;
   notes?: string;
+  country?: string;
+  stateOrRegion?: string;
+  districtOrCounty?: string;
 }
 
 export interface OrderItemCustomization {
@@ -405,6 +420,39 @@ export interface OrderInternalNote {
   createdAt: string;
 }
 
+export interface ProductionMilestone {
+  id: string;
+  stageKey: string;
+  title: string;
+  description: string;
+  completed: boolean;
+  current: boolean;
+  date?: string;
+  updatedBy?: string;
+  notes?: string;
+}
+
+export interface ProgressLogEntry {
+  id: string;
+  timestamp: string;
+  stageTitle: string;
+  percent: number;
+  author: string;
+  message: string;
+  category?: 'milestone_completed' | 'inspection_passed' | 'engineering_update' | 'dispatch_ready' | 'general';
+}
+
+export interface ProductionProgressInfo {
+  progressPercent: number; // 0 to 100%
+  currentStage: string;
+  estimatedCompletionDate: string;
+  factoryFacility?: string;
+  lastUpdated: string;
+  milestones: ProductionMilestone[];
+  adminPublicNotes?: string;
+  progressLogs?: ProgressLogEntry[];
+}
+
 export interface CustomerOrder {
   id: string;
   createdAt: string;
@@ -415,5 +463,29 @@ export interface CustomerOrder {
   pricing: OrderPricing;
   estimatedDeliveryDate: string;
   internalNotes: OrderInternalNote[];
+  progress?: ProductionProgressInfo;
+}
+
+export interface UserSavedProject {
+  id: string;
+  name: string;
+  modelId: HomeModelId;
+  modelName: string;
+  totalPrice: number;
+  currency: string;
+  savedAt: string;
+  state: CustomizationState;
+  orderId?: string;
+  progress?: ProductionProgressInfo;
+}
+
+export interface UserAccount {
+  id: string;
+  fullName: string;
+  email: string;
+  phone?: string;
+  password?: string;
+  createdAt: string;
+  savedProjects: UserSavedProject[];
 }
 

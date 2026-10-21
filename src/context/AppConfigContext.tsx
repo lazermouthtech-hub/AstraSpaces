@@ -4,7 +4,12 @@ import {
   WALL_CLADDING_OPTIONS, INTERIOR_WALL_OPTIONS, GLAZING_OPTIONS, LIGHTING_OPTIONS, ELECTRICAL_OPTIONS,
   FLOORING_OPTIONS, ROOF_OPTIONS, CABINETRY_OPTIONS, MODULAR_ADDONS
 } from '../data/options';
-import { normalizeCurrency } from '../utils/currency';
+import {
+  normalizeCurrency,
+  DEFAULT_EXCHANGE_RATES,
+  saveStoredExchangeRate,
+  getStoredExchangeRates,
+} from '../utils/currency';
 import { syncOrdersCurrency } from '../utils/orderManager';
 
 export const AppConfigContext = createContext<any>(null);
@@ -33,6 +38,7 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
       cabinetryOptions: CABINETRY_OPTIONS,
       addons: MODULAR_ADDONS,
       currency: 'USD',
+      exchangeRates: { ...DEFAULT_EXCHANGE_RATES, ...getStoredExchangeRates() },
       markup: 0,
       branding: {
         brandName: 'WANHAI',
@@ -122,6 +128,14 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
               description: cleanText(baseDesc),
               isAvailable: p.isAvailable !== undefined ? Boolean(p.isAvailable) : true,
               isActive: p.isActive !== undefined ? Boolean(p.isActive) : true,
+              priceByModel: {
+                ...(defOpt?.priceByModel || {}),
+                ...(p.priceByModel || {}),
+              },
+              unitSpecs: {
+                ...(defOpt?.unitSpecs || {}),
+                ...(p.unitSpecs || {}),
+              },
             };
           });
           defaultArr.forEach((defOpt: any) => {
@@ -145,7 +159,11 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
           models: mergedModels,
           wallOptions: mergeOptions(parsed.wallOptions, defaults.wallOptions),
           interiorWallOptions: mergeOptions(parsed.interiorWallOptions, defaults.interiorWallOptions),
-          glazingOptions: mergeOptions(parsed.glazingOptions, defaults.glazingOptions),
+          glazingOptions: mergeOptions(parsed.glazingOptions, defaults.glazingOptions).map((g: any) => ({
+            ...g,
+            price: 0,
+            priceByModel: {},
+          })),
           lightingOptions: mergeOptions(parsed.lightingOptions, defaults.lightingOptions),
           electricalOptions: mergeOptions(parsed.electricalOptions, defaults.electricalOptions),
           flooringOptions: mergeOptions(parsed.flooringOptions, defaults.flooringOptions),
@@ -158,6 +176,13 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
             defaultModelId: resolvedDefaultModelId,
             ...(parsed.viewerControls || {}),
           },
+          exchangeRates: {
+            ...defaults.exchangeRates,
+            ...(parsed.exchangeRates || {}),
+            ...getStoredExchangeRates(),
+            USD: 1.0,
+          },
+          currency: parsed.currency || 'USD',
           logistics: { ...defaults.logistics, ...(parsed.logistics || {}) },
         };
       } catch (e) {}
@@ -167,20 +192,57 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
 
   const updateConfig = (newConfig: any) => {
     setConfig(newConfig);
-    localStorage.setItem('boxabl_app_config', JSON.stringify(newConfig));
+    try {
+      localStorage.setItem('boxabl_app_config', JSON.stringify(newConfig));
+      if (newConfig.currency) {
+        localStorage.setItem('boxabl_active_currency', normalizeCurrency(newConfig.currency));
+      }
+    } catch (e) {}
   };
 
-  const setCurrency = (newCurrency: string) => {
+  const updateExchangeRate = (currCode: string, rate: number) => {
+    const updatedRates = saveStoredExchangeRate(currCode, rate);
+    const updated = {
+      ...config,
+      exchangeRates: {
+        ...(config.exchangeRates || {}),
+        ...updatedRates,
+      },
+    };
+    updateConfig(updated);
+  };
+
+  const setCurrency = (newCurrency: string, optionalRate?: number) => {
     const normalized = normalizeCurrency(newCurrency);
-    updateConfig({
+    let updatedRates = config.exchangeRates || DEFAULT_EXCHANGE_RATES;
+    if (optionalRate !== undefined && optionalRate > 0) {
+      updatedRates = saveStoredExchangeRate(normalized, optionalRate);
+    }
+    const updated = {
       ...config,
       currency: normalized,
-    });
+      exchangeRates: {
+        ...updatedRates,
+        USD: 1.0,
+      },
+    };
+    try {
+      localStorage.setItem('boxabl_active_currency', normalized);
+      window.dispatchEvent(new CustomEvent('boxabl_currency_changed', { detail: normalized }));
+    } catch (e) {}
+    updateConfig(updated);
     syncOrdersCurrency(normalized);
   };
 
   return (
-    <AppConfigContext.Provider value={{ config, updateConfig, setCurrency }}>
+    <AppConfigContext.Provider
+      value={{
+        config,
+        updateConfig,
+        setCurrency,
+        updateExchangeRate,
+      }}
+    >
       {children}
     </AppConfigContext.Provider>
   );

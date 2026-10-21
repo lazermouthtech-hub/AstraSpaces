@@ -28,6 +28,14 @@ import {
   Filter,
   Globe,
   Lock,
+  Coins,
+  ArrowRightLeft,
+  Calculator,
+  RefreshCw,
+  Sliders,
+  FileSpreadsheet,
+  Download,
+  Upload,
 } from 'lucide-react';
 import { BASE_MODELS } from '../data/models';
 import {
@@ -41,8 +49,25 @@ import {
   MODULAR_ADDONS,
 } from '../data/options';
 import { OrderManagement } from '../components/dashboard/OrderManagement';
+import { PricingSpreadsheetManager } from '../components/dashboard/PricingSpreadsheetManager';
+import { SpreadsheetUploadModal } from '../components/dashboard/SpreadsheetUploadModal';
+import { downloadPricingSpreadsheet } from '../utils/pricingSpreadsheet';
 import { getOrders, subscribeToOrders, syncOrdersCurrency } from '../utils/orderManager';
-import { TWO_CURRENCIES, normalizeCurrency } from '../utils/currency';
+import {
+  BASE_CURRENCY_CODE,
+  POPULAR_CURRENCIES,
+  DEFAULT_EXCHANGE_RATES,
+  normalizeCurrency,
+  getExchangeRate,
+  convertUSDToCurrency,
+  convertCurrencyToUSD,
+  formatCurrency,
+  getCurrencySymbol,
+  saveStoredExchangeRate,
+  getStoredExchangeRates,
+  SUPPORTED_CURRENCIES,
+  CurrencyInfo,
+} from '../utils/currency';
 
 type DashboardTab =
   | 'orders'
@@ -64,7 +89,32 @@ export default function Dashboard() {
 
   const [activeTab, setActiveTab] = useState<DashboardTab>('orders');
   const [savedToast, setSavedToast] = useState(false);
+  const [spreadsheetToast, setSpreadsheetToast] = useState<string | null>(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
   const [ordersCount, setOrdersCount] = useState<number>(() => getOrders().length);
+
+  const handlePricesAppliedFromSpreadsheet = (appliedCount: number, updatedConfig?: any) => {
+    if (updatedConfig) {
+      if (updatedConfig.models) setModels(updatedConfig.models);
+      if (updatedConfig.wallOptions) setWallColors(updatedConfig.wallOptions);
+      if (updatedConfig.glazingOptions) setGlazingOptions(updatedConfig.glazingOptions);
+      if (updatedConfig.lightingOptions) setLightingOptions(updatedConfig.lightingOptions);
+      if (updatedConfig.electricalOptions) setElectricalOptions(updatedConfig.electricalOptions);
+      if (updatedConfig.flooringOptions) setFlooringOptions(updatedConfig.flooringOptions);
+      if (updatedConfig.cabinetryOptions) setCabinetryOptions(updatedConfig.cabinetryOptions);
+      if (updatedConfig.roofOptions) setRoofOptions(updatedConfig.roofOptions);
+      if (updatedConfig.addons) setAddons(updatedConfig.addons);
+      if (updatedConfig.currency) setBaseCurrency(updatedConfig.currency);
+      if (updatedConfig.logistics) setLogistics(updatedConfig.logistics);
+      if (updatedConfig.branding) setBranding(updatedConfig.branding);
+    }
+    setSpreadsheetToast(
+      `Updated ${appliedCount} system item price(s) from spreadsheet! Changes are active live across all models.`
+    );
+    setTimeout(() => {
+      setSpreadsheetToast(null);
+    }, 6000);
+  };
 
   useEffect(() => {
     const unsub = subscribeToOrders((orders) => {
@@ -84,6 +134,37 @@ export default function Dashboard() {
   const [roofOptions, setRoofOptions] = useState(config.roofOptions?.length ? config.roofOptions : ROOF_OPTIONS);
   const [addons, setAddons] = useState(config.addons?.length ? config.addons : MODULAR_ADDONS);
   const [baseCurrency, setBaseCurrency] = useState(config.currency || 'USD');
+
+  // Synchronize local states when global config updates (e.g. spreadsheet upload or reset)
+  useEffect(() => {
+    if (config.models) setModels(config.models);
+    if (config.wallOptions) setWallColors(config.wallOptions);
+    if (config.glazingOptions) setGlazingOptions(config.glazingOptions);
+    if (config.lightingOptions) setLightingOptions(config.lightingOptions);
+    if (config.electricalOptions) setElectricalOptions(config.electricalOptions);
+    if (config.flooringOptions) setFlooringOptions(config.flooringOptions);
+    if (config.cabinetryOptions) setCabinetryOptions(config.cabinetryOptions);
+    if (config.roofOptions) setRoofOptions(config.roofOptions);
+    if (config.addons) setAddons(config.addons);
+    if (config.currency) setBaseCurrency(config.currency);
+    if (config.logistics) setLogistics(config.logistics);
+    if (config.branding) setBranding(config.branding);
+    if (config.markup !== undefined) setMarkup(config.markup);
+  }, [config]);
+
+  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>(() => ({
+    ...DEFAULT_EXCHANGE_RATES,
+    ...getStoredExchangeRates(),
+    ...(config.exchangeRates || {}),
+    USD: 1.0,
+  }));
+  const [customCurrencies, setCustomCurrencies] = useState<CurrencyInfo[]>(() => config.customCurrencies || []);
+  const [isAddingCurrency, setIsAddingCurrency] = useState(false);
+  const [newCurrencyCode, setNewCurrencyCode] = useState('');
+  const [newCurrencySymbol, setNewCurrencySymbol] = useState('');
+  const [newCurrencyName, setNewCurrencyName] = useState('');
+  const [newCurrencyRate, setNewCurrencyRate] = useState<number>(1.0);
+  const [simulatorUsdAmount, setSimulatorUsdAmount] = useState<number>(54900);
   const [markup, setMarkup] = useState(config.markup || 0);
   const [branding, setBranding] = useState(config.branding || {
     brandName: 'Boxabl',
@@ -240,6 +321,87 @@ export default function Dashboard() {
     return true;
   });
 
+  // Add-on Visibility Management State & Helpers
+  const [addonSearch, setAddonSearch] = useState('');
+  const [addonStatusFilter, setAddonStatusFilter] = useState<'all' | 'public' | 'hidden'>('all');
+  const [addonCategoryFilter, setAddonCategoryFilter] = useState<string>('all');
+
+  const isAddonAvailable = (addon: any) => addon.isAvailable !== false && addon.isActive !== false;
+
+  const publicAddonsCount = addons.filter((a: any) => isAddonAvailable(a)).length;
+  const hiddenAddonsCount = addons.length - publicAddonsCount;
+
+  const toggleAddonAvailability = (addonId: string) => {
+    const updated = addons.map((a: any) => {
+      if (a.id === addonId) {
+        const nextState = !isAddonAvailable(a);
+        return {
+          ...a,
+          isAvailable: nextState,
+          isActive: nextState,
+        };
+      }
+      return a;
+    });
+    setAddons(updated);
+    updateConfig({
+      ...config,
+      addons: updated,
+    });
+  };
+
+  const setAllAddonsAvailability = (makePublic: boolean, category?: string) => {
+    const updated = addons.map((a: any) => {
+      if (!category || category === 'all' || a.category === category) {
+        return {
+          ...a,
+          isAvailable: makePublic,
+          isActive: makePublic,
+        };
+      }
+      return a;
+    });
+    setAddons(updated);
+    updateConfig({
+      ...config,
+      addons: updated,
+    });
+  };
+
+  const filteredDashboardAddons = addons.filter((a: any) => {
+    // Status filter
+    const isAvail = isAddonAvailable(a);
+    if (addonStatusFilter === 'public' && !isAvail) return false;
+    if (addonStatusFilter === 'hidden' && isAvail) return false;
+
+    // Category filter
+    if (addonCategoryFilter !== 'all') {
+      const cat = a.category || 'Interior Modules';
+      if (addonCategoryFilter === 'Interior Modules' && cat !== 'Interior Modules') return false;
+      if (addonCategoryFilter === 'Smart Living' && cat !== 'Smart Living') return false;
+      if (
+        addonCategoryFilter !== 'Interior Modules' &&
+        addonCategoryFilter !== 'Smart Living' &&
+        cat !== addonCategoryFilter
+      ) {
+        return false;
+      }
+    }
+
+    // Search query
+    if (addonSearch.trim()) {
+      const q = addonSearch.toLowerCase();
+      const matchName = a.name?.toLowerCase().includes(q);
+      const matchId = a.id?.toLowerCase().includes(q);
+      const matchCat = a.category?.toLowerCase().includes(q);
+      const matchDesc = a.description?.toLowerCase().includes(q);
+      const matchSpec = a.specDetail?.toLowerCase().includes(q);
+      return matchName || matchId || matchCat || matchDesc || matchSpec;
+    }
+
+    return true;
+  });
+
   useEffect(() => {
     const auth = localStorage.getItem('isAuthenticated');
     if (auth !== 'true') {
@@ -266,6 +428,8 @@ export default function Dashboard() {
       roofOptions,
       addons,
       currency: baseCurrency,
+      exchangeRates,
+      customCurrencies,
       markup,
       branding,
       viewerControls,
@@ -288,6 +452,8 @@ export default function Dashboard() {
       setRoofOptions(ROOF_OPTIONS);
       setAddons(MODULAR_ADDONS);
       setBaseCurrency('USD');
+      setExchangeRates(DEFAULT_EXCHANGE_RATES);
+      setCustomCurrencies([]);
       setMarkup(0);
       updateConfig({
         models: BASE_MODELS,
@@ -300,6 +466,8 @@ export default function Dashboard() {
         cabinetryOptions: CABINETRY_OPTIONS,
         addons: MODULAR_ADDONS,
         currency: 'USD',
+        exchangeRates: DEFAULT_EXCHANGE_RATES,
+        customCurrencies: [],
         markup: 0,
         branding: {
           brandName: 'Boxabl',
@@ -448,17 +616,22 @@ export default function Dashboard() {
 
   const addAddonOption = () => {
     const newId = `addon-${Date.now()}`;
-    setAddons([
-      ...addons,
-      {
-        id: newId,
-        name: 'New Modular Upgrade Pod',
-        description: 'Factory-tested modular unit installed on assembly line prior to delivery.',
-        price: 3200,
-        category: 'Interior Modules',
-        specDetail: 'Pre-plumbed and pre-wired plug & play connection',
-      },
-    ]);
+    const newAddon = {
+      id: newId,
+      name: 'New Modular Upgrade Pod',
+      description: 'Factory-tested modular unit installed on assembly line prior to delivery.',
+      price: 3200,
+      category: 'Interior Modules',
+      specDetail: 'Pre-plumbed and pre-wired plug & play connection',
+      isAvailable: true,
+      isActive: true,
+    };
+    const updated = [newAddon, ...addons];
+    setAddons(updated);
+    updateConfig({
+      ...config,
+      addons: updated,
+    });
   };
 
   return (
@@ -665,9 +838,19 @@ export default function Dashboard() {
                   <Sparkles className="w-4 h-4 text-gray-400" />
                   <span>Modular Pods & Add-ons</span>
                 </div>
-                <span className="text-[10px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">
-                  {addons.length}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  {hiddenAddonsCount > 0 && (
+                    <span
+                      className="text-[9px] font-mono font-bold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full border border-amber-200"
+                      title={`${hiddenAddonsCount} add-on(s) hidden from customer configurator`}
+                    >
+                      {hiddenAddonsCount} hidden
+                    </span>
+                  )}
+                  <span className="text-[10px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">
+                    {addons.length}
+                  </span>
+                </div>
               </button>
             </div>
           </div>
@@ -776,6 +959,27 @@ export default function Dashboard() {
               <Box className="w-3.5 h-3.5 text-orange-600" />
               <span>Configurator</span>
             </Link>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('pricing');
+                downloadPricingSpreadsheet(config);
+              }}
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-200 transition-colors cursor-pointer"
+              title="Download CSV spreadsheet of all system item prices"
+            >
+              <Download className="w-3.5 h-3.5 text-gray-600" />
+              <span>Export CSV</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowUploadModal(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-orange-600 hover:bg-orange-700 shadow-xs active:scale-95 transition-all cursor-pointer"
+              title="Upload updated pricing spreadsheet (.CSV) to automatically update prices on the platform"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Upload Spreadsheet</span>
+            </button>
             {activeTab !== 'orders' && (
               <button
                 onClick={handleSave}
@@ -788,7 +992,29 @@ export default function Dashboard() {
           </div>
         </header>
 
-        {/* Toast Notification */}
+        {/* Spreadsheet Toast Notification */}
+        {spreadsheetToast && (
+          <div className="bg-emerald-600 text-white px-6 py-2.5 flex items-center justify-between text-xs font-bold transition-all shadow-xs">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4" />
+              <span>{spreadsheetToast}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <Link to="/configurator" className="underline hover:text-emerald-100">
+                View in 3D Configurator →
+              </Link>
+              <button
+                type="button"
+                onClick={() => setSpreadsheetToast(null)}
+                className="hover:text-emerald-200 cursor-pointer text-xs"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Saved Toast Notification */}
         {savedToast && (
           <div className="bg-emerald-600 text-white px-6 py-2.5 flex items-center justify-between text-xs font-bold transition-all">
             <div className="flex items-center gap-2">
@@ -801,8 +1027,36 @@ export default function Dashboard() {
           </div>
         )}
 
-        <main className="p-6 sm:p-8 flex-1">
-          <div className={`${activeTab === 'orders' ? 'max-w-6xl' : 'max-w-4xl'} space-y-6`}>
+        {/* Spreadsheet Upload Modal Dialog */}
+        <SpreadsheetUploadModal
+          isOpen={showUploadModal}
+          onClose={() => setShowUploadModal(false)}
+          onPricesApplied={handlePricesAppliedFromSpreadsheet}
+        />
+
+        <main className="flex-1 px-4 sm:px-8 lg:px-10 py-6 sm:py-8 bg-gradient-to-b from-[#F8F9FC] via-[#F4F5F8] to-[#EFF0F5] min-h-0 overflow-y-auto">
+          <div className="max-w-6xl mx-auto w-full space-y-6 pb-16 animate-in fade-in duration-300">
+            {/* Contextual Workspace Path & Live Sync Indicator */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-gray-200/70">
+              <div className="flex items-center gap-2 text-xs font-medium text-gray-500 flex-wrap">
+                <span className="text-gray-400 font-extrabold tracking-wider uppercase text-[10px]">Boxabl Admin OS</span>
+                <span className="text-gray-300">/</span>
+                <span className="text-gray-700 font-semibold capitalize">
+                  {activeTab === 'orders' ? 'Production Pipeline' : activeTab === 'pricing' ? 'Financials & Logistics' : 'Catalog Customization'}
+                </span>
+                <span className="text-gray-300">/</span>
+                <span className="px-2.5 py-0.5 rounded-lg bg-orange-50 text-orange-700 font-bold text-[11px] border border-orange-200/80 capitalize shadow-2xs">
+                  {activeTab}
+                </span>
+              </div>
+              <div className="flex items-center gap-3 text-[11px] text-gray-500 shrink-0">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/80 font-bold text-[11px] shadow-2xs">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Live Sync Active
+                </span>
+                <span className="font-mono text-gray-400 font-medium hidden md:inline">Global Base: USD ($)</span>
+              </div>
+            </div>
 
             {/* 0. ORDERS MANAGEMENT */}
             {activeTab === 'orders' && (
@@ -2074,6 +2328,77 @@ export default function Dashboard() {
                         className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs"
                       />
                     </div>
+
+                    {/* Unit/Size Specific Pricing Overrides */}
+                    <div className="pt-2 border-t border-gray-100 bg-gray-50/70 p-3 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-gray-600">
+                          Unit / Size-Specific Cabinetry Pricing ({baseCurrency})
+                        </span>
+                        <span className="text-[10px] text-gray-400">
+                          Linear cabinetry scale (20ft, 30ft, 40ft homes)
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <div>
+                          <label className="block text-[9px] font-bold text-gray-500 mb-0.5">20FT Home Unit</label>
+                          <input
+                            type="number"
+                            placeholder={String(opt.price)}
+                            value={opt.priceByModel?.['expandable-20ft'] ?? opt.priceByModel?.['20ft'] ?? opt.price}
+                            onChange={(e) => {
+                              const updated = [...cabinetryOptions];
+                              const val = Number(e.target.value);
+                              updated[idx].priceByModel = {
+                                ...(updated[idx].priceByModel || {}),
+                                'expandable-20ft': val,
+                                '20ft': val,
+                              };
+                              setCabinetryOptions(updated);
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-mono font-semibold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] font-bold text-gray-500 mb-0.5">30FT Home Unit</label>
+                          <input
+                            type="number"
+                            placeholder={String(opt.price)}
+                            value={opt.priceByModel?.['expandable-30ft'] ?? opt.priceByModel?.['30ft'] ?? opt.price}
+                            onChange={(e) => {
+                              const updated = [...cabinetryOptions];
+                              const val = Number(e.target.value);
+                              updated[idx].priceByModel = {
+                                ...(updated[idx].priceByModel || {}),
+                                'expandable-30ft': val,
+                                '30ft': val,
+                              };
+                              setCabinetryOptions(updated);
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-mono font-semibold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] font-bold text-gray-500 mb-0.5">40FT Flagship Unit</label>
+                          <input
+                            type="number"
+                            placeholder={String(opt.price)}
+                            value={opt.priceByModel?.['expandable-40ft'] ?? opt.priceByModel?.['40ft'] ?? opt.price}
+                            onChange={(e) => {
+                              const updated = [...cabinetryOptions];
+                              const val = Number(e.target.value);
+                              updated[idx].priceByModel = {
+                                ...(updated[idx].priceByModel || {}),
+                                'expandable-40ft': val,
+                                '40ft': val,
+                              };
+                              setCabinetryOptions(updated);
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-mono font-semibold"
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -2190,176 +2515,1153 @@ export default function Dashboard() {
 
             {/* 8. MODULAR PODS & ADD-ONS */}
             {activeTab === 'addons' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
+              <div className="space-y-6">
+                {/* Header & Description */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 sm:p-6 rounded-3xl border border-gray-200 shadow-xs">
                   <div>
-                    <h3 className="font-bold text-gray-900 text-sm">Modular Pods & Structural Add-Ons</h3>
-                    <p className="text-xs text-gray-500">Bathroom pods, kitchenettes, mini-splits, Murphy beds, and smart locks.</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-extrabold text-gray-900 text-base">
+                        Modular Pods &amp; Add-on Visibility
+                      </h3>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-200">
+                        Admin Access Control
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1 max-w-2xl leading-relaxed">
+                      Decide what normal users can see and add when configuring their home. Toggle any add-on between 
+                      <strong className="text-emerald-700 font-semibold"> Public</strong> (visible in 3D Configurator) and 
+                      <strong className="text-amber-700 font-semibold"> Hidden</strong> (accessible only by admin).
+                    </p>
                   </div>
-                  <button
-                    onClick={addAddonOption}
-                    className="text-xs font-bold bg-orange-50 text-orange-700 hover:bg-orange-100 px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer border border-orange-200/60"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Add Modular Upgrade
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={addAddonOption}
+                      className="text-xs font-bold bg-orange-600 hover:bg-orange-700 text-white px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+                    >
+                      <Plus className="w-4 h-4" /> Add Modular Upgrade
+                    </button>
+                  </div>
                 </div>
 
-                {addons.map((addon: any, idx: number) => (
-                  <div key={addon.id} className="bg-white p-5 rounded-3xl border border-gray-200 shadow-xs flex flex-col gap-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="text-xs font-mono font-bold text-gray-900">{addon.id}</div>
-                        <div className="text-[10px] text-gray-400">Category: {addon.category || 'Interior Modules'}</div>
+                {/* Status Overview Metrics & Bulk Controls */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  {/* Total Add-ons */}
+                  <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs flex items-center justify-between">
+                    <div>
+                      <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                        Total Add-ons
                       </div>
+                      <div className="text-xl font-black text-gray-900 font-mono mt-0.5">
+                        {addons.length}
+                      </div>
+                      <div className="text-[10px] text-gray-400">All modular catalog items</div>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-600 flex items-center justify-center font-bold">
+                      <Sparkles className="w-5 h-5 text-orange-600" />
+                    </div>
+                  </div>
 
-                      {addons.length > 1 && (
+                  {/* Public in Configurator */}
+                  <div className="bg-white p-4 rounded-2xl border border-emerald-200 shadow-xs flex items-center justify-between">
+                    <div>
+                      <div className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>Public in Configurator</span>
+                      </div>
+                      <div className="text-xl font-black text-emerald-950 font-mono mt-0.5">
+                        {publicAddonsCount}
+                      </div>
+                      <div className="text-[10px] text-emerald-700">Visible to normal users</div>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                      <Eye className="w-5 h-5" />
+                    </div>
+                  </div>
+
+                  {/* Hidden from Public */}
+                  <div className="bg-white p-4 rounded-2xl border border-amber-200 shadow-xs flex items-center justify-between">
+                    <div>
+                      <div className="text-[10px] font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <EyeOff className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Hidden from Public</span>
+                      </div>
+                      <div className="text-xl font-black text-amber-950 font-mono mt-0.5">
+                        {hiddenAddonsCount}
+                      </div>
+                      <div className="text-[10px] text-amber-700">Protected from normal users</div>
+                    </div>
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+                      <EyeOff className="w-5 h-5" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bulk Actions & Filter Toolbar */}
+                <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs space-y-3">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    {/* Search Input */}
+                    <div className="relative flex-1 max-w-md">
+                      <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="Search add-ons by name, ID, category or spec..."
+                        value={addonSearch}
+                        onChange={(e) => setAddonSearch(e.target.value)}
+                        className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-orange-500 focus:bg-white transition-all"
+                      />
+                      {addonSearch && (
                         <button
-                          onClick={() => setAddons(addons.filter((a: any) => a.id !== addon.id))}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          type="button"
+                          onClick={() => setAddonSearch('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs cursor-pointer"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          ✕
                         </button>
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Upgrade Name</label>
-                        <input
-                          type="text"
-                          value={addon.name}
-                          onChange={(e) => {
-                            const updated = [...addons];
-                            updated[idx].name = e.target.value;
-                            setAddons(updated);
-                          }}
-                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Price ({baseCurrency})</label>
-                        <input
-                          type="number"
-                          value={addon.price}
-                          onChange={(e) => {
-                            const updated = [...addons];
-                            updated[idx].price = Number(e.target.value);
-                            setAddons(updated);
-                          }}
-                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Category Group</label>
-                        <input
-                          type="text"
-                          value={addon.category || 'Interior Modules'}
-                          onChange={(e) => {
-                            const updated = [...addons];
-                            updated[idx].category = e.target.value;
-                            setAddons(updated);
-                          }}
-                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Customer Description</label>
-                        <input
-                          type="text"
-                          value={addon.description}
-                          onChange={(e) => {
-                            const updated = [...addons];
-                            updated[idx].description = e.target.value;
-                            setAddons(updated);
-                          }}
-                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Tech Spec Detail</label>
-                        <input
-                          type="text"
-                          value={addon.specDetail || ''}
-                          onChange={(e) => {
-                            const updated = [...addons];
-                            updated[idx].specDetail = e.target.value;
-                            setAddons(updated);
-                          }}
-                          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono"
-                        />
-                      </div>
+                    {/* Bulk Visibility Actions */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[11px] font-bold text-gray-400 mr-1">Bulk:</span>
+                      <button
+                        type="button"
+                        onClick={() => setAllAddonsAvailability(true)}
+                        className="px-3 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-2xs"
+                        title="Make all modular add-ons visible to normal users in the configurator"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Show All</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAllAddonsAvailability(false)}
+                        className="px-3 py-1.5 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-2xs"
+                        title="Hide all modular add-ons from normal users in the configurator"
+                      >
+                        <EyeOff className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Hide All</span>
+                      </button>
                     </div>
                   </div>
-                ))}
+
+                  {/* Filter Row */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-gray-100">
+                    {/* Status Tabs */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+                      {[
+                        { id: 'all', label: 'All Add-ons', count: addons.length },
+                        { id: 'public', label: 'Public in Configurator', count: publicAddonsCount, isPub: true },
+                        { id: 'hidden', label: 'Hidden from Public', count: hiddenAddonsCount, isHid: true },
+                      ].map((tab) => {
+                        const isActive = addonStatusFilter === tab.id;
+                        return (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setAddonStatusFilter(tab.id as any)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                              isActive
+                                ? tab.isPub
+                                  ? 'bg-emerald-600 text-white shadow-xs'
+                                  : tab.isHid
+                                  ? 'bg-amber-600 text-white shadow-xs'
+                                  : 'bg-black text-white shadow-xs'
+                                : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                            }`}
+                          >
+                            <span>{tab.label}</span>
+                            <span
+                              className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                                isActive
+                                  ? 'bg-white/20 text-white'
+                                  : 'bg-white text-gray-600 border border-gray-200'
+                              }`}
+                            >
+                              {tab.count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Category Filter Chips */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider shrink-0">
+                        Category:
+                      </span>
+                      {[
+                        { id: 'all', label: 'All' },
+                        { id: 'Interior Modules', label: 'Living Pods' },
+                        { id: 'Smart Living', label: 'Smart Living' },
+                      ].map((cat) => {
+                        const isActive = addonCategoryFilter === cat.id;
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => setAddonCategoryFilter(cat.id)}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
+                              isActive
+                                ? 'bg-orange-600 text-white shadow-2xs font-bold'
+                                : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
+                            }`}
+                          >
+                            {cat.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Empty State when filters yield 0 add-ons */}
+                {filteredDashboardAddons.length === 0 && (
+                  <div className="bg-white p-12 rounded-3xl border border-gray-200 text-center space-y-3">
+                    <div className="w-12 h-12 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center mx-auto">
+                      <Filter className="w-6 h-6" />
+                    </div>
+                    <h4 className="text-sm font-bold text-gray-900">No Add-ons match your current filter</h4>
+                    <p className="text-xs text-gray-500 max-w-sm mx-auto">
+                      Try resetting your search query or switching between All, Public, and Hidden tabs.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAddonSearch('');
+                        setAddonStatusFilter('all');
+                        setAddonCategoryFilter('all');
+                      }}
+                      className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                    >
+                      Clear Filters
+                    </button>
+                  </div>
+                )}
+
+                {/* Add-on Cards Grid/List */}
+                {filteredDashboardAddons.map((addon: any) => {
+                  const addonIndex = addons.findIndex((a: any) => a.id === addon.id);
+                  const isAvail = isAddonAvailable(addon);
+
+                  return (
+                    <div
+                      key={addon.id}
+                      className={`bg-white p-5 rounded-3xl border transition-all flex flex-col gap-4 ${
+                        isAvail
+                          ? 'border-gray-200 shadow-xs'
+                          : 'border-amber-200/90 bg-amber-50/20 shadow-xs ring-1 ring-amber-400/20'
+                      }`}
+                    >
+                      {/* Top Header Row with ID, Category, Status, and Show/Hide Toggle */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className="text-xs font-mono font-bold text-gray-900 bg-gray-100 px-2.5 py-1 rounded-lg border border-gray-200">
+                            {addon.id}
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200">
+                            {addon.category || 'Interior Modules'}
+                          </span>
+                          {/* Live Status Pill */}
+                          <span
+                            className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 border ${
+                              isAvail
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                : 'bg-amber-100 text-amber-900 border-amber-300'
+                            }`}
+                          >
+                            {isAvail ? (
+                              <>
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                <span>Live in Configurator</span>
+                              </>
+                            ) : (
+                              <>
+                                <EyeOff className="w-3 h-3 text-amber-700" />
+                                <span>Hidden from Users</span>
+                              </>
+                            )}
+                          </span>
+                        </div>
+
+                        {/* Control Actions: Toggle Switch & Preview */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {/* Show/Hide Toggle Button */}
+                          <button
+                            type="button"
+                            onClick={() => toggleAddonAvailability(addon.id)}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border shadow-2xs active:scale-95 ${
+                              isAvail
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 ring-2 ring-emerald-500/20 hover:bg-emerald-100'
+                                : 'bg-amber-50 text-amber-900 border-amber-300 ring-2 ring-amber-500/20 hover:bg-amber-100'
+                            }`}
+                            title={
+                              isAvail
+                                ? 'Click to hide this add-on from normal users in the 3D Configurator'
+                                : 'Click to make this add-on visible to normal users in the 3D Configurator'
+                            }
+                          >
+                            <span
+                              className={`w-2 h-2 rounded-full ${
+                                isAvail ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                              }`}
+                            />
+                            <span>
+                              {isAvail ? 'Public in Configurator' : 'Hidden from Public'}
+                            </span>
+
+                            {/* Animated Toggle Switch */}
+                            <div
+                              className={`w-8 h-4.5 rounded-full relative transition-colors ${
+                                isAvail ? 'bg-emerald-600' : 'bg-gray-300'
+                              }`}
+                            >
+                              <div
+                                className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-transform ${
+                                  isAvail ? 'left-4' : 'left-0.5'
+                                }`}
+                              />
+                            </div>
+                          </button>
+
+                          {/* Preview in Configurator */}
+                          <Link
+                            to="/configurator"
+                            target="_blank"
+                            className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                            title="Preview customer view in 3D Configurator"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </Link>
+
+                          {/* Delete Action */}
+                          {addons.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm(`Delete add-on "${addon.name}" from the system catalog?`)) {
+                                  const updated = addons.filter((a: any) => a.id !== addon.id);
+                                  setAddons(updated);
+                                  updateConfig({ ...config, addons: updated });
+                                }
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                              title="Delete add-on"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Status Notice Banner */}
+                      {isAvail ? (
+                        <div className="flex items-center gap-2 px-3.5 py-2 bg-emerald-50/80 border border-emerald-200/80 rounded-xl text-emerald-800 text-[11px] font-semibold">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>
+                            <strong>Live in Customer Configurator:</strong> Normal users can see, select, and add this module to their home layout in the 3D Configurator and cost buildup.
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 px-3.5 py-2 bg-amber-50/90 border border-amber-200/90 rounded-xl text-amber-900 text-[11px] font-semibold">
+                          <EyeOff className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          <span>
+                            <strong>Hidden from Normal Users:</strong> Customers configuring a home cannot see, select, or add this add-on. Excluded from customer choices and price calculations.
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Editable Basic Details */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                            Upgrade Name
+                          </label>
+                          <input
+                            type="text"
+                            value={addon.name}
+                            onChange={(e) => {
+                              if (addonIndex === -1) return;
+                              const updated = [...addons];
+                              updated[addonIndex].name = e.target.value;
+                              setAddons(updated);
+                            }}
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-orange-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                            Base Price ({baseCurrency})
+                          </label>
+                          <input
+                            type="number"
+                            value={addon.price}
+                            onChange={(e) => {
+                              if (addonIndex === -1) return;
+                              const updated = [...addons];
+                              updated[addonIndex].price = Number(e.target.value);
+                              setAddons(updated);
+                            }}
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold focus:outline-none focus:border-orange-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                            Category Group
+                          </label>
+                          <input
+                            type="text"
+                            value={addon.category || 'Interior Modules'}
+                            onChange={(e) => {
+                              if (addonIndex === -1) return;
+                              const updated = [...addons];
+                              updated[addonIndex].category = e.target.value;
+                              setAddons(updated);
+                            }}
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-orange-500"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Description & Tech Spec */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                            Customer Description
+                          </label>
+                          <input
+                            type="text"
+                            value={addon.description}
+                            onChange={(e) => {
+                              if (addonIndex === -1) return;
+                              const updated = [...addons];
+                              updated[addonIndex].description = e.target.value;
+                              setAddons(updated);
+                            }}
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-orange-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                            Tech Spec Detail
+                          </label>
+                          <input
+                            type="text"
+                            value={addon.specDetail || ''}
+                            onChange={(e) => {
+                              if (addonIndex === -1) return;
+                              const updated = [...addons];
+                              updated[addonIndex].specDetail = e.target.value;
+                              setAddons(updated);
+                            }}
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono focus:outline-none focus:border-orange-500"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Unit/Size Specific Pricing Overrides */}
+                      <div className="pt-2 border-t border-gray-100 bg-gray-50/70 p-3 rounded-xl space-y-2">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-gray-600">
+                            Unit / Size-Specific Add-on Pricing ({baseCurrency})
+                          </span>
+                          <span className="text-[10px] text-gray-400">
+                            Configure exact pricing for 20ft, 30ft, and 40ft units
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          <div>
+                            <label className="block text-[9px] font-bold text-gray-500 mb-0.5">
+                              20FT Unit Price
+                            </label>
+                            <input
+                              type="number"
+                              placeholder={String(addon.price)}
+                              value={
+                                addon.priceByModel?.['expandable-20ft'] ??
+                                addon.priceByModel?.['20ft'] ??
+                                addon.price
+                              }
+                              onChange={(e) => {
+                                if (addonIndex === -1) return;
+                                const updated = [...addons];
+                                const val = Number(e.target.value);
+                                updated[addonIndex].priceByModel = {
+                                  ...(updated[addonIndex].priceByModel || {}),
+                                  'expandable-20ft': val,
+                                  '20ft': val,
+                                };
+                                setAddons(updated);
+                              }}
+                              className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-mono font-semibold focus:outline-none focus:border-orange-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[9px] font-bold text-gray-500 mb-0.5">
+                              30FT Unit Price
+                            </label>
+                            <input
+                              type="number"
+                              placeholder={String(addon.price)}
+                              value={
+                                addon.priceByModel?.['expandable-30ft'] ??
+                                addon.priceByModel?.['30ft'] ??
+                                addon.price
+                              }
+                              onChange={(e) => {
+                                if (addonIndex === -1) return;
+                                const updated = [...addons];
+                                const val = Number(e.target.value);
+                                updated[addonIndex].priceByModel = {
+                                  ...(updated[addonIndex].priceByModel || {}),
+                                  'expandable-30ft': val,
+                                  '30ft': val,
+                                };
+                                setAddons(updated);
+                              }}
+                              className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-mono font-semibold focus:outline-none focus:border-orange-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[9px] font-bold text-gray-500 mb-0.5">
+                              40FT Unit Price
+                            </label>
+                            <input
+                              type="number"
+                              placeholder={String(addon.price)}
+                              value={
+                                addon.priceByModel?.['expandable-40ft'] ??
+                                addon.priceByModel?.['40ft'] ??
+                                addon.price
+                              }
+                              onChange={(e) => {
+                                if (addonIndex === -1) return;
+                                const updated = [...addons];
+                                const val = Number(e.target.value);
+                                updated[addonIndex].priceByModel = {
+                                  ...(updated[addonIndex].priceByModel || {}),
+                                  'expandable-40ft': val,
+                                  '40ft': val,
+                                };
+                                setAddons(updated);
+                              }}
+                              className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-mono font-semibold focus:outline-none focus:border-orange-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
             {/* 9. PRICING & LOGISTICS */}
             {activeTab === 'pricing' && (
               <div className="space-y-6">
-                <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-xs space-y-6">
+                {/* 0. Spreadsheet Batch Download & Upload Pricing Center */}
+                <PricingSpreadsheetManager
+                  onPricesUpdated={(appliedCount, updatedConfig) => {
+                    handlePricesAppliedFromSpreadsheet(appliedCount || 0, updatedConfig);
+                  }}
+                />
+
+                {/* 1. Global Base Currency & Prevailing Exchange Rate Management Engine */}
+                <div className="bg-white p-6 sm:p-7 rounded-3xl border border-gray-200 shadow-xs space-y-7">
+                  {/* Card Header */}
                   <div>
-                    <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                    <div className="flex items-start justify-between flex-wrap gap-3 pb-4 border-b border-gray-100">
                       <div>
-                        <h3 className="font-bold text-gray-900 text-sm">Two Supported Currencies & Single Currency Enforcement</h3>
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 rounded-xl bg-orange-100 text-orange-700">
+                            <Coins className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="font-extrabold text-gray-900 text-base">
+                              Global Base Currency & Prevailing Exchange Rate Engine
+                            </h3>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              All baseline prices are maintained in United States Dollars (USD). If another currency is selected, configure its prevailing exchange rate against USD to instantly synchronize all pricing.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[11px] font-bold px-3 py-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-xl flex items-center gap-1.5">
+                          <Globe className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Default Base: USD ($1.0000)</span>
+                        </span>
+                        <span
+                          className={`text-[11px] font-bold px-3 py-1 rounded-xl flex items-center gap-1.5 border ${
+                            normalizeCurrency(baseCurrency) === 'USD'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              : 'bg-orange-50 text-orange-800 border-orange-200'
+                          }`}
+                        >
+                          <ArrowRightLeft className="w-3.5 h-3.5" />
+                          <span>
+                            Active Currency:{' '}
+                            <strong className="font-mono">{normalizeCurrency(baseCurrency)}</strong>{' '}
+                            (
+                            {normalizeCurrency(baseCurrency) === 'USD'
+                              ? '1.0000x Native'
+                              : `1 USD = ${
+                                  exchangeRates[normalizeCurrency(baseCurrency)] ||
+                                  DEFAULT_EXCHANGE_RATES[normalizeCurrency(baseCurrency)] ||
+                                  1
+                                } ${normalizeCurrency(baseCurrency)}`}
+                            )
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 1: Active Currency Selector */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-gray-900 flex items-center gap-2">
+                          <span>1. Select Operating Currency</span>
+                          <span className="text-[10px] font-normal text-gray-500 lowercase">
+                            (click any currency to activate)
+                          </span>
+                        </h4>
                         <p className="text-xs text-gray-500">
-                          The system supports two currencies (USD & GHS). All pricing, production orders, and deposits strictly follow a single currency type across the entire platform.
+                          Prices across the 3D studio, build tracker, cost buildup, and customer invoices follow this currency.
                         </p>
                       </div>
-                      <span className="text-[11px] font-bold px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg">
-                        Single Currency Enforced
-                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingCurrency(!isAddingCurrency)}
+                        className="text-xs font-bold text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200 px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>{isAddingCurrency ? 'Cancel' : 'Add Custom Currency'}</span>
+                      </button>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 max-w-xl">
-                      {TWO_CURRENCIES.map((curr) => {
+                    {/* Inline Form to Add Custom Currency */}
+                    {isAddingCurrency && (
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          if (!newCurrencyCode.trim()) return;
+                          const code = normalizeCurrency(newCurrencyCode);
+                          const customItem: CurrencyInfo = {
+                            code,
+                            symbol: newCurrencySymbol.trim() || code,
+                            name: newCurrencyName.trim() || code,
+                            label: `${newCurrencySymbol.trim() || code} ${code} (${newCurrencyName.trim() || code})`,
+                            locale: 'en-US',
+                            defaultRate: Number(newCurrencyRate) || 1.0,
+                          };
+                          const updatedCustom = [
+                            ...customCurrencies.filter((c) => c.code !== code),
+                            customItem,
+                          ];
+                          const safeRate = Math.max(0.000001, Number(newCurrencyRate) || 1.0);
+                          const updatedRates = {
+                            ...exchangeRates,
+                            [code]: safeRate,
+                            USD: 1.0,
+                          };
+                          setCustomCurrencies(updatedCustom);
+                          setExchangeRates(updatedRates);
+                          saveStoredExchangeRate(code, safeRate);
+                          setBaseCurrency(code);
+                          updateConfig({
+                            ...config,
+                            currency: code,
+                            exchangeRates: updatedRates,
+                            customCurrencies: updatedCustom,
+                          });
+                          syncOrdersCurrency(code);
+                          setIsAddingCurrency(false);
+                          setNewCurrencyCode('');
+                          setNewCurrencySymbol('');
+                          setNewCurrencyName('');
+                          setNewCurrencyRate(1.0);
+                        }}
+                        className="p-4 bg-orange-50/60 border border-orange-200 rounded-2xl space-y-3 animate-in fade-in"
+                      >
+                        <div className="font-bold text-xs text-orange-950">Add Custom Operating Currency</div>
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
+                              Currency Code (e.g. ZAR, CHF)
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="e.g. ZAR"
+                              maxLength={4}
+                              value={newCurrencyCode}
+                              onChange={(e) => setNewCurrencyCode(e.target.value.toUpperCase())}
+                              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs font-mono font-bold"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
+                              Symbol (e.g. R, Fr)
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="e.g. R"
+                              value={newCurrencySymbol}
+                              onChange={(e) => setNewCurrencySymbol(e.target.value)}
+                              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs font-mono font-bold"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
+                              Currency Name
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              placeholder="e.g. South African Rand"
+                              value={newCurrencyName}
+                              onChange={(e) => setNewCurrencyName(e.target.value)}
+                              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs font-semibold"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
+                              Prevailing Rate (1 USD = ?)
+                            </label>
+                            <input
+                              type="number"
+                              step="0.0001"
+                              required
+                              min="0.000001"
+                              value={newCurrencyRate}
+                              onChange={(e) => setNewCurrencyRate(Number(e.target.value))}
+                              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-xl text-xs font-mono font-bold"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingCurrency(false)}
+                            className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-900 bg-white border border-gray-200 rounded-xl"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            className="px-4 py-1.5 text-xs font-bold text-white bg-orange-600 hover:bg-orange-700 rounded-xl shadow-xs"
+                          >
+                            Save & Activate Currency
+                          </button>
+                        </div>
+                      </form>
+                    )}
+
+                    {/* Currencies Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                      {[...POPULAR_CURRENCIES, ...customCurrencies].map((curr) => {
                         const isSelected = normalizeCurrency(baseCurrency) === curr.code;
+                        const isMasterUsd = curr.code === 'USD';
+                        const currentRate = isMasterUsd
+                          ? 1.0
+                          : exchangeRates[curr.code] ||
+                            DEFAULT_EXCHANGE_RATES[curr.code] ||
+                            curr.defaultRate ||
+                            1.0;
+
                         return (
                           <button
                             key={curr.code}
                             type="button"
                             onClick={() => {
-                              setBaseCurrency(curr.code);
-                              syncOrdersCurrency(curr.code);
+                              const norm = normalizeCurrency(curr.code);
+                              setBaseCurrency(norm);
+                              syncOrdersCurrency(norm);
+                              updateConfig({
+                                ...config,
+                                currency: norm,
+                                exchangeRates,
+                              });
                             }}
-                            className={`p-4 rounded-2xl border text-left transition-all flex items-start justify-between cursor-pointer ${
+                            className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between cursor-pointer group ${
                               isSelected
-                                ? 'border-orange-500 bg-orange-50/40 ring-2 ring-orange-500/20'
-                                : 'border-gray-200 hover:border-gray-300 bg-gray-50/50'
+                                ? 'border-orange-500 bg-orange-50/60 ring-2 ring-orange-500/20 shadow-xs'
+                                : 'border-gray-200 hover:border-gray-300 bg-gray-50/50 hover:bg-gray-50'
                             }`}
                           >
-                            <div>
-                              <div className="text-xs font-black text-gray-950 flex items-center gap-2">
-                                <span className="font-mono text-base font-black">{curr.symbol}</span>
-                                <span>{curr.name}</span>
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <div className="text-xs font-black text-gray-950 flex items-center gap-1.5">
+                                  <span className="font-mono text-base font-black text-orange-700">
+                                    {curr.symbol}
+                                  </span>
+                                  <span>{curr.code}</span>
+                                  {isMasterUsd && (
+                                    <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                                      Default Base
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-gray-600 font-medium truncate mt-0.5">
+                                  {curr.name}
+                                </div>
                               </div>
-                              <p className="text-[11px] text-gray-500 mt-1">
-                                Code: <span className="font-mono font-bold text-gray-700">{curr.code}</span> • Standard Locale: {curr.locale}
-                              </p>
+                              <span
+                                className={`w-5 h-5 rounded-full border flex items-center justify-center text-[10px] font-bold shrink-0 transition-colors ${
+                                  isSelected
+                                    ? 'border-orange-600 bg-orange-600 text-white'
+                                    : 'border-gray-300 bg-white group-hover:border-gray-400'
+                                }`}
+                              >
+                                {isSelected ? '✓' : ''}
+                              </span>
                             </div>
-                            <span
-                              className={`w-4 h-4 rounded-full border flex items-center justify-center text-[10px] font-bold mt-0.5 ${
-                                isSelected
-                                  ? 'border-orange-600 bg-orange-600 text-white'
-                                  : 'border-gray-300 bg-white'
-                              }`}
-                            >
-                              {isSelected ? '✓' : ''}
-                            </span>
+
+                            <div className="mt-2.5 pt-2 border-t border-gray-200/60 flex items-center justify-between text-[10px]">
+                              <span className="text-gray-500 font-medium">Prevailing Rate:</span>
+                              <span className="font-mono font-bold text-gray-900">
+                                {isMasterUsd ? '1.0000 (Base)' : `1 USD = ${currentRate} ${curr.code}`}
+                              </span>
+                            </div>
                           </button>
                         );
                       })}
                     </div>
                   </div>
 
+                  {/* Section 2: Prevailing Exchange Rate Input (Prominent & Real-Time) */}
+                  <div className="pt-5 border-t border-gray-100">
+                    <div className="bg-gradient-to-br from-amber-50/60 via-orange-50/40 to-white p-5 sm:p-6 rounded-2xl border border-amber-200/80 shadow-xs space-y-4">
+                      <div className="flex items-start justify-between flex-wrap gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <ArrowRightLeft className="w-4 h-4 text-orange-600" />
+                            <h4 className="font-black text-gray-950 text-sm">
+                              2. Prevailing Exchange Rate Configuration
+                            </h4>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-0.5">
+                            Set the current prevailing bank or foreign exchange rate against 1 United States Dollar (USD).
+                          </p>
+                        </div>
+
+                        {normalizeCurrency(baseCurrency) !== 'USD' && (
+                          <div className="text-right">
+                            <span className="text-[11px] text-gray-500 block">Inverse Exchange Rate</span>
+                            <span className="text-xs font-mono font-bold text-gray-900">
+                              1 {normalizeCurrency(baseCurrency)} ≈ $
+                              {(
+                                1 /
+                                (exchangeRates[normalizeCurrency(baseCurrency)] ||
+                                  DEFAULT_EXCHANGE_RATES[normalizeCurrency(baseCurrency)] ||
+                                  1)
+                              ).toFixed(4)}{' '}
+                              USD
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Formula Visual Box */}
+                      <div className="bg-white p-4 rounded-xl border border-amber-200/80 flex flex-col md:flex-row items-center justify-between gap-4 shadow-2xs">
+                        <div className="flex items-center gap-2 font-mono text-xs font-black text-gray-800">
+                          <span className="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-800 border border-blue-200">
+                            1.00 USD ($)
+                          </span>
+                          <span className="text-base text-gray-400">=</span>
+                        </div>
+
+                        <div className="flex-1 w-full max-w-md">
+                          <div className="relative">
+                            <input
+                              type="number"
+                              step="0.0001"
+                              min="0.000001"
+                              value={
+                                normalizeCurrency(baseCurrency) === 'USD'
+                                  ? 1.0
+                                  : exchangeRates[normalizeCurrency(baseCurrency)] ||
+                                    DEFAULT_EXCHANGE_RATES[normalizeCurrency(baseCurrency)] ||
+                                    1.0
+                              }
+                              disabled={normalizeCurrency(baseCurrency) === 'USD'}
+                              onChange={(e) => {
+                                const newRate = Number(e.target.value);
+                                const currCode = normalizeCurrency(baseCurrency);
+                                if (currCode === 'USD') return;
+                                const safeRate = Math.max(0.000001, newRate || 0);
+                                const updated = {
+                                  ...exchangeRates,
+                                  [currCode]: safeRate,
+                                  USD: 1.0,
+                                };
+                                setExchangeRates(updated);
+                                saveStoredExchangeRate(currCode, safeRate);
+                                updateConfig({
+                                  ...config,
+                                  exchangeRates: updated,
+                                });
+                              }}
+                              className={`w-full px-4 py-2.5 rounded-xl text-base font-mono font-black border transition-colors ${
+                                normalizeCurrency(baseCurrency) === 'USD'
+                                  ? 'bg-gray-100 text-gray-500 border-gray-300 cursor-not-allowed'
+                                  : 'bg-white text-gray-900 border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30'
+                              }`}
+                            />
+                            <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-gray-400 pointer-events-none">
+                              {normalizeCurrency(baseCurrency)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="font-mono text-xs font-bold text-gray-700 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-lg">
+                          Target: {getCurrencySymbol(baseCurrency)} {normalizeCurrency(baseCurrency)}
+                        </div>
+                      </div>
+
+                      {/* Quick Market Reference Presets for the selected currency */}
+                      {normalizeCurrency(baseCurrency) !== 'USD' ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-[11px] text-gray-500">
+                            <span>Quick Prevailing Market Reference Presets:</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const code = normalizeCurrency(baseCurrency);
+                                const defRate =
+                                  DEFAULT_EXCHANGE_RATES[code] ||
+                                  SUPPORTED_CURRENCIES[code]?.defaultRate ||
+                                  15.2;
+                                const updated = {
+                                  ...exchangeRates,
+                                  [code]: defRate,
+                                  USD: 1.0,
+                                };
+                                setExchangeRates(updated);
+                                saveStoredExchangeRate(code, defRate);
+                                updateConfig({
+                                  ...config,
+                                  exchangeRates: updated,
+                                });
+                              }}
+                              className="text-orange-700 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                            >
+                              <RefreshCw className="w-3 h-3" />
+                              <span>Reset to Default Baseline Rate</span>
+                            </button>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2">
+                            {(() => {
+                              const code = normalizeCurrency(baseCurrency);
+                              let presets: number[] = [];
+                              if (code === 'GHS') presets = [14.8, 15.0, 15.2, 15.5, 15.8, 16.0];
+                              else if (code === 'EUR') presets = [0.9, 0.92, 0.94, 0.96];
+                              else if (code === 'GBP') presets = [0.76, 0.78, 0.8, 0.82];
+                              else if (code === 'CAD') presets = [1.32, 1.34, 1.36, 1.38];
+                              else if (code === 'AUD') presets = [1.48, 1.5, 1.52, 1.55];
+                              else if (code === 'NGN') presets = [1400, 1450, 1480, 1500, 1550];
+                              else if (code === 'KES') presets = [125, 128, 129, 132];
+                              else presets = [1.0, 1.25, 1.5, 2.0];
+
+                              const currentVal =
+                                exchangeRates[code] || DEFAULT_EXCHANGE_RATES[code] || 1;
+
+                              return presets.map((rate) => (
+                                <button
+                                  key={rate}
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = {
+                                      ...exchangeRates,
+                                      [code]: rate,
+                                      USD: 1.0,
+                                    };
+                                    setExchangeRates(updated);
+                                    saveStoredExchangeRate(code, rate);
+                                    updateConfig({
+                                      ...config,
+                                      exchangeRates: updated,
+                                    });
+                                  }}
+                                  className={`px-3 py-1 rounded-xl text-xs font-mono font-bold border transition-colors cursor-pointer ${
+                                    Math.abs(currentVal - rate) < 0.001
+                                      ? 'bg-orange-600 text-white border-orange-600 shadow-2xs'
+                                      : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {rate}
+                                </button>
+                              ));
+                            })()}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-blue-900 bg-blue-50/70 border border-blue-200/80 p-3.5 rounded-xl">
+                          <p className="font-semibold">
+                            USD is currently active as the master currency (Rate: 1.0000x).
+                          </p>
+                          <p className="text-[11px] text-blue-700 mt-1">
+                            All catalog prices are shown in their native US Dollar amounts. If you switch to another currency above (such as Ghana Cedi GH₵, Euro €, or British Pound £), the prevailing exchange rate input will activate for that currency.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Section 3: Interactive Real-Time Cost Conversion Simulator */}
+                  <div className="pt-5 border-t border-gray-100 space-y-4">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-gray-900 flex items-center gap-2">
+                          <Calculator className="w-4 h-4 text-orange-600" />
+                          <span>3. Live Real-Time Cost Conversion Simulator</span>
+                        </h4>
+                        <p className="text-xs text-gray-500">
+                          Verify how catalog base models, logistics, and deposits convert from USD to {normalizeCurrency(baseCurrency)} using the prevailing rate:
+                        </p>
+                      </div>
+
+                      {/* Quick Custom Test Amount Box */}
+                      <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-xl">
+                        <span className="text-[10px] uppercase font-bold text-gray-500">
+                          Quick Test USD Amount:
+                        </span>
+                        <div className="flex items-center gap-1 font-mono">
+                          <span className="text-xs text-gray-400">$</span>
+                          <input
+                            type="number"
+                            value={simulatorUsdAmount}
+                            onChange={(e) => setSimulatorUsdAmount(Number(e.target.value) || 0)}
+                            className="w-24 px-1.5 py-0.5 bg-white border border-gray-300 rounded text-xs font-bold"
+                          />
+                        </div>
+                        <span className="text-xs font-black text-orange-700 font-mono">
+                          ➔ {formatCurrency(simulatorUsdAmount, baseCurrency, { ratesMap: exchangeRates })}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Preview Table */}
+                    <div className="overflow-x-auto rounded-2xl border border-gray-200">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-gray-200 text-[10px] uppercase font-black tracking-wider text-gray-500">
+                            <th className="py-2.5 px-3">System Cost Item / Footprint</th>
+                            <th className="py-2.5 px-3">Category</th>
+                            <th className="py-2.5 px-3 text-right">Master Base (USD)</th>
+                            <th className="py-2.5 px-3 text-center">Prevailing Rate</th>
+                            <th className="py-2.5 px-3 text-right text-orange-700">
+                              Converted ({normalizeCurrency(baseCurrency)})
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 font-medium">
+                          {[
+                            {
+                              name: '20FT Double-Wing Expandable House (409 sq ft)',
+                              cat: 'Expandable Series',
+                              usd: 22800,
+                            },
+                            {
+                              name: '30FT Double-Wing Expandable House (624 sq ft)',
+                              cat: 'Expandable Series',
+                              usd: 34500,
+                            },
+                            {
+                              name: '40FT Flagship Expandable Residence (807 sq ft)',
+                              cat: 'Expandable Series',
+                              usd: 46900,
+                            },
+                            {
+                              name: 'AC01 Apple Cabin 20ft Studio (140 sq ft)',
+                              cat: 'Apple Cabin Series',
+                              usd: 16800,
+                            },
+                            {
+                              name: 'AC02 Apple Cabin Deluxe Suite (376 sq ft)',
+                              cat: 'Apple Cabin Series',
+                              usd: 38500,
+                            },
+                            {
+                              name: 'D2 Space Capsule House 7M (241 sq ft)',
+                              cat: 'Space Capsule Series',
+                              usd: 28900,
+                            },
+                            {
+                              name: 'Z-Type 20FT Folding Container House (154 sq ft)',
+                              cat: 'Folding Series',
+                              usd: 6500,
+                            },
+                            {
+                              name: 'Casita 20ft Studio (361 sq ft)',
+                              cat: 'Casita Series',
+                              usd: 54900,
+                            },
+                            {
+                              name: 'Flat Freight Transport Estimate',
+                              cat: 'Logistics',
+                              usd: logistics.freightCost || 4500,
+                            },
+                            {
+                              name: 'Site Prep & Foundation Baseline',
+                              cat: 'Site Prep',
+                              usd: logistics.sitePrepCost || 5500,
+                            },
+                            {
+                              name: 'Priority Production Reservation Fee',
+                              cat: 'Deposit Slot',
+                              usd: branding.reservationFee || 250,
+                            },
+                          ].map((item, idx) => {
+                            const rate =
+                              normalizeCurrency(baseCurrency) === 'USD'
+                                ? 1.0
+                                : exchangeRates[normalizeCurrency(baseCurrency)] ||
+                                  DEFAULT_EXCHANGE_RATES[normalizeCurrency(baseCurrency)] ||
+                                  1.0;
+                            const converted = item.usd * rate;
+
+                            return (
+                              <tr key={idx} className="hover:bg-gray-50/70 transition-colors">
+                                <td className="py-2 px-3 font-semibold text-gray-900">
+                                  {item.name}
+                                </td>
+                                <td className="py-2 px-3 text-gray-500 text-[11px]">{item.cat}</td>
+                                <td className="py-2 px-3 text-right font-mono text-gray-700">
+                                  ${item.usd.toLocaleString()}
+                                </td>
+                                <td className="py-2 px-3 text-center font-mono text-[11px] text-gray-400">
+                                  × {rate}
+                                </td>
+                                <td className="py-2 px-3 text-right font-mono font-bold text-gray-950">
+                                  {formatCurrency(item.usd, baseCurrency, {
+                                    ratesMap: exchangeRates,
+                                  })}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Section 4: Global Markup Modifier */}
                   <div className="pt-6 border-t border-gray-100">
                     <h3 className="font-bold text-gray-900 mb-1 text-sm">Global Markup Modifier</h3>
-                    <p className="text-xs text-gray-500 mb-4">Applies a universal percentage markup or discount to all base prices and upgrades.</p>
+                    <p className="text-xs text-gray-500 mb-4">
+                      Applies a universal percentage markup or discount to all base prices and upgrades.
+                    </p>
                     <div className="max-w-xs">
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Markup Percentage (%)</label>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                        Markup Percentage (%)
+                      </label>
                       <input
                         type="number"
                         value={markup}
@@ -2370,6 +3672,7 @@ export default function Dashboard() {
                   </div>
                 </div>
 
+                {/* Logistics Card */}
                 <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-xs space-y-6">
                   <h3 className="font-bold text-gray-900 mb-1 text-sm">Logistics, Delivery & Tax Rates</h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

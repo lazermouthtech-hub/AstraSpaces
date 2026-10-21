@@ -16,6 +16,7 @@ import { INTERIOR_WALL_OPTIONS, FLOOR_PLAN_OPTIONS } from '../data/options';
 import { FloorPlanDiagram } from './FloorPlanDiagram';
 import { useAppConfig } from '../context/AppConfigContext';
 import { formatCurrency } from '../utils/currency';
+import { getItemPriceForModel, getItemUnitSpec } from '../utils/pricingCalculator';
 import {
   Home,
   Layers,
@@ -42,9 +43,10 @@ import {
   Tag,
   Eye,
   LayoutGrid,
+  ExternalLink,
 } from 'lucide-react';
 
-function DoorWindowDiagram({ id }: { id: string }) {
+export function DoorWindowDiagram({ id }: { id: string }) {
   switch (id) {
     case 'casement-window':
       return (
@@ -148,22 +150,22 @@ function DoorWindowDiagram({ id }: { id: string }) {
     case 'aluminum-alloy-double-door':
       return (
         <svg viewBox="0 0 80 64" className="w-full h-full drop-shadow-xs">
-          <rect x="12" y="4" width="56" height="55" rx="2" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="2" />
-          <rect x="16" y="8" width="22" height="47" fill="#bae6fd" opacity="0.75" />
-          <rect x="42" y="8" width="22" height="47" fill="#bae6fd" opacity="0.75" />
-          {/* Divided Lites (Muntin Grid) */}
-          <line x1="27" y1="8" x2="27" y2="55" stroke="#ffffff" strokeWidth="2" />
-          <line x1="53" y1="8" x2="53" y2="55" stroke="#ffffff" strokeWidth="2" />
-          <line x1="16" y1="23" x2="38" y2="23" stroke="#ffffff" strokeWidth="2" />
-          <line x1="16" y1="39" x2="38" y2="39" stroke="#ffffff" strokeWidth="2" />
-          <line x1="42" y1="23" x2="64" y2="23" stroke="#ffffff" strokeWidth="2" />
-          <line x1="42" y1="39" x2="64" y2="39" stroke="#ffffff" strokeWidth="2" />
+          <rect x="12" y="4" width="56" height="55" rx="2" fill="#18181b" stroke="#3f3f46" strokeWidth="2" />
+          <rect x="16" y="8" width="22" height="47" fill="#bae6fd" opacity="0.85" />
+          <rect x="42" y="8" width="22" height="47" fill="#bae6fd" opacity="0.85" />
+          {/* Divided Lites (Muntin Grid in architectural dark metal) */}
+          <line x1="27" y1="8" x2="27" y2="55" stroke="#27272a" strokeWidth="2" />
+          <line x1="53" y1="8" x2="53" y2="55" stroke="#27272a" strokeWidth="2" />
+          <line x1="16" y1="23" x2="38" y2="23" stroke="#27272a" strokeWidth="2" />
+          <line x1="16" y1="39" x2="38" y2="39" stroke="#27272a" strokeWidth="2" />
+          <line x1="42" y1="23" x2="64" y2="23" stroke="#27272a" strokeWidth="2" />
+          <line x1="42" y1="39" x2="64" y2="39" stroke="#27272a" strokeWidth="2" />
           {/* Center line & Handles */}
-          <line x1="40" y1="4" x2="40" y2="59" stroke="#94a3b8" strokeWidth="2" />
-          <circle cx="36" cy="31" r="2" fill="#64748b" />
-          <circle cx="44" cy="31" r="2" fill="#64748b" />
+          <line x1="40" y1="4" x2="40" y2="59" stroke="#09090b" strokeWidth="2" />
+          <circle cx="36" cy="31" r="2" fill="#e4e4e7" />
+          <circle cx="44" cy="31" r="2" fill="#e4e4e7" />
           {/* Threshold */}
-          <rect x="10" y="58" width="60" height="4" rx="1" fill="#cbd5e1" />
+          <rect x="10" y="58" width="60" height="4" rx="1" fill="#3f3f46" />
         </svg>
       );
     case 'kfc-double-door':
@@ -229,6 +231,8 @@ interface ConfiguratorPanelProps {
   onCutawayToggle?: (val?: any) => void;
   onRoofLiftChange?: (val: number) => void;
   cutawayMode?: boolean;
+  isAdvancedMode?: boolean;
+  onToggleAdvancedMode?: () => void;
 }
 
 export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
@@ -241,6 +245,8 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
   onCutawayToggle,
   onRoofLiftChange,
   cutawayMode,
+  isAdvancedMode = false,
+  onToggleAdvancedMode,
 }) => {
   const { config } = useAppConfig();
   const markupFactor = 1 + ((config.markup || 0) / 100);
@@ -253,6 +259,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
   const [interiorWallSubFilter, setInteriorWallSubFilter] = useState<string>('all');
   const [glazingSubFilter, setGlazingSubFilter] = useState<'all' | 'Windows' | 'Entrance Doors'>('all');
   const [flooringSubFilter, setFlooringSubFilter] = useState<string>('all');
+  const [addonSubFilter, setAddonSubFilter] = useState<'all' | 'living' | 'climate' | 'smart'>('all');
 
   // Automatically align wall scope to interior when cutaway mode is triggered
   useEffect(() => {
@@ -332,6 +339,10 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
     return (config.addons || []).filter((a: any) => a.isAvailable !== false && a.isActive !== false);
   }, [config.addons]);
 
+  const activeAddonsCount = useMemo(() => {
+    return availableAddons.filter((addon: any) => Boolean(state[addon.id])).length;
+  }, [availableAddons, state]);
+
   // Current selected model
   const currentModel =
     availableModels.find((m: any) => m.id === state.modelId) ||
@@ -349,6 +360,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
   // Filtered floor plan options (exclusive to expandable houses)
   const filteredFloorPlans = useMemo(() => {
     return FLOOR_PLAN_OPTIONS.filter((p) => {
+      if (p.id === '10ft-1bed') return false; // Handled in dedicated 10FT layout view
       if (floorPlanFilter === 'all') return true;
       if (floorPlanFilter === '1-bed') return p.bedrooms === 1;
       if (floorPlanFilter === '2-bed') return p.bedrooms === 2;
@@ -358,18 +370,33 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
     });
   }, [floorPlanFilter]);
 
-  const categories = [
+  const basicCategoryIds = [
+    'Base House',
+    'Floor plan',
+    'Add-ons',
+    'Wall Panels',
+    'Glazing & Windows',
+    'Interior Modules',
+  ];
+
+  const allCategories = [
     { id: 'Base House', label: 'Base House', icon: Home, count: availableModels.length },
     ...(isExpandableHouse
       ? [
           {
             id: 'Floor plan',
-            label: 'Floor plan',
+            label: state.modelId === 'expandable-10ft' ? 'Floor plan (Fixed 1-Bed)' : 'Floor plan',
             icon: LayoutGrid,
-            count: FLOOR_PLAN_OPTIONS.length,
+            count: state.modelId === 'expandable-10ft' ? 1 : FLOOR_PLAN_OPTIONS.filter((p) => p.id !== '10ft-1bed').length,
           },
         ]
       : []),
+    {
+      id: 'Add-ons',
+      label: 'Add-ons & Furniture',
+      icon: Sparkles,
+      count: availableAddons.length,
+    },
     {
       id: 'Wall Panels',
       label: 'Wall Panels',
@@ -379,9 +406,19 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
     { id: 'Glazing & Windows', label: 'Doors & Windows', icon: Grid, count: availableGlazingOptions.length },
     { id: 'Flooring', label: 'Flooring', icon: Grid, count: availableFlooringOptions.length },
     { id: 'Roof & Energy', label: 'Roof & Terraces', icon: SunMedium, count: availableRoofOptions.length },
-    { id: 'Interior Modules', label: 'Living Pods & Furniture', icon: Box, count: availableAddons.filter((a: any) => a.category !== 'Smart Living').length },
-    { id: 'Smart Living', label: 'Smart Living & AI', icon: Sparkles, count: availableAddons.filter((a: any) => a.category === 'Smart Living').length },
+    { id: 'Smart Living', label: 'Smart Living & AI', icon: Zap, count: availableAddons.filter((a: any) => a.category === 'Smart Living').length },
   ];
+
+  const categories = useMemo(() => {
+    if (isAdvancedMode) return allCategories;
+    return allCategories.filter(
+      (cat) =>
+        basicCategoryIds.includes(cat.id) ||
+        cat.id === activeCategory ||
+        ((cat.id === 'Glazing & Windows' || cat.id === 'Doors & Windows') &&
+          (activeCategory === 'Glazing & Windows' || activeCategory === 'Doors & Windows'))
+    );
+  }, [isAdvancedMode, allCategories, activeCategory]);
 
   // Filtered models
   const filteredModels = availableModels.filter((m: any) => {
@@ -443,13 +480,161 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
       className="bg-white flex flex-col h-full overflow-hidden"
       style={{ '--primary': config.branding.primaryColor } as React.CSSProperties}
     >
+      {/* Panel Top Header: Configuration Mode Status & Quick Access to Advanced Tools */}
+      <div className="px-3 sm:px-3.5 py-2.5 bg-white border-b border-gray-100 flex items-center justify-between gap-2 shrink-0">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs font-black text-gray-950 tracking-tight">
+              {isAdvancedMode ? 'Advanced Studio Tools' : 'Basic Configuration'}
+            </span>
+            <span className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded ${
+              isAdvancedMode ? 'bg-orange-100 text-orange-900 border border-orange-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+            }`}>
+              {isAdvancedMode ? 'All 8 Suites Active' : 'Default Mode'}
+            </span>
+          </div>
+          <p className="text-[10px] text-gray-500 truncate mt-0.5">
+            {isAdvancedMode
+              ? 'All modular categories, specs & engineering tools unlocked'
+              : 'Clean, essential building tools for fast configuration'}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onToggleAdvancedMode && onToggleAdvancedMode()}
+          className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95 ${
+            isAdvancedMode
+              ? 'bg-gray-100 hover:bg-gray-200 text-gray-800 shadow-2xs'
+              : 'bg-orange-600 hover:bg-orange-700 text-white shadow-2xs'
+          }`}
+          title={isAdvancedMode ? 'Switch back to Basic Tools' : 'Unlock all tools across the platform'}
+        >
+          {isAdvancedMode ? (
+            <>
+              <Sparkles className="w-3.5 h-3.5 text-orange-500" />
+              <span>Basic View</span>
+            </>
+          ) : (
+            <>
+              <Sliders className="w-3.5 h-3.5" />
+              <span>Advanced Tools</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Quick Add-ons & Furniture Access Bar */}
+      <div className="px-3 py-1.5 bg-gradient-to-r from-orange-50/90 via-amber-50/70 to-orange-50/90 border-b border-orange-200/80 flex items-center justify-between gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+          <Sparkles className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+          <span className="text-[11px] font-bold text-gray-950 shrink-0">
+            Modules:
+          </span>
+          {/* Quick toggle Bath Pod */}
+          <button
+            type="button"
+            onClick={() =>
+              onChange((prev) => ({
+                ...prev,
+                hasLuxuryBathPod: !prev.hasLuxuryBathPod,
+              }))
+            }
+            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+              state.hasLuxuryBathPod
+                ? 'bg-emerald-100 text-emerald-900 border border-emerald-300 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
+                : 'bg-white text-gray-500 border border-gray-300 hover:border-emerald-400'
+            }`}
+            title={state.hasLuxuryBathPod ? 'Bath Pod is included by default. Click to remove.' : 'Click to add Bath Pod'}
+          >
+            <span>🛁</span>
+            <span>{state.hasLuxuryBathPod ? '✓ Bath Pod' : '+ Bath Pod'}</span>
+          </button>
+
+          {/* Quick toggle Kitchenette */}
+          <button
+            type="button"
+            onClick={() =>
+              onChange((prev) => ({
+                ...prev,
+                hasKitchenetteModule: !prev.hasKitchenetteModule,
+              }))
+            }
+            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+              state.hasKitchenetteModule
+                ? 'bg-emerald-100 text-emerald-900 border border-emerald-300 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
+                : 'bg-white text-gray-500 border border-gray-300 hover:border-emerald-400'
+            }`}
+            title={state.hasKitchenetteModule ? 'Kitchenette is included by default. Click to remove.' : 'Click to add Kitchenette'}
+          >
+            <span>🍳</span>
+            <span>{state.hasKitchenetteModule ? '✓ Kitchen' : '+ Kitchen'}</span>
+          </button>
+
+          {/* Quick toggle Bed Suite */}
+          <button
+            type="button"
+            onClick={() =>
+              onChange((prev) => ({
+                ...prev,
+                hasLuxuryBedSuite: !prev.hasLuxuryBedSuite,
+              }))
+            }
+            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+              state.hasLuxuryBedSuite
+                ? 'bg-indigo-100 text-indigo-900 border border-indigo-300 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
+                : 'bg-white text-gray-500 border border-gray-300 hover:border-indigo-400'
+            }`}
+            title={state.hasLuxuryBedSuite ? 'Bed is added. Click to remove.' : 'Click to self-add Architectural Bed Suite'}
+          >
+            <span>🛏️</span>
+            <span>{state.hasLuxuryBedSuite ? '✓ Bed' : '+ Add Bed'}</span>
+          </button>
+
+          {/* Quick toggle Living Sofa */}
+          <button
+            type="button"
+            onClick={() =>
+              onChange((prev) => ({
+                ...prev,
+                hasLivingSofa: !prev.hasLivingSofa,
+              }))
+            }
+            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+              state.hasLivingSofa
+                ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
+                : 'bg-white text-gray-500 border border-gray-300 hover:border-amber-400'
+            }`}
+            title={state.hasLivingSofa ? 'Sofa is added. Click to remove.' : 'Click to self-add Designer Living Sofa'}
+          >
+            <span>🛋️</span>
+            <span>{state.hasLivingSofa ? '✓ Sofa' : '+ Add Sofa'}</span>
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={() => onSelectCategory('Add-ons')}
+          className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 ${
+            activeCategory === 'Add-ons' || activeCategory === 'Interior Modules'
+              ? 'bg-orange-600 text-white shadow-2xs'
+              : 'bg-white hover:bg-orange-600 hover:text-white text-orange-700 border border-orange-300 shadow-2xs'
+          }`}
+          title="Open Add-on & Furniture Manager to add bed, sofa, kitchenette, bath, etc."
+        >
+          {activeCategory === 'Add-ons' || activeCategory === 'Interior Modules' ? 'Managing Add-ons' : 'Manage Add-ons →'}
+        </button>
+      </div>
+
       {/* Category Navigation Tabs */}
       <div className="flex border-b border-gray-200/80 bg-[#FAFAFC] overflow-x-auto p-2.5 gap-1.5 shrink-0 scrollbar-thin scrollbar-thumb-gray-200">
         {categories.map((cat) => {
           const Icon = cat.icon;
-          const isActive = activeCategory === cat.id;
+          const isGlazingTab = cat.id === 'Glazing & Windows' || cat.id === 'Doors & Windows';
+          const isActive =
+            activeCategory === cat.id ||
+            (isGlazingTab && (activeCategory === 'Glazing & Windows' || activeCategory === 'Doors & Windows'));
           const isWallPanelsTab = cat.id === 'Wall Panels';
           const isFloorPlanTab = cat.id === 'Floor plan';
+          const isAddonTab = cat.id === 'Add-ons' || cat.id === 'Interior Modules';
           return (
             <button
               key={cat.id}
@@ -463,6 +648,10 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                   ? isActive
                     ? 'bg-gradient-to-r from-orange-50 via-white to-amber-50 text-gray-950 shadow-sm border border-orange-300 ring-2 ring-orange-500/20 font-bold'
                     : 'bg-white/80 hover:bg-orange-50/40 text-gray-800 hover:text-gray-950 border border-gray-200 hover:border-orange-200 shadow-2xs font-semibold'
+                  : isAddonTab
+                  ? isActive
+                    ? 'bg-gradient-to-r from-orange-600 via-amber-600 to-orange-700 text-white shadow-sm font-bold ring-2 ring-orange-400/30'
+                    : 'bg-orange-50/80 hover:bg-orange-100 text-orange-950 border border-orange-200/90 shadow-2xs font-bold'
                   : isActive
                   ? 'bg-white text-gray-900 shadow-xs border border-gray-200/90 ring-1 ring-black/5 font-bold'
                   : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100/80 border border-transparent'
@@ -478,6 +667,10 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                     ? isActive
                       ? 'text-orange-600'
                       : 'text-orange-500/80'
+                    : isAddonTab
+                    ? isActive
+                      ? 'text-white'
+                      : 'text-orange-600'
                     : isActive
                     ? 'text-[var(--primary)]'
                     : 'text-gray-400'
@@ -508,6 +701,20 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                     In/Out • {cat.count}
                   </span>
                 </span>
+              ) : isAddonTab ? (
+                <span className="flex items-center gap-1">
+                  <span
+                    className={`text-[9px] px-1.5 py-0.5 rounded-full font-mono font-bold tracking-tight transition-colors ${
+                      isActive
+                        ? 'bg-white/25 text-white shadow-2xs'
+                        : activeAddonsCount > 0
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : 'bg-orange-200/80 text-orange-900 border border-orange-300/80'
+                    }`}
+                  >
+                    {activeAddonsCount > 0 ? `${activeAddonsCount} Added` : `${cat.count} Available`}
+                  </span>
+                </span>
               ) : cat.count > 0 ? (
                 <span
                   className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold transition-colors ${
@@ -522,6 +729,22 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
             </button>
           );
         })}
+
+        {/* In Basic Mode, provide clean +3 Advanced Tools button at the end of the tabs */}
+        {!isAdvancedMode && (
+          <button
+            type="button"
+            onClick={() => onToggleAdvancedMode && onToggleAdvancedMode()}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-orange-800 bg-orange-50 hover:bg-orange-100/90 border border-orange-200/90 whitespace-nowrap transition-all cursor-pointer shrink-0 shadow-2xs active:scale-95 group"
+            title="Click to reveal all tools: Roof & Terraces, 24 SPC Floorings, Smart Living IoT"
+          >
+            <Sliders className="w-3.5 h-3.5 text-orange-600 group-hover:rotate-45 transition-transform" />
+            <span>+3 Advanced Tools</span>
+            <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-orange-200/80 text-orange-900 font-extrabold">
+              Pro
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Options Body Container - CSS selector 2 */}
@@ -629,7 +852,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
 
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-sm font-black font-mono text-gray-950">
-                          {formatCurrency(model.basePrice * markupFactor, config.currency)}
+                          {formatCurrency(model.basePrice * markupFactor, config.currency, { ratesMap: config.exchangeRates })}
                         </span>
                         {isSelected ? (
                           <div className="w-5 h-5 rounded-full bg-orange-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
@@ -700,10 +923,17 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                 <div>
                   <h4 className="font-bold text-gray-950 text-sm">Double-Wing Expandable Exclusive Feature</h4>
                   <p className="text-xs text-gray-600 mt-1 max-w-sm mx-auto">
-                    The Floor plan customization feature is exclusively engineered for the 20ft, 30ft, and 40ft Double-Wing Expandable models.
+                    The Floor plan customization feature is exclusively engineered for the 10ft, 20ft, 30ft, and 40ft Double-Wing Expandable models.
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 pt-2 max-w-xs mx-auto">
+                  <button
+                    type="button"
+                    onClick={() => onSelectModel('expandable-10ft')}
+                    className="w-full py-2 px-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs font-bold hover:bg-blue-100 transition-colors cursor-pointer"
+                  >
+                    Switch to 10FT Double-Wing Expandable
+                  </button>
                   <button
                     type="button"
                     onClick={() => onSelectModel('expandable-20ft')}
@@ -797,6 +1027,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                 {/* Model Footprint Selector Tabs */}
                 <div className="bg-gray-50/80 p-2 rounded-2xl border border-gray-200/80 flex items-center justify-between gap-1 text-xs">
                   {[
+                    { id: 'expandable-10ft', label: '10FT Micro', area: '18 m²' },
                     { id: 'expandable-20ft', label: '20FT Expandable', area: '38 m²' },
                     { id: 'expandable-30ft', label: '30FT Expandable', area: '58 m²' },
                     { id: 'expandable-40ft', label: '40FT Flagship', area: '75 m²' },
@@ -820,8 +1051,205 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                   })}
                 </div>
 
-                {/* Bedroom / Layout Filter Chips */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                {state.modelId === 'expandable-10ft' ? (
+                  /* -----------------------------------------------------------
+                     10FT DOUBLE-WING EXPANDABLE: FIXED 1-BEDROOM ARCHITECTURE
+                     Strictly 1-Bedroom (Users cannot configure multi-bedroom like 20/30/40ft).
+                     Kitchenette is "L"-shaped and optional. Bathroom is optional.
+                     ----------------------------------------------------------- */
+                  <div className="flex flex-col gap-4">
+                    {/* Architectural Fixed Floor Plan Card */}
+                    <div className="p-4 rounded-2xl border-2 border-blue-500/40 bg-gradient-to-br from-blue-50/90 via-white to-indigo-50/60 shadow-xs flex flex-col gap-3 text-left">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-base font-extrabold text-gray-950 leading-tight">
+                              10FT Dedicated 1-Bedroom Layout
+                            </h4>
+                            <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-blue-600 text-white shadow-2xs">
+                              Fixed 1-Bedroom Architecture
+                            </span>
+                          </div>
+                          <p className="text-xs text-blue-900/80 font-semibold mt-1">
+                            Ultra-compact dual-wing footprint (18 m² / 195 sq ft) · Non-configurable bedroom count
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-xs font-bold font-mono text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                            Standard Included
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-gray-600 leading-relaxed">
+                        To maximize usable space and spatial flow within the 10ft micro footprint, this model is built exclusively as an open-concept <strong>1-Bedroom Suite</strong> with no interior dividing wall or door to the room. The room flows seamlessly into the central living space. The "L"-shaped kitchenette and central bathroom pod can be toggled on or off below.
+                      </p>
+
+                      {/* 10FT Architectural Floor Plan Diagram */}
+                      <div className="relative group">
+                        <FloorPlanDiagram
+                          planId="10ft-1bed"
+                          modelId="expandable-10ft"
+                          modelName={currentModel?.name}
+                          hasWardrobe={Boolean(state.hasWardrobe)}
+                          hasKitchenette={Boolean(state.hasKitchenetteModule)}
+                          hasBathPod={Boolean(state.hasLuxuryBathPod)}
+                          hasTvConsole={Boolean(state.hasTvConsole)}
+                          hasHvacMiniSplit={Boolean(state.hasHvacMiniSplit)}
+                          showLabels={true}
+                          className="w-full h-52 rounded-xl border border-amber-200/80 shadow-2xs"
+                        />
+                        {/* Interactive 3D Inspect Trigger */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onPerspectiveChange) onPerspectiveChange('top-down-floorplan');
+                            if (!cutawayMode && onCutawayToggle) onCutawayToggle();
+                          }}
+                          className="absolute bottom-2.5 right-2.5 px-3 py-1.5 rounded-lg bg-gray-900/90 hover:bg-gray-900 text-white text-[11px] font-bold backdrop-blur-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-amber-300" />
+                          <span>Inspect 10FT in 3D</span>
+                        </button>
+                      </div>
+
+                      {/* Room Metrics & Specs */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                        <div className="flex items-center gap-2 p-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold">
+                          <Bed className="w-4 h-4 text-blue-600 shrink-0" />
+                          <span className="truncate">1 Bedroom (Fixed)</span>
+                        </div>
+                        <div className="flex items-center gap-2 p-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold">
+                          <Bath className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span className="truncate">
+                            {state.hasLuxuryBathPod ? '1 Restroom (Opt)' : 'No Restroom'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 p-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold">
+                          <Utensils className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span className="truncate">
+                            {state.hasKitchenetteModule ? '"L"-Kitchen (Opt)' : 'No Kitchen'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 p-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold">
+                          <Maximize2 className="w-4 h-4 text-indigo-600 shrink-0" />
+                          <span className="truncate">18 m² / 195 sq ft</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Optional Modules Configuration (Kitchenette & Bathroom) */}
+                    <div className="bg-gray-50/90 rounded-2xl border border-gray-200/90 p-4 flex flex-col gap-3 text-left">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
+                          <Sparkles className="w-4 h-4 text-amber-600" />
+                          <span>Optional Modules for 10FT Double-Wing</span>
+                        </h4>
+                        <span className="text-[10px] text-gray-500 font-medium">Click to include or remove</span>
+                      </div>
+
+                      {/* 1. Optional L-Shaped Kitchenette */}
+                      <div className={`p-3.5 rounded-xl border transition-all ${
+                        state.hasKitchenetteModule
+                          ? 'bg-white border-amber-300 ring-1 ring-amber-400/30 shadow-xs'
+                          : 'bg-white/60 border-gray-200 opacity-80'
+                      }`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-2.5">
+                            <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center text-lg shrink-0 mt-0.5">
+                              🍳
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h5 className="text-xs font-extrabold text-gray-950">
+                                  "L"-Shaped Gourmet Kitchenette
+                                </h5>
+                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                                  state.hasKitchenetteModule
+                                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                    : 'bg-gray-100 text-gray-600'
+                                }`}>
+                                  {state.hasKitchenetteModule ? 'Included (Optional)' : 'Removed (Open Space)'}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-gray-600 mt-1 leading-snug">
+                                Continuous "L"-shaped quartz countertop along the rear and left wall with undermount stainless steel sink, gooseneck faucet, and 2-burner ceramic induction cooktop.
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onChange((prev) => ({
+                                ...prev,
+                                hasKitchenetteModule: !prev.hasKitchenetteModule,
+                              }))
+                            }
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0 ${
+                              state.hasKitchenetteModule
+                                ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
+                                : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
+                            }`}
+                          >
+                            {state.hasKitchenetteModule ? '✓ Included (Remove)' : '+ Add Kitchenette'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 2. Optional Central Bathroom Pod */}
+                      <div className={`p-3.5 rounded-xl border transition-all ${
+                        state.hasLuxuryBathPod
+                          ? 'bg-white border-emerald-300 ring-1 ring-emerald-400/30 shadow-xs'
+                          : 'bg-white/60 border-gray-200 opacity-80'
+                      }`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-2.5">
+                            <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center text-lg shrink-0 mt-0.5">
+                              🛁
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h5 className="text-xs font-extrabold text-gray-950">
+                                  Integrated Central Bathroom Pod
+                                </h5>
+                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                                  state.hasLuxuryBathPod
+                                    ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                                    : 'bg-gray-100 text-gray-600'
+                                }`}>
+                                  {state.hasLuxuryBathPod ? 'Included (Optional)' : 'Removed (Open Foyer)'}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-gray-600 mt-1 leading-snug">
+                                Factory pre-plumbed central sanitation module with modern ceramic toilet, vanity sink, backlit mirror, and rainfall shower. Can be omitted for office/studio use.
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onChange((prev) => ({
+                                ...prev,
+                                hasLuxuryBathPod: !prev.hasLuxuryBathPod,
+                              }))
+                            }
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0 ${
+                              state.hasLuxuryBathPod
+                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
+                                : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
+                            }`}
+                          >
+                            {state.hasLuxuryBathPod ? '✓ Included (Remove)' : '+ Add Bath Pod'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Bedroom / Layout Filter Chips */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
                   {[
                     { id: 'all', label: 'All Floor Plans (6)' },
                     { id: '1-bed', label: '1 Bedroom (2)' },
@@ -852,6 +1280,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                   {filteredFloorPlans.map((plan) => {
                     const isSelected = (state.floorPlan || '2-bed-1-bath') === plan.id;
                     const bedroomMapping: Record<FloorPlanId, '1-bedroom' | '2-bedroom' | '3-bedroom' | '4-bedroom'> = {
+                      '10ft-1bed': '1-bedroom',
                       '2-bed-1-bath': '2-bedroom',
                       '3-bed-split-1-bath': '3-bedroom',
                       '3-bed-kitchen-lounge': '3-bedroom',
@@ -895,7 +1324,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                             <div className="text-xs font-bold font-mono text-gray-900">
                               {plan.price === 0
                                 ? 'Standard Included'
-                                : `+${formatCurrency(plan.price * markupFactor)}`}
+                                : `+${formatCurrency(plan.price * markupFactor, config.currency, { ratesMap: config.exchangeRates })}`}
                             </div>
                             <div className="text-[10px] text-gray-400">
                               {plan.price === 0 ? 'No upgrade fee' : 'Factory partition setup'}
@@ -905,7 +1334,18 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
 
                         {/* Architectural Floor Plan SVG Diagram */}
                         <div className="relative group">
-                          <FloorPlanDiagram planId={plan.id} hasWardrobe={Boolean(state.hasWardrobe)} className="w-full h-44 rounded-xl border border-amber-200/60" />
+                          <FloorPlanDiagram
+                            planId={plan.id}
+                            modelId={state.modelId}
+                            modelName={currentModel?.name}
+                            hasWardrobe={Boolean(state.hasWardrobe)}
+                            hasTvConsole={Boolean(state.hasTvConsole)}
+                            hasHvacMiniSplit={Boolean(state.hasHvacMiniSplit)}
+                            hasKitchenette={Boolean(state.hasKitchenetteModule)}
+                            hasBathPod={Boolean(state.hasLuxuryBathPod)}
+                            showLabels={true}
+                            className="w-full h-48 rounded-xl border border-amber-200/60"
+                          />
                           {/* Interactive 3D Inspect Trigger */}
                           <button
                             type="button"
@@ -1010,6 +1450,8 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                     );
                   })}
                 </div>
+              </>
+            )}
 
                 {/* Optional Modular Room Furnishings: Wardrobe Suite */}
                 <div className="p-4 rounded-2xl border border-gray-200 bg-gradient-to-br from-amber-50/40 via-white to-orange-50/30 space-y-2.5 shadow-2xs">
@@ -1025,6 +1467,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                   <p className="text-xs text-gray-500">
                     Wardrobes are optional modular additions for the rooms. You can add or remove them freely like any other turnkey furniture.
                   </p>
+                  {/* Optional Custom Wardrobe Suite */}
                   <label className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
                     state.hasWardrobe 
                       ? 'border-orange-500 bg-orange-50/20 shadow-xs ring-1 ring-orange-500/20' 
@@ -1040,11 +1483,36 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs font-bold text-gray-900">Custom Fitted Bedroom Wardrobe Suite</span>
                         <span className="text-xs font-bold text-orange-600">
-                          {formatCurrency(1250, config.currency)}
+                          {formatCurrency(1250 * markupFactor, config.currency, { ratesMap: config.exchangeRates })}
                         </span>
                       </div>
                       <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">
                         Floor-to-ceiling multi-compartment wardrobes with integrated hanging rails, shelving, soft-close drawers, and interior LED lighting for private bedrooms.
+                      </p>
+                    </div>
+                  </label>
+
+                  {/* Optional Television & Media Console */}
+                  <label className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
+                    state.hasTvConsole 
+                      ? 'border-orange-500 bg-orange-50/20 shadow-xs ring-1 ring-orange-500/20' 
+                      : 'border-gray-200 bg-white hover:border-gray-300'
+                  }`}>
+                    <input 
+                      type="checkbox"
+                      checked={Boolean(state.hasTvConsole)}
+                      onChange={(e) => onChange((prev) => ({ ...prev, hasTvConsole: e.target.checked }))}
+                      className="mt-0.5 rounded border-gray-300 text-orange-600 focus:ring-orange-500 w-4 h-4 cursor-pointer"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-gray-900">Television &amp; Floating Media Console</span>
+                        <span className="text-xs font-bold text-orange-600">
+                          {formatCurrency((state.modelId === 'expandable-40ft' ? 1350 : state.modelId === 'expandable-30ft' ? 1150 : 950) * markupFactor, config.currency, { ratesMap: config.exchangeRates })}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">
+                        Wall-mounted 50&quot; 4K Smart TV paired with a minimalist floating timber entertainment console, acoustic wood slat accent, and concealed cable management.
                       </p>
                     </div>
                   </label>
@@ -1207,7 +1675,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                               ? 'bg-orange-50/50 border-orange-500 ring-2 ring-orange-500/25 shadow-xs'
                               : 'bg-white border-gray-200 hover:border-orange-300 hover:bg-orange-50/20 shadow-2xs'
                           }`}
-                          title={`${englishName} — ${opt.price === 0 ? 'Included' : formatCurrency(opt.price * markupFactor, config.currency)}`}
+                          title={`${englishName} — ${getItemPriceForModel(opt, state.modelId, config.models) === 0 ? 'Included' : formatCurrency(getItemPriceForModel(opt, state.modelId, config.models) * markupFactor, config.currency, { ratesMap: config.exchangeRates })}`}
                         >
                           <span
                             className="w-11 h-11 rounded-xl border border-black/15 shadow-2xs shrink-0 flex items-center justify-center relative overflow-hidden transition-transform group-hover:scale-105"
@@ -1246,9 +1714,9 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                                 : 'bg-gray-100 text-gray-600 group-hover:bg-orange-100/80 group-hover:text-orange-900'
                             }`}
                           >
-                            {opt.price === 0
+                            {getItemPriceForModel(opt, state.modelId, config.models) === 0
                               ? 'Included'
-                              : formatCurrency(opt.price * markupFactor, config.currency, { showPlus: true })}
+                              : formatCurrency(getItemPriceForModel(opt, state.modelId, config.models) * markupFactor, config.currency, { showPlus: true, ratesMap: config.exchangeRates })}
                           </span>
                         </button>
                       );
@@ -1332,7 +1800,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold font-mono text-gray-900">
-                              {opt.price === 0 ? 'Included' : formatCurrency(opt.price * markupFactor, config.currency, { showPlus: true })}
+                              {getItemPriceForModel(opt, state.modelId, config.models) === 0 ? 'Included' : formatCurrency(getItemPriceForModel(opt, state.modelId, config.models) * markupFactor, config.currency, { showPlus: true, ratesMap: config.exchangeRates })}
                             </span>
                             {isSelected ? (
                               <div className="w-5 h-5 rounded-full bg-orange-600 flex items-center justify-center shrink-0">
@@ -1465,7 +1933,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                               ? 'bg-white border-amber-500 ring-2 ring-amber-500/20 shadow-xs'
                               : 'bg-white/80 border-gray-200 hover:border-gray-300 hover:bg-white'
                           }`}
-                          title={`${opt.name} — ${opt.price === 0 ? 'Included' : formatCurrency(opt.price * markupFactor, config.currency)}`}
+                          title={`${opt.name} — ${getItemPriceForModel(opt, state.modelId, config.models) === 0 ? 'Included' : formatCurrency(getItemPriceForModel(opt, state.modelId, config.models) * markupFactor, config.currency, { ratesMap: config.exchangeRates })}`}
                         >
                           <span
                             className="w-8 h-8 rounded-lg border border-black/15 shadow-2xs shrink-0 flex items-center justify-center relative overflow-hidden transition-transform group-hover:scale-105"
@@ -1583,7 +2051,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
 
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold font-mono text-gray-900">
-                              {opt.price === 0 ? 'Included' : formatCurrency(opt.price * markupFactor, config.currency, { showPlus: true })}
+                              {opt.price === 0 ? 'Included' : formatCurrency(opt.price * markupFactor, config.currency, { showPlus: true, ratesMap: config.exchangeRates })}
                             </span>
                             {isSelected ? (
                               <div className="w-5 h-5 rounded-full bg-amber-600 flex items-center justify-center shrink-0">
@@ -1616,19 +2084,19 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
         {/* =========================================================================
             2. GLAZING, DOORS & WINDOWS (Catalog Page)
            ========================================================================= */}
-        {activeCategory === 'Glazing & Windows' && (
+        {(activeCategory === 'Glazing & Windows' || activeCategory === 'Doors & Windows') && (
           <div className="space-y-4">
             <div>
               <div className="flex items-center justify-between">
                 <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">
                   3. Windows &amp; Doors Customization
                 </h3>
-                <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wider bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">
-                  Factory Styles
+                <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                  Included at $0
                 </span>
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Customize your windows and entrance doors. Choose casement, sliding, top-hung awning, or overhanging hopper windows, paired with French double, KFC commercial, sliding, or security grille doors.
+                The standard house includes an entrance door and perimeter windows. You have full freedom to select any door or window style at no additional cost ($0).
               </p>
             </div>
 
@@ -1670,7 +2138,11 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => onSelectCategory('Glazing & Windows')}
+                onClick={() => {
+                  if (onPerspectiveChange) {
+                    onPerspectiveChange('front-elevation');
+                  }
+                }}
                 className="px-2.5 py-1.5 rounded-lg bg-black hover:bg-gray-800 text-white text-[11px] font-bold shadow-xs transition-colors shrink-0 cursor-pointer"
               >
                 Focus View
@@ -1703,11 +2175,24 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1">
                           <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                            {opt.color && (
+                              <span
+                                className="w-3 h-3 rounded-full border border-gray-300 shrink-0 shadow-2xs"
+                                style={{ backgroundColor: opt.color }}
+                                title={opt.color === '#f8fafc' ? 'White finish' : 'Architectural black finish'}
+                              />
+                            )}
                             <span className="text-xs font-bold text-gray-900 truncate">
                               {opt.name}
                             </span>
                             {opt.badge && (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-700 whitespace-nowrap">
+                              <span
+                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md whitespace-nowrap ${
+                                  opt.badge.includes('White')
+                                    ? 'bg-gray-100 text-gray-800 border border-gray-200'
+                                    : 'bg-zinc-900 text-white shadow-2xs'
+                                }`}
+                              >
                                 {opt.badge}
                               </span>
                             )}
@@ -1715,7 +2200,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
 
                           <div className="flex items-center gap-1.5 shrink-0">
                             <span className="text-xs font-bold font-mono text-gray-900">
-                              {opt.price === 0 ? 'Included' : formatCurrency(opt.price * markupFactor, config.currency, { showPlus: true })}
+                              {opt.price === 0 ? 'Included' : formatCurrency(opt.price * markupFactor, config.currency, { showPlus: true, ratesMap: config.exchangeRates })}
                             </span>
                             {isSelected ? (
                               <div className="w-5 h-5 rounded-full bg-orange-600 flex items-center justify-center shrink-0">
@@ -1774,7 +2259,9 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                   </span>
                 </div>
                 <span className="text-[10px] font-bold text-orange-800 bg-white/90 px-2 py-0.5 rounded-full border border-orange-200 font-mono">
-                  {state.modelId === 'expandable-20ft'
+                  {state.modelId === 'expandable-10ft'
+                    ? '18 m² · 195 sq ft'
+                    : state.modelId === 'expandable-20ft'
                     ? '38 m² · 409 sq ft'
                     : state.modelId === 'expandable-30ft'
                     ? '58 m² · 624 sq ft'
@@ -1784,10 +2271,16 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-gray-600 mb-2 leading-relaxed">
-                Seamlessly preview and select floor types across the 20ft, 30ft, and 40ft expandable living layouts:
+                Seamlessly preview and select floor types across the 10ft, 20ft, 30ft, and 40ft expandable living layouts:
               </p>
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                 {[
+                  {
+                    id: 'expandable-10ft',
+                    label: '10FT Micro',
+                    dim: '3.1m × 5.9m',
+                    area: '18 m² (195 sq ft)',
+                  },
                   {
                     id: 'expandable-20ft',
                     label: '20FT Expandable',
@@ -2022,6 +2515,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                             ? 'Included'
                             : formatCurrency(opt.price * markupFactor, config.currency, {
                                 showPlus: true,
+                                ratesMap: config.exchangeRates,
                               })}
                         </span>
                         {isSelected ? (
@@ -2097,7 +2591,9 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold font-mono text-gray-900">
-                          {opt.price === 0 ? 'Included' : formatCurrency(opt.price * markupFactor, config.currency, { showPlus: true })}
+                          {getItemPriceForModel(opt, state.modelId, config.models) === 0
+                            ? 'Included'
+                            : formatCurrency(getItemPriceForModel(opt, state.modelId, config.models) * markupFactor, config.currency, { showPlus: true, ratesMap: config.exchangeRates })}
                         </span>
                         {isSelected ? (
                           <div className="w-5 h-5 rounded-full bg-orange-600 flex items-center justify-center shrink-0">
@@ -2126,142 +2622,520 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
         )}
 
         {/* =========================================================================
-            5. INTERIOR PODS & HOME FURNISHINGS (Page 28)
+            5. MODULAR ADD-ONS & ACCESSORIES (Page 28, 44, 70)
            ========================================================================= */}
-        {activeCategory === 'Interior Modules' && (
+        {(activeCategory === 'Add-ons' || activeCategory === 'Interior Modules' || activeCategory === 'Smart Living') && (
           <div className="space-y-4">
+            {/* Header with Title and Dashboard Link */}
             <div>
-              <div className="flex items-center justify-between">
-                <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">
-                  6. Living Pods &amp; Home Furnishings
-                </h3>
-                <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wider bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">
-                  Page 28 Turn-Key Kits
-                </span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-orange-600 animate-pulse" />
+                  <h3 className="text-[11px] font-black text-gray-900 uppercase tracking-[0.2em]">
+                    6. Add-ons &amp; Modular Accessories
+                  </h3>
+                </div>
+                <a
+                  href="/dashboard?tab=addons"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-[11px] font-bold text-orange-800 border border-orange-200 transition-colors shadow-2xs group"
+                  title="Manage add-on prices, specs, and availability in the Admin Dashboard"
+                >
+                  <Sliders className="w-3.5 h-3.5 text-orange-600 group-hover:rotate-45 transition-transform" />
+                  <span className="hidden sm:inline">Manage in Dashboard</span>
+                  <span className="sm:hidden">Dashboard</span>
+                  <ExternalLink className="w-3 h-3 text-orange-400" />
+                </a>
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Factory-installed pods and modular furnishings: waterproof bath pod, L-shaped kitchenette, custom wardrobe, sofa, TV unit, and mini-split AC.
+                Configure turnkey modular kits, HVAC mini-split climate systems, living pods, patio pergola decks, and smart living packages.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-2.5">
-              {availableAddons
-                .filter((addon: any) => addon.category !== 'Smart Living')
-                .map((addon: any) => {
-                  const isChecked = Boolean(state[addon.id]);
-                  return (
-                    <label
-                      key={addon.id}
-                      className={`text-left p-3.5 rounded-2xl border transition-all flex items-start gap-3 cursor-pointer ${
-                        isChecked
-                          ? 'border-orange-600 bg-orange-50/20 shadow-xs ring-1 ring-orange-500/20'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 bg-white'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={(e) =>
-                          onChange((prev) => ({
-                            ...prev,
-                            [addon.id]: e.target.checked,
-                          }))
-                        }
-                        className="mt-1 w-4 h-4 rounded text-orange-600 focus:ring-orange-400 border-gray-300 accent-orange-600 shrink-0"
-                      />
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-gray-900">
-                              {addon.name}
-                            </span>
-                            <span className="text-[10px] font-semibold text-gray-400 font-mono">
-                              ({addon.category})
-                            </span>
-                          </div>
-                          <span className="text-xs font-bold font-mono text-gray-900">
-                            {formatCurrency(addon.price * markupFactor, config.currency, { showPlus: true })}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-gray-500 leading-relaxed">
-                          {addon.description}
-                        </p>
-                        {addon.specDetail && (
-                          <div className="text-[10px] text-gray-500 font-mono bg-gray-100/90 px-2 py-0.5 rounded-md inline-block">
-                            {addon.specDetail}
-                          </div>
-                        )}
-                      </div>
-                    </label>
-                  );
-                })}
-            </div>
-          </div>
-        )}
-
-        {/* =========================================================================
-            6. SMART LIVING & AI INTELLIGENCE SYSTEM (Page 44, 68-70)
-           ========================================================================= */}
-        {activeCategory === 'Smart Living' && (
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between">
-                <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">
-                  7. Smart Living &amp; AI Functions
-                </h3>
-                <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wider bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">
-                  Page 44 &amp; 70 Catalog
+            {/* Quick Status Bar */}
+            <div className="bg-[#FAF8F5] border border-orange-200/60 rounded-2xl p-3 flex items-center justify-between text-xs shadow-2xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span className="font-bold text-gray-900">
+                  {activeAddonsCount} of {availableAddons.length} Add-ons Selected
                 </span>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Turnkey smart functions from the intelligent living catalog: central touchscreen, Bluetooth sound, fresh air, underfloor heating, starlight skylight, and drop-down projector screen.
-              </p>
+              <span className="text-[11px] font-mono text-gray-500">
+                Turnkey Modular Factory Add-ons
+              </span>
             </div>
 
-            <div className="grid grid-cols-1 gap-2.5">
-              {availableAddons
-                .filter((addon: any) => addon.category === 'Smart Living' || addon.id.includes('Smart') || addon.id === 'hasBioDigester')
-                .map((addon: any) => {
-                  const isChecked = Boolean(state[addon.id]);
-                  return (
-                    <label
-                      key={addon.id}
-                      className={`text-left p-3.5 rounded-2xl border transition-all flex items-start gap-3 cursor-pointer ${
-                        isChecked
-                          ? 'border-orange-600 bg-orange-50/20 shadow-xs ring-1 ring-orange-500/20'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 bg-white'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={(e) =>
+            {/* Standard Core Modules (Bath Pod & Kitchenette) Management */}
+            <div className="bg-gradient-to-br from-emerald-50/70 via-white to-blue-50/60 border border-emerald-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🛁🍳</span>
+                  <div>
+                    <h4 className="text-xs font-black text-gray-950 uppercase tracking-wider flex items-center gap-2">
+                      <span>Standard Core Modules (20ft, 30ft, 40ft)</span>
+                      <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded border border-emerald-200">
+                        Default On
+                      </span>
+                    </h4>
+                    <p className="text-[11px] text-gray-500">
+                      Added on starting by default. You can remove each if you prefer an open, unpartitioned shell.
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-mono font-bold bg-white px-2 py-0.5 rounded-full border border-emerald-200 text-emerald-900 shadow-2xs">
+                  {Number(Boolean(state.hasLuxuryBathPod)) + Number(Boolean(state.hasKitchenetteModule))}/2 Included
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* Bath Pod Toggle */}
+                <div className={`p-3 rounded-xl border transition-all flex flex-col justify-between gap-2 ${
+                  state.hasLuxuryBathPod
+                    ? 'bg-emerald-50/80 border-emerald-300 ring-1 ring-emerald-400/30'
+                    : 'bg-white border-gray-200 hover:border-gray-300'
+                }`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">🛁</span>
+                      <div>
+                        <div className="text-xs font-bold text-gray-950 flex items-center gap-1.5">
+                          <span>Luxury Bath Pod</span>
+                          {state.hasLuxuryBathPod && (
+                            <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded">
+                              Included
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-gray-500">Glass shower, porcelain toilet &amp; vanity</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-gray-100">
+                    <span className="text-xs font-bold font-mono text-gray-900">
+                      {formatCurrency(
+                        getItemPriceForModel(
+                          availableAddons.find((a: any) => a.id === 'hasLuxuryBathPod') || { price: 7800 },
+                          state.modelId,
+                          config.models
+                        ) * markupFactor,
+                        config.currency,
+                        { showPlus: true, ratesMap: config.exchangeRates }
+                      )}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {onPerspectiveChange && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onPerspectiveChange('interior-walkthrough');
+                          }}
+                          className="text-[10px] font-bold px-2 py-1 rounded-md bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 cursor-pointer"
+                          title="Focus 3D camera on interior walkthrough"
+                        >
+                          👁️ 3D
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() =>
                           onChange((prev) => ({
                             ...prev,
-                            [addon.id]: e.target.checked,
+                            hasLuxuryBathPod: !prev.hasLuxuryBathPod,
                           }))
                         }
-                        className="mt-1 w-4 h-4 rounded text-orange-600 focus:ring-orange-400 border-gray-300 accent-orange-600 shrink-0"
-                      />
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-gray-900">
-                            {addon.name}
+                        className={`text-[10px] font-black px-2.5 py-1 rounded-lg cursor-pointer transition-all ${
+                          state.hasLuxuryBathPod
+                            ? 'bg-emerald-600 hover:bg-red-600 text-white shadow-2xs'
+                            : 'bg-gray-100 hover:bg-emerald-50 hover:text-emerald-700 text-gray-700 border border-gray-200'
+                        }`}
+                        title={state.hasLuxuryBathPod ? 'Click to remove the Bath Pod from the house' : 'Click to add the Bath Pod back'}
+                      >
+                        {state.hasLuxuryBathPod ? '✓ Included (Remove)' : '+ Add Bath Pod'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Kitchenette Toggle */}
+                <div className={`p-3 rounded-xl border transition-all flex flex-col justify-between gap-2 ${
+                  state.hasKitchenetteModule
+                    ? 'bg-emerald-50/80 border-emerald-300 ring-1 ring-emerald-400/30'
+                    : 'bg-white border-gray-200 hover:border-gray-300'
+                }`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">🍳</span>
+                      <div>
+                        <div className="text-xs font-bold text-gray-950 flex items-center gap-1.5">
+                          <span>Modular Kitchenette</span>
+                          {state.hasKitchenetteModule && (
+                            <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded">
+                              Included
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-gray-500">Quartz counter, induction cooktop &amp; sink</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-gray-100">
+                    <span className="text-xs font-bold font-mono text-gray-900">
+                      {formatCurrency(
+                        getItemPriceForModel(
+                          availableAddons.find((a: any) => a.id === 'hasKitchenetteModule') || { price: 4800 },
+                          state.modelId,
+                          config.models
+                        ) * markupFactor,
+                        config.currency,
+                        { showPlus: true, ratesMap: config.exchangeRates }
+                      )}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {onPerspectiveChange && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onPerspectiveChange('living-lounge');
+                          }}
+                          className="text-[10px] font-bold px-2 py-1 rounded-md bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 cursor-pointer"
+                          title="Focus 3D camera on living lounge & kitchenette"
+                        >
+                          👁️ 3D
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onChange((prev) => ({
+                            ...prev,
+                            hasKitchenetteModule: !prev.hasKitchenetteModule,
+                          }))
+                        }
+                        className={`text-[10px] font-black px-2.5 py-1 rounded-lg cursor-pointer transition-all ${
+                          state.hasKitchenetteModule
+                            ? 'bg-emerald-600 hover:bg-red-600 text-white shadow-2xs'
+                            : 'bg-gray-100 hover:bg-emerald-50 hover:text-emerald-700 text-gray-700 border border-gray-200'
+                        }`}
+                        title={state.hasKitchenetteModule ? 'Click to remove the Kitchenette from the house' : 'Click to add the Kitchenette back'}
+                      >
+                        {state.hasKitchenetteModule ? '✓ Included (Remove)' : '+ Add Kitchenette'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Custom Furniture (Bed & Sofa) Self-Addition Module */}
+            <div className="bg-gradient-to-br from-indigo-50/70 via-white to-amber-50/60 border border-indigo-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🛋️🛏️</span>
+                  <div>
+                    <h4 className="text-xs font-black text-gray-950 uppercase tracking-wider">
+                      Self-Add Furniture (20ft, 30ft, 40ft)
+                    </h4>
+                    <p className="text-[11px] text-gray-500">
+                      Beds and sofas are optional — add them when desired with 1 click.
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-mono font-bold bg-white px-2 py-0.5 rounded-full border border-indigo-200 text-indigo-900 shadow-2xs">
+                  {Number(Boolean(state.hasLuxuryBedSuite)) + Number(Boolean(state.hasLivingSofa))}/2 Added
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* Bed Suite Toggle */}
+                <div className={`p-3 rounded-xl border transition-all flex flex-col justify-between gap-2 ${
+                  state.hasLuxuryBedSuite
+                    ? 'bg-indigo-50/80 border-indigo-300 ring-1 ring-indigo-400/30'
+                    : 'bg-white border-gray-200 hover:border-gray-300'
+                }`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">🛏️</span>
+                      <div>
+                        <div className="text-xs font-bold text-gray-950">Architectural Bed Suite</div>
+                        <div className="text-[10px] text-gray-500">Floating platform, mattress &amp; lamps</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-gray-100">
+                    <span className="text-xs font-bold font-mono text-gray-900">
+                      {formatCurrency(
+                        getItemPriceForModel(
+                          availableAddons.find((a: any) => a.id === 'hasLuxuryBedSuite') || { price: 3200 },
+                          state.modelId,
+                          config.models
+                        ) * markupFactor,
+                        config.currency,
+                        { showPlus: true, ratesMap: config.exchangeRates }
+                      )}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {onPerspectiveChange && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onPerspectiveChange('bedroom-suite');
+                          }}
+                          className="text-[10px] font-bold px-2 py-1 rounded-md bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 cursor-pointer"
+                          title="Focus 3D camera on bedroom"
+                        >
+                          👁️ 3D
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onChange((prev) => ({
+                            ...prev,
+                            hasLuxuryBedSuite: !prev.hasLuxuryBedSuite,
+                          }))
+                        }
+                        className={`text-[10px] font-black px-2.5 py-1 rounded-lg cursor-pointer transition-all ${
+                          state.hasLuxuryBedSuite
+                            ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs'
+                            : 'bg-gray-100 hover:bg-indigo-50 hover:text-indigo-700 text-gray-700 border border-gray-200'
+                        }`}
+                      >
+                        {state.hasLuxuryBedSuite ? '✓ Bed Added' : '+ Add Bed'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Living Room Sofa Toggle */}
+                <div className={`p-3 rounded-xl border transition-all flex flex-col justify-between gap-2 ${
+                  state.hasLivingSofa
+                    ? 'bg-amber-50/80 border-amber-300 ring-1 ring-amber-400/30'
+                    : 'bg-white border-gray-200 hover:border-gray-300'
+                }`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">🛋️</span>
+                      <div>
+                        <div className="text-xs font-bold text-gray-950">Designer Sofa Lounge</div>
+                        <div className="text-[10px] text-gray-500">Modular sofa, travertine table &amp; rug</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-gray-100">
+                    <span className="text-xs font-bold font-mono text-gray-900">
+                      {formatCurrency(
+                        getItemPriceForModel(
+                          availableAddons.find((a: any) => a.id === 'hasLivingSofa') || { price: 1350 },
+                          state.modelId,
+                          config.models
+                        ) * markupFactor,
+                        config.currency,
+                        { showPlus: true, ratesMap: config.exchangeRates }
+                      )}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {onPerspectiveChange && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onPerspectiveChange('living-lounge');
+                          }}
+                          className="text-[10px] font-bold px-2 py-1 rounded-md bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 cursor-pointer"
+                          title="Focus 3D camera on living lounge"
+                        >
+                          👁️ 3D
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onChange((prev) => ({
+                            ...prev,
+                            hasLivingSofa: !prev.hasLivingSofa,
+                          }))
+                        }
+                        className={`text-[10px] font-black px-2.5 py-1 rounded-lg cursor-pointer transition-all ${
+                          state.hasLivingSofa
+                            ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-2xs'
+                            : 'bg-gray-100 hover:bg-amber-50 hover:text-amber-800 text-gray-700 border border-gray-200'
+                        }`}
+                      >
+                        {state.hasLivingSofa ? '✓ Sofa Added' : '+ Add Sofa'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Sub-Filter Tabs */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              {[
+                { id: 'all', label: 'All Add-ons', count: availableAddons.length },
+                {
+                  id: 'living',
+                  label: 'Living Pods & Furnishings',
+                  count: availableAddons.filter((a: any) => a.category !== 'Smart Living' && !a.id.includes('Hvac')).length,
+                },
+                {
+                  id: 'climate',
+                  label: 'HVAC & Climate Systems',
+                  count: availableAddons.filter((a: any) => a.id.includes('Hvac') || a.name?.toLowerCase().includes('hvac') || a.name?.toLowerCase().includes('air conditioning')).length,
+                },
+                {
+                  id: 'smart',
+                  label: 'Smart Living & Security',
+                  count: availableAddons.filter((a: any) => (a.category === 'Smart Living' || a.id.includes('Smart') || a.id === 'hasBioDigester') && !a.id.includes('Hvac')).length,
+                },
+              ].map((tab) => {
+                const isCurrent = addonSubFilter === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setAddonSubFilter(tab.id as any)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                      isCurrent
+                        ? 'bg-gray-900 text-white shadow-xs font-bold'
+                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${isCurrent ? 'bg-white/20 text-white' : 'bg-white text-gray-500 border border-gray-200'}`}>
+                      {tab.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Add-ons Cards Grid */}
+            <div className="grid grid-cols-1 gap-2.5">
+              {availableAddons
+                .filter((addon: any) => {
+                  const isHvac = addon.id.includes('Hvac') || addon.name?.toLowerCase().includes('hvac') || addon.name?.toLowerCase().includes('air conditioning');
+                  const isSmart = (addon.category === 'Smart Living' || addon.id.includes('Smart') || addon.id === 'hasBioDigester') && !isHvac;
+                  const isLiving = !isHvac && !isSmart;
+
+                  if (addonSubFilter === 'living') return isLiving;
+                  if (addonSubFilter === 'climate') return isHvac;
+                  if (addonSubFilter === 'smart') return isSmart;
+                  return true;
+                })
+                .map((addon: any) => {
+                  const isChecked = Boolean(state[addon.id]);
+                  const unitPrice = getItemPriceForModel(addon, state.modelId, config.models);
+                  const unitSpec = getItemUnitSpec(addon, state.modelId);
+                  const isHvac = addon.id.includes('Hvac') || addon.name?.toLowerCase().includes('hvac');
+
+                  return (
+                    <div
+                      key={addon.id}
+                      className={`text-left p-3.5 sm:p-4 rounded-2xl border transition-all flex flex-col gap-2.5 cursor-pointer ${
+                        isChecked
+                          ? 'border-orange-600 bg-orange-50/25 shadow-xs ring-1 ring-orange-500/20'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 bg-white'
+                      }`}
+                      onClick={() =>
+                        onChange((prev) => ({
+                          ...prev,
+                          [addon.id]: !isChecked,
+                        }))
+                      }
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              onChange((prev) => ({
+                                ...prev,
+                                [addon.id]: e.target.checked,
+                              }));
+                            }}
+                            className="mt-1 w-4 h-4 rounded text-orange-600 focus:ring-orange-400 border-gray-300 accent-orange-600 shrink-0 cursor-pointer"
+                          />
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs sm:text-sm font-bold text-gray-950">
+                                {addon.name}
+                              </span>
+                              {unitSpec.sizeLabel && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-200/80">
+                                  {unitSpec.sizeLabel}
+                                </span>
+                              )}
+                              {isHvac && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200/80">
+                                  ❄️🔥 Indoor + Exterior Dual System
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-gray-500 leading-relaxed">
+                              {unitSpec.description || addon.description}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span className="text-xs sm:text-sm font-bold font-mono text-gray-900 block">
+                            {formatCurrency(unitPrice * markupFactor, config.currency, { showPlus: true, ratesMap: config.exchangeRates })}
                           </span>
-                          <span className="text-xs font-bold font-mono text-gray-900">
-                            {formatCurrency(addon.price * markupFactor, config.currency, { showPlus: true })}
+                          <span
+                            className={`inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors ${
+                              isChecked
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : 'bg-gray-100 text-gray-500 border border-gray-200'
+                            }`}
+                          >
+                            {isChecked ? '✓ Added to Home' : '+ Click to Add'}
                           </span>
                         </div>
-                        <p className="text-[11px] text-gray-500 leading-relaxed">
-                          {addon.description}
-                        </p>
-                        {addon.specDetail && (
-                          <div className="text-[10px] text-gray-500 font-mono bg-gray-100/90 px-2 py-0.5 rounded-md inline-block">
-                            {addon.specDetail}
+                      </div>
+
+                      {/* Specs and 3D View Shortcut */}
+                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-100/80 text-[10px]">
+                        {(unitSpec.specDetail || addon.specDetail) ? (
+                          <div className="text-gray-600 font-mono bg-orange-50/60 border border-orange-100 px-2 py-0.5 rounded-md truncate max-w-[240px]">
+                            Spec: {unitSpec.specDetail || addon.specDetail}
                           </div>
+                        ) : <div />}
+
+                        {onPerspectiveChange && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isHvac) {
+                                onPerspectiveChange('living-lounge');
+                              } else if (addon.id === 'hasExteriorPergolaDeck') {
+                                onPerspectiveChange('exterior-iso');
+                              } else if (addon.id === 'hasLuxuryBathPod') {
+                                onPerspectiveChange('interior-walkthrough');
+                              } else if (addon.id === 'hasKitchenetteModule') {
+                                onPerspectiveChange('living-lounge');
+                              } else if (addon.id === 'hasSmartDoorLock') {
+                                onPerspectiveChange('front-elevation');
+                              } else {
+                                onPerspectiveChange('interior-walkthrough');
+                              }
+                            }}
+                            className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold cursor-pointer transition-colors shrink-0"
+                            title="Focus 3D camera on this modular element"
+                          >
+                            <Eye className="w-3 h-3 text-orange-600" />
+                            <span>View in 3D</span>
+                          </button>
                         )}
                       </div>
-                    </label>
+                    </div>
                   );
                 })}
             </div>

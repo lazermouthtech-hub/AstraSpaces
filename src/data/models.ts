@@ -1,9 +1,50 @@
 import { ModelSpecification } from '../types';
 
 const RAW_MODELS: ModelSpecification[] = [
-  // ==========================================
-  // 1. EXPANDABLE CONTAINER HOUSES
-  // ==========================================
+  {
+    id: 'expandable-10ft',
+    name: '10FT Double-Wing Expandable House',
+    series: 'expandable',
+    tagline: 'Ultra-Compact Dual-Wing Living · Instant Deploy Tiny Home & ADU',
+    sqft: 195,
+    areaM2: 18,
+    weightKg: 1900,
+    dimensions: {
+      lengthFt: 10.2,
+      widthFt: 19.4,
+      heightFt: 8.2,
+      metricStr: '3,100mm × 5,900mm × 2,500mm (Folded: 2,200mm)',
+    },
+    basePrice: 14800,
+    leadTime: '2-3 Weeks',
+    bedrooms: 1,
+    bathrooms: 1,
+    description:
+      'Ultra-compact double-wing expandable house built on a 10ft container footprint. Features heavy-duty Q235 galvanized frame with dual mechanical fold-out wings, double glass entrance door with sidelite, dual casement windows with sleek black frames, fireproof bamboo-wood-fiber insulated wall panels, and pre-wired factory electrical center. Perfect for backyard ADU, garden studio, guest suite, resort cabin, or security office.',
+    includedFeatures: [
+      'Heavy-duty Q235 galvanized steel frame (80×140×3.5mm top beam)',
+      'Double-wing fold-out mechanical assisted deployment',
+      '75mm bamboo-wood-fiber fireproof insulation board',
+      '18mm fireproof glass-magnesium floor + 2mm PVC wear layer',
+      'Double glass entrance door + 2x wing casement windows with architectural black frames',
+      'Pre-installed 100A distribution panel with safety breakers',
+    ],
+    specsHighlights: {
+      frame: 'Q235 galvanized steel (80×140×3.5mm beam, 150×210×3mm column)',
+      walls: '75mm bamboo-wood-fiber board (Rockwool / EPS / PU optional)',
+      flooring: '18mm MGO glass-magnesium + 2mm industrial PVC',
+      windows: 'Double glass door, 920×920mm casement windows with black frames',
+      power: 'Factory pre-wired 110V/220V load center',
+      loading: '4 units per 40HQ ocean freight container',
+    },
+    image: '/assets/aistudio/WhatsApp_Image_2026-10-16_at_6.56.57_AM_42945423.jpeg',
+    gallery: [
+      '/assets/aistudio/WhatsApp_Image_2026-10-16_at_6.56.57_AM_42945423.jpeg',
+      '/assets/aistudio/WhatsApp_Image_2026-10-16_at_6.56.58_AM_234ed12c.jpeg',
+      '/assets/aistudio/WhatsApp_Image_2026-10-16_at_6.56.58_AM__1__bdb045f8.jpeg',
+      '/assets/aistudio/WhatsApp_Image_2026-10-16_at_6.56.58_AM__2__92cf8050.jpeg',
+    ],
+  },
   {
     id: 'expandable-20ft',
     name: '20FT Double-Wing Expandable House',
@@ -110,7 +151,7 @@ const RAW_MODELS: ModelSpecification[] = [
       frame: 'Galvanized Q235 box beam construction (3.5mm thick)',
       walls: '75mm PU / Rockwool composite with fireproof core',
       flooring: 'Commercial Grade A 18mm MGO board + SPC surface',
-      windows: 'Double glazed tempered glass with security grilles',
+      windows: '3 architectural windows per side (6 side windows total) + dual wing & rear glazing',
       power: 'Dual 200A multi-zone load center',
       loading: '1 unit per 40HQ container',
     },

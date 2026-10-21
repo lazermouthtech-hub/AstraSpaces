@@ -22,6 +22,7 @@ import {
   Home,
   Box,
   X,
+  Sliders,
 } from 'lucide-react';
 
 interface ThreeViewerProps {
@@ -39,6 +40,8 @@ interface ThreeViewerProps {
   currentPerspective: ViewPerspective;
   onPerspectiveChange: (p: ViewPerspective) => void;
   config?: any;
+  isAdvancedMode?: boolean;
+  onToggleAdvancedMode?: () => void;
 }
 
 export const ThreeViewer: React.FC<ThreeViewerProps> = ({
@@ -56,6 +59,8 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
   currentPerspective,
   onPerspectiveChange,
   config,
+  isAdvancedMode = false,
+  onToggleAdvancedMode,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -64,10 +69,29 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
   const isRoofRemoved = roofRemoved !== undefined ? roofRemoved : localRoofRemoved;
 
   const handleToggleRoof = () => {
+    const nextRemoved = !isRoofRemoved;
+
+    // Immediately apply visibility change directly to Three.js roof group & its children
+    if (homeModelRef.current?.roofGroup) {
+      homeModelRef.current.roofGroup.visible = !nextRemoved;
+      homeModelRef.current.roofGroup.traverse((child) => {
+        child.visible = !nextRemoved;
+      });
+      if (!nextRemoved) {
+        const liftY = (roofLiftPercent / 100) * 2.5;
+        homeModelRef.current.roofGroup.position.y = liftY;
+      }
+    }
+
+    // If removing the roof and current perspective was rooftop-observatory, switch to clean top-down floorplan
+    if (nextRemoved && currentPerspective === 'rooftop-observatory') {
+      onPerspectiveChange('top-down-floorplan');
+    }
+
     if (onRoofRemovedToggle) {
       onRoofRemovedToggle();
     } else {
-      setLocalRoofRemoved((prev) => !prev);
+      setLocalRoofRemoved(nextRemoved);
     }
   };
 
@@ -469,6 +493,19 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
       BASE_MODELS[0];
 
     const homeModel = buildHomeModel(state, materials, lightingMode, currentModelSpec);
+    // Apply current roof and cutaway states immediately upon building
+    homeModel.roofGroup.visible = !isRoofRemoved;
+    homeModel.roofGroup.traverse((child) => {
+      child.visible = !isRoofRemoved;
+    });
+    if (!isRoofRemoved) {
+      homeModel.roofGroup.position.y = (roofLiftPercent / 100) * 2.5;
+    }
+    if (cutawayMode) {
+      homeModel.frontWallGroup.position.y = -2.2;
+      homeModel.frontWallGroup.visible = false;
+    }
+
     homeModelRef.current = homeModel;
     scene.add(homeModel.rootGroup);
   }, [state, lightingMode, config]);
@@ -479,10 +516,11 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
     const { roofGroup, frontWallGroup } = homeModelRef.current;
 
     // Totally remove roof or put it back
-    if (isRoofRemoved) {
-      roofGroup.visible = false;
-    } else {
-      roofGroup.visible = true;
+    roofGroup.visible = !isRoofRemoved;
+    roofGroup.traverse((child) => {
+      child.visible = !isRoofRemoved;
+    });
+    if (!isRoofRemoved) {
       // Roof lift height: 0 to 2.5 meters
       const liftY = (roofLiftPercent / 100) * 2.5;
       roofGroup.position.y = liftY;
@@ -550,7 +588,48 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
         </div>
 
         {/* Bento Top-Right Action Controls */}
-        <div className="pointer-events-auto flex items-center gap-2">
+        <div className="pointer-events-auto flex items-center gap-2 flex-wrap justify-end">
+          {/* Mode Switcher Pill: Basic (Default) vs Advanced */}
+          <div className="bg-white/95 backdrop-blur-md p-1 rounded-2xl border border-gray-200/90 flex items-center gap-1 shadow-sm ring-1 ring-black/5">
+            <button
+              type="button"
+              onClick={() => {
+                if (isAdvancedMode && onToggleAdvancedMode) {
+                  onToggleAdvancedMode();
+                }
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                !isAdvancedMode
+                  ? 'bg-orange-600 text-white shadow-2xs font-black'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+              title="Clean default 3D workspace with basic essential tools"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Basic Tools</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!isAdvancedMode && onToggleAdvancedMode) {
+                  onToggleAdvancedMode();
+                }
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                isAdvancedMode
+                  ? 'bg-black text-white shadow-2xs font-black'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+              title="Access all advanced platform tools: technical elevations, cutaway, lift slider, swatches & telemetry"
+            >
+              <Sliders className="w-3.5 h-3.5 text-orange-400" />
+              <span>Advanced</span>
+              <span className={`px-1 py-0.2 rounded-full text-[9px] font-mono ${isAdvancedMode ? 'bg-orange-500 text-white font-bold' : 'bg-gray-200 text-gray-700'}`}>
+                Pro
+              </span>
+            </button>
+          </div>
+
           {/* Lighting Mode Selector */}
           <div className="bg-white/90 backdrop-blur-md p-1 rounded-2xl border border-gray-200 flex items-center gap-1 shadow-sm">
             <button
@@ -564,17 +643,19 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
             >
               <Sun className="w-4 h-4" />
             </button>
-            <button
-              onClick={() => onLightingModeChange('golden-hour')}
-              className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                lightingMode === 'golden-hour'
-                  ? 'bg-orange-50 text-orange-600 shadow-xs font-bold'
-                  : 'text-gray-400 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-              title="Golden Hour Sunset"
-            >
-              <Sunset className="w-4 h-4" />
-            </button>
+            {isAdvancedMode && (
+              <button
+                onClick={() => onLightingModeChange('golden-hour')}
+                className={`p-2 rounded-xl transition-colors cursor-pointer ${
+                  lightingMode === 'golden-hour'
+                    ? 'bg-orange-50 text-orange-600 shadow-xs font-bold'
+                    : 'text-gray-400 hover:text-gray-900 hover:bg-gray-100'
+                }`}
+                title="Golden Hour Sunset"
+              >
+                <Sunset className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={() => onLightingModeChange('night-ambient')}
               className={`p-2 rounded-xl transition-colors cursor-pointer ${
@@ -588,34 +669,36 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
             </button>
           </div>
 
-          {/* Quick Camera Manipulation Bento Buttons */}
-          <div className="hidden sm:flex items-center gap-1 bg-white/90 backdrop-blur-md p-1 rounded-2xl border border-gray-200 shadow-sm">
-            <button
-              onClick={() => handleZoom(1)}
-              className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors font-bold text-base cursor-pointer"
-              title="Zoom In"
-            >
-              +
-            </button>
-            <button
-              onClick={() => handleZoom(-1)}
-              className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors font-bold text-base cursor-pointer"
-              title="Zoom Out"
-            >
-              -
-            </button>
-            <button
-              onClick={() => setAutoRotate(!autoRotate)}
-              className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
-                autoRotate
-                  ? 'bg-orange-600 text-white'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-              title={autoRotate ? 'Stop Rotation' : 'Auto 360° Rotate'}
-            >
-              <RotateCw className={`w-3.5 h-3.5 ${autoRotate ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
+          {/* Quick Camera Manipulation Bento Buttons - in Advanced Mode or screen space */}
+          {isAdvancedMode && (
+            <div className="hidden sm:flex items-center gap-1 bg-white/90 backdrop-blur-md p-1 rounded-2xl border border-gray-200 shadow-sm animate-in fade-in duration-150">
+              <button
+                onClick={() => handleZoom(1)}
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors font-bold text-base cursor-pointer"
+                title="Zoom In"
+              >
+                +
+              </button>
+              <button
+                onClick={() => handleZoom(-1)}
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors font-bold text-base cursor-pointer"
+                title="Zoom Out"
+              >
+                -
+              </button>
+              <button
+                onClick={() => setAutoRotate(!autoRotate)}
+                className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+                  autoRotate
+                    ? 'bg-orange-600 text-white'
+                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+                }`}
+                title={autoRotate ? 'Stop Rotation' : 'Auto 360° Rotate'}
+              >
+                <RotateCw className={`w-3.5 h-3.5 ${autoRotate ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+          )}
 
           {/* Fullscreen Button */}
           <button
@@ -628,8 +711,8 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
         </div>
       </div>
 
-      {/* Floating Interactive 3D Hotspot Tags */}
-      {showHotspots && (
+      {/* Floating Interactive 3D Hotspot Tags - Only in Advanced Mode */}
+      {isAdvancedMode && showHotspots && (
         <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">
           <div className="absolute bottom-20 left-5 pointer-events-auto flex flex-wrap gap-1.5 max-w-sm">
             <button
@@ -739,8 +822,8 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
         </div>
       )}
 
-      {/* Floating Floor Selector & Expandable Size Matrix Bar */}
-      {isFlooringOverlayOpen ? (
+      {/* Floating Floor Selector & Expandable Size Matrix Bar - Only in Advanced Mode */}
+      {isAdvancedMode && (isFlooringOverlayOpen ? (
         <div className="absolute bottom-16 sm:bottom-18 left-3 sm:left-5 right-3 sm:right-auto z-20 pointer-events-auto max-w-xl bg-white/95 backdrop-blur-md border border-gray-200/90 rounded-2xl shadow-xl p-3 sm:p-3.5 space-y-2 ring-1 ring-black/5 animate-in fade-in slide-in-from-bottom-2 duration-200">
           {/* Header with Active Floor Info & View Actions */}
           <div className="flex items-center justify-between gap-2">
@@ -814,6 +897,7 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
               Expandable Size:
             </span>
             {[
+              { id: 'expandable-10ft', label: '10FT (18 m²)', desc: '195 sq ft' },
               { id: 'expandable-20ft', label: '20FT (38 m²)', desc: '409 sq ft' },
               { id: 'expandable-30ft', label: '30FT (58 m²)', desc: '624 sq ft' },
               { id: 'expandable-40ft', label: '40FT (75 m²)', desc: '807 sq ft' },
@@ -825,7 +909,12 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
                   type="button"
                   onClick={() => {
                     if (onStateChange) {
-                      onStateChange((prev) => ({ ...prev, modelId: sz.id as any }));
+                      onStateChange((prev) => ({
+                        ...prev,
+                        modelId: sz.id as any,
+                        floorPlan: sz.id === 'expandable-10ft' ? '10ft-1bed' : (prev.floorPlan === '10ft-1bed' ? '2-bed-1-bath' : prev.floorPlan),
+                        bedroomLayout: sz.id === 'expandable-10ft' ? '1-bedroom' : (prev.floorPlan === '10ft-1bed' ? '2-bedroom' : prev.bedroomLayout),
+                      }));
                     }
                   }}
                   className={`flex-1 py-1 px-1.5 rounded-lg text-[10px] font-black transition-all cursor-pointer truncate ${
@@ -858,7 +947,7 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
                   key={col.id}
                   type="button"
                   onClick={() => setViewerFlooringSubFilter(col.id)}
-                  className={`px-2 py-0.5 rounded-md text-[9px] font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all cursor-pointer ${
                     isSelected
                       ? 'bg-black text-white shadow-2xs'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -902,27 +991,54 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
           </div>
         </div>
       ) : (
-        <button
-          type="button"
-          onClick={() => setIsFlooringOverlayOpen(true)}
-          className="absolute bottom-16 sm:bottom-18 left-3 sm:left-5 z-20 pointer-events-auto px-3 py-1.5 rounded-full bg-white/95 backdrop-blur-md border border-gray-200/90 shadow-md flex items-center gap-2 hover:bg-orange-50/70 transition-all cursor-pointer text-xs font-bold text-gray-800 ring-1 ring-black/5"
-          title="Open Flooring Switcher"
-        >
-          <span
-            className="w-3.5 h-3.5 rounded-md border border-black/20"
-            style={{ backgroundColor: activeFloorOpt?.color || '#d6c4a8' }}
-          />
-          <span className="text-[11px] font-black text-gray-900">
-            Flooring: {activeFloorOpt?.name.split(' ')[0] || 'Selected'}
-          </span>
-          <span className="text-[9px] text-orange-700 font-extrabold uppercase bg-orange-100 px-1.5 py-0.5 rounded">
-            Choose Finish
-          </span>
-        </button>
-      )}
+        <div className="absolute bottom-16 sm:bottom-18 left-3 sm:left-5 z-20 pointer-events-auto flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setIsFlooringOverlayOpen(true)}
+            className="px-3 py-1.5 rounded-full bg-white/95 backdrop-blur-md border border-gray-200/90 shadow-md flex items-center gap-2 hover:bg-orange-50/70 transition-all cursor-pointer text-xs font-bold text-gray-800 ring-1 ring-black/5"
+            title="Open Flooring Switcher"
+          >
+            <span
+              className="w-3.5 h-3.5 rounded-md border border-black/20"
+              style={{ backgroundColor: activeFloorOpt?.color || '#d6c4a8' }}
+            />
+            <span className="text-[11px] font-black text-gray-900">
+              Flooring: {activeFloorOpt?.name.split(' ')[0] || 'Selected'}
+            </span>
+            <span className="text-[9px] text-orange-700 font-extrabold uppercase bg-orange-100 px-1.5 py-0.5 rounded">
+              Finish
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onSelectCategory('Add-ons')}
+            className="px-3 py-1.5 rounded-full bg-white/95 backdrop-blur-md border border-orange-200 shadow-md flex items-center gap-2 hover:bg-orange-50 transition-all cursor-pointer text-xs font-bold text-gray-800 ring-1 ring-black/5"
+            title="Manage Add-ons & Furniture (Add/Remove Bed & Sofa)"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-orange-600" />
+            <span className="text-[11px] font-black text-gray-900">
+              Furniture &amp; Add-ons
+            </span>
+            <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+              (Boolean(state.hasLuxuryBedSuite) || Boolean(state.hasLivingSofa))
+                ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                : 'bg-orange-100 text-orange-800 border border-orange-200'
+            }`}>
+              {Boolean(state.hasLuxuryBedSuite) && Boolean(state.hasLivingSofa)
+                ? 'Bed + Sofa Added'
+                : Boolean(state.hasLuxuryBedSuite)
+                ? 'Bed Added'
+                : Boolean(state.hasLivingSofa)
+                ? 'Sofa Added'
+                : 'Add Bed / Sofa'}
+            </span>
+          </button>
+        </div>
+      ))}
 
       {/* Bento Bottom Telemetry & Controls Bar */}
-      <div className="relative z-10 bg-white/85 backdrop-blur-md border-t border-gray-200/80 px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-3">
+      <div className="relative z-10 bg-white/90 backdrop-blur-md border-t border-gray-200/80 px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-3">
         {/* Selected House Identification & Architectural Telemetry */}
         <div className="flex items-center gap-3 sm:gap-5 flex-wrap">
           {/* Active House Card synchronized with Left Side Panel */}
@@ -958,220 +1074,144 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
             </div>
           </button>
 
-          {/* Orientation Telemetry */}
-          <div className="text-left hidden md:block">
-            <p className="text-[9px] text-gray-400 uppercase tracking-widest font-bold">
-              Orientation
-            </p>
-            <p className="text-xs font-semibold text-gray-900">
-              {currentPerspective === 'front-elevation'
-                ? 'Front Facade'
-                : currentPerspective === 'top-down-floorplan'
-                ? 'Top Plan'
-                : currentPerspective === 'floor-inspection'
-                ? 'Floor Inspection'
-                : currentPerspective === 'rooftop-observatory' || currentPerspective === 'rooftop-terrace'
-                ? 'Rooftop Observatory'
-                : currentPerspective === 'interior-walkthrough'
-                ? 'Kitchen Suite'
-                : currentPerspective === 'bedroom-suite'
-                ? 'Master Bedroom'
-                : currentPerspective === 'living-lounge'
-                ? 'Living Lounge'
-                : 'South-Facing'}
-            </p>
-          </div>
+          {/* Orientation Telemetry (Shown in Advanced Mode) */}
+          {isAdvancedMode && (
+            <div className="text-left hidden md:block animate-in fade-in duration-150">
+              <p className="text-[9px] text-gray-400 uppercase tracking-widest font-bold">
+                Orientation
+              </p>
+              <p className="text-xs font-semibold text-gray-900">
+                {currentPerspective === 'front-elevation'
+                  ? 'Front Facade'
+                  : currentPerspective === 'top-down-floorplan'
+                  ? 'Top Plan'
+                  : currentPerspective === 'floor-inspection'
+                  ? 'Floor Inspection'
+                  : currentPerspective === 'rooftop-observatory' || currentPerspective === 'rooftop-terrace'
+                  ? 'Rooftop Observatory'
+                  : currentPerspective === 'interior-walkthrough'
+                  ? 'Kitchen Suite'
+                  : currentPerspective === 'bedroom-suite'
+                  ? 'Master Bedroom'
+                  : currentPerspective === 'living-lounge'
+                  ? 'Living Lounge'
+                  : 'South-Facing'}
+              </p>
+            </div>
+          )}
 
-          {/* Daylight Factor */}
-          <div className="text-left hidden lg:block">
-            <p className="text-[9px] text-gray-400 uppercase tracking-widest font-bold">
-              Daylight
-            </p>
-            <p className="text-xs font-semibold text-gray-900">
-              {lightingMode === 'night-ambient'
-                ? '18% (Night)'
-                : lightingMode === 'golden-hour'
-                ? '64% (Sunset)'
-                : '92% (High)'}
-            </p>
-          </div>
+          {/* Daylight Factor (Shown in Advanced Mode) */}
+          {isAdvancedMode && (
+            <div className="text-left hidden lg:block animate-in fade-in duration-150">
+              <p className="text-[9px] text-gray-400 uppercase tracking-widest font-bold">
+                Daylight
+              </p>
+              <p className="text-xs font-semibold text-gray-900">
+                {lightingMode === 'night-ambient'
+                  ? '18% (Night)'
+                  : lightingMode === 'golden-hour'
+                  ? '64% (Sunset)'
+                  : '92% (High)'}
+              </p>
+            </div>
+          )}
         </div>
 
-        {/* Camera Perspectives & Cutaway Controls */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Architectural Perspectives Tabs (Views 1 to 6 per Catalog) */}
-          <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 overflow-x-auto max-w-full scrollbar-none">
-            <button
-              onClick={() => onPerspectiveChange('front-elevation')}
-              className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                currentPerspective === 'front-elevation'
-                  ? 'bg-black text-white shadow-xs font-bold'
-                  : 'hover:text-gray-900 hover:bg-gray-200/60'
-              }`}
-              title="Doors & Windows front elevation view"
-            >
-              🚪 Front Facade
-            </button>
-            <button
-              onClick={() => onPerspectiveChange('front-3-4')}
-              className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                currentPerspective === 'front-3-4' || currentPerspective === 'exterior-iso'
-                  ? 'bg-black text-white shadow-xs'
-                  : 'hover:text-gray-900 hover:bg-gray-200/60'
-              }`}
-              title="View 1: Front three-quarter exterior view"
-            >
-              V1 Front 3/4
-            </button>
-            <button
-              onClick={() => onPerspectiveChange('rear-3-4')}
-              className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                currentPerspective === 'rear-3-4' || currentPerspective === 'back-patio'
-                  ? 'bg-black text-white shadow-xs'
-                  : 'hover:text-gray-900 hover:bg-gray-200/60'
-              }`}
-              title="View 2: Rear three-quarter exterior view"
-            >
-              V2 Rear 3/4
-            </button>
-            <button
-              onClick={() => onPerspectiveChange('side-elevation')}
-              className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                currentPerspective === 'side-elevation'
-                  ? 'bg-black text-white shadow-xs'
-                  : 'hover:text-gray-900 hover:bg-gray-200/60'
-              }`}
-              title="View 3: Side elevation"
-            >
-              V3 Side
-            </button>
-            <button
-              onClick={() => {
-                onPerspectiveChange('top-down-floorplan');
-                if (!isRoofRemoved) {
-                  if (onRoofRemovedToggle) onRoofRemovedToggle();
-                  else setLocalRoofRemoved(true);
-                }
-              }}
-              className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                currentPerspective === 'top-down-floorplan'
-                  ? 'bg-black text-white shadow-xs'
-                  : 'hover:text-gray-900 hover:bg-gray-200/60'
-              }`}
-              title="View 4: Top or aerial floor plan view"
-            >
-              V4 Aerial Plan
-            </button>
-            <button
-              onClick={() => {
-                onPerspectiveChange('floor-inspection');
-                if (roofLiftPercent < 30) onRoofLiftChange(75);
-              }}
-              className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                currentPerspective === 'floor-inspection'
-                  ? 'bg-orange-600 text-white shadow-xs font-bold'
-                  : 'hover:text-gray-900 hover:bg-gray-200/60'
-              }`}
-              title="Inspect Floor: 45° elevated isometric perspective"
-            >
-              🪵 Floor View
-            </button>
-            <button
-              onClick={() => {
-                onPerspectiveChange('interior-walkthrough');
-                if (!cutawayMode) onCutawayModeToggle();
-              }}
-              className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                currentPerspective === 'interior-walkthrough'
-                  ? 'bg-black text-white shadow-xs'
-                  : 'hover:text-gray-900 hover:bg-gray-200/60'
-              }`}
-              title="View 5: Interior perspective"
-            >
-              V5 Interior
-            </button>
-            <button
-              onClick={() => {
-                onPerspectiveChange('sectional-cutaway');
-                if (!cutawayMode) onCutawayModeToggle();
-              }}
-              className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                currentPerspective === 'sectional-cutaway'
-                  ? 'bg-black text-white shadow-xs'
-                  : 'hover:text-gray-900 hover:bg-gray-200/60'
-              }`}
-              title="View 6: Floor plan / sectional configuration"
-            >
-              V6 Sectional
-            </button>
-          </div>
-
-          {/* Catalog-Mandated Expandable Transport / Deployed Mode Toggle */}
-          {(currentModel.series === 'expandable' || state.modelId.startsWith('expandable')) && (
-            <div className="flex items-center bg-orange-50/90 p-1 rounded-xl border border-orange-200 text-xs font-bold text-orange-950">
+        {/* CONTROLS AREA: BASIC TOOLS (DEFAULT) vs ADVANCED STUDIO TOOLS */}
+        {!isAdvancedMode ? (
+          /* =========================================================================
+             BASIC TOOLS (DEFAULT MODE): Clean, intuitive, uncluttered & professional
+             ========================================================================= */
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* 3 Core Essential Views */}
+            <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 text-xs font-bold text-gray-700 shadow-2xs">
               <button
                 type="button"
-                onClick={() => {
-                  if (onStateChange) {
-                    onStateChange((prev) => ({
-                      ...prev,
-                      isFoldedTransportMode: !prev.isFoldedTransportMode,
-                    }));
-                  }
-                }}
-                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                  state.isFoldedTransportMode
-                    ? 'bg-orange-600 text-white shadow-xs'
-                    : 'bg-white text-orange-900 shadow-xs border border-orange-200'
+                onClick={() => onPerspectiveChange('exterior-iso')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  currentPerspective === 'exterior-iso' || currentPerspective === 'front-3-4'
+                    ? 'bg-black text-white shadow-xs font-black'
+                    : 'hover:text-gray-900 hover:bg-gray-200/60'
                 }`}
-                title="Toggle between deployed living width and 2.2m transported shipping profile"
+                title="3D Exterior Angle View"
               >
-                <span>{state.isFoldedTransportMode ? '📦 Folded Transport (2.2m)' : '🏡 Fully Deployed'}</span>
+                🏡 3D Exterior
               </button>
-            </div>
-          )}
 
-          {/* Catalog-Mandated Duplex Upper / Lower Sectional View Toggle */}
-          {(state.modelId === 'apple-cabin-ad01' || state.modelId === 'apple-cabin-ad03') && (
-            <div className="flex items-center bg-blue-50/90 p-1 rounded-xl border border-blue-200 text-xs font-bold text-blue-950">
               <button
                 type="button"
                 onClick={() => {
-                  if (onStateChange) {
-                    onStateChange((prev) => ({
-                      ...prev,
-                      duplexLevelView: prev.duplexLevelView === 'upper' ? 'ground' : prev.duplexLevelView === 'ground' ? 'both' : 'upper',
-                    }));
+                  onPerspectiveChange('top-down-floorplan');
+                  if (!isRoofRemoved) {
+                    handleToggleRoof();
                   }
                 }}
-                className="px-2.5 py-1.5 rounded-lg bg-white text-blue-900 border border-blue-200 shadow-xs cursor-pointer"
-                title="Toggle between 2-storey exterior and cutaway view"
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  currentPerspective === 'top-down-floorplan'
+                    ? 'bg-black text-white shadow-xs font-black'
+                    : 'hover:text-gray-900 hover:bg-gray-200/60'
+                }`}
+                title="Top-Down Aerial Floor Plan"
               >
-                🏢 Duplex: {state.duplexLevelView === 'upper' ? 'Upper Suite' : state.duplexLevelView === 'ground' ? 'Ground Floor' : 'Full 2-Storey (4.96m)'}
+                📐 Top Plan
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onPerspectiveChange('interior-walkthrough')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  currentPerspective === 'interior-walkthrough' || currentPerspective === 'bedroom-suite'
+                    ? 'bg-black text-white shadow-xs font-black'
+                    : 'hover:text-gray-900 hover:bg-gray-200/60'
+                }`}
+                title="Step inside the living room / bedroom interior"
+              >
+                🛋️ Inside View
               </button>
             </div>
-          )}
 
-          {/* Cutaway & Roof Removal / Lift Tools */}
-          <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-xl border border-gray-200 shadow-2xs">
-            {/* Primary Requested Button: Totally Remove Roof or Put It Back */}
+            {/* Quick Manage Add-ons & Furniture Button */}
+            <button
+              type="button"
+              onClick={() => onSelectCategory('Add-ons')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer bg-orange-50 hover:bg-orange-100 text-orange-900 border border-orange-200/90 shadow-2xs group"
+              title="Open Add-on Manager to add or customize beds, sofa lounge, HVAC, etc."
+            >
+              <Sparkles className="w-3.5 h-3.5 text-orange-600 group-hover:scale-110 transition-transform" />
+              <span>Add-ons &amp; Furniture</span>
+              <span className={`text-[9px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
+                (Boolean(state.hasLuxuryBedSuite) || Boolean(state.hasLivingSofa))
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-white text-orange-800 border border-orange-200'
+              }`}>
+                {Boolean(state.hasLuxuryBedSuite) && Boolean(state.hasLivingSofa)
+                  ? 'Bed + Sofa'
+                  : Boolean(state.hasLuxuryBedSuite)
+                  ? 'Bed'
+                  : Boolean(state.hasLivingSofa)
+                  ? 'Sofa'
+                  : '+ Add'}
+              </span>
+            </button>
+
+            {/* Primary Action Button: Remove Roof / Put Roof Back */}
             <button
               type="button"
               onClick={handleToggleRoof}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 isRoofRemoved
-                  ? 'bg-orange-600 text-white font-black shadow-xs ring-1 ring-orange-500'
-                  : 'bg-white text-gray-800 font-bold border border-gray-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-300 shadow-2xs'
+                  ? 'bg-orange-600 text-white shadow-xs ring-2 ring-orange-500/40 hover:bg-orange-700 active:scale-95'
+                  : 'bg-white text-gray-800 border border-gray-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-300 shadow-2xs active:scale-95'
               }`}
               title={
                 isRoofRemoved
-                  ? 'Put roof back on the house'
-                  : 'Totally remove the roof for a clear aerial view of the floor'
+                  ? 'Click to put the roof back onto the home'
+                  : 'Click to completely remove the roof for open top-down interior inspection'
               }
             >
               {isRoofRemoved ? (
                 <>
-                  <Home className="w-3.5 h-3.5 text-white" />
+                  <Home className="w-3.5 h-3.5 text-white animate-pulse" />
                   <span>Put Roof Back</span>
                 </>
               ) : (
@@ -1182,48 +1222,259 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
               )}
             </button>
 
-            {/* Cutaway Mode Toggle */}
+            {/* The Advanced Button */}
             <button
               type="button"
-              onClick={onCutawayModeToggle}
-              className={`flex items-center gap-1 font-bold px-2 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
-                cutawayMode
-                  ? 'bg-gray-900 text-white shadow-xs'
-                  : 'text-gray-600 hover:bg-gray-200/60 hover:text-gray-900'
-              }`}
-              title="Toggle front wall cutaway visibility"
+              onClick={() => onToggleAdvancedMode && onToggleAdvancedMode()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer bg-white text-gray-700 hover:text-black hover:bg-gray-50 border border-gray-200 hover:border-gray-300 shadow-2xs group"
+              title="Click to reveal all advanced platform tools: fine roof elevation slider, cutaway slicing, 8 architectural catalog views, and telemetry"
             >
-              <span>{cutawayMode ? 'Wall Off' : 'Cutaway'}</span>
-            </button>
-
-            {/* Roof Elevation Slider */}
-            <div className="hidden lg:flex items-center gap-1.5 px-2 text-gray-600 text-xs border-l border-gray-200/80">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                Lift
+              <Sliders className="w-3.5 h-3.5 text-orange-600 group-hover:rotate-45 transition-transform" />
+              <span>Advanced Tools</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold bg-orange-100 text-orange-800">
+                Pro
               </span>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={isRoofRemoved ? 100 : roofLiftPercent}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  onRoofLiftChange(val);
-                  if (val === 100) {
-                    if (!isRoofRemoved) handleToggleRoof();
-                  } else if (isRoofRemoved) {
-                    handleToggleRoof();
+            </button>
+          </div>
+        ) : (
+          /* =========================================================================
+             ADVANCED STUDIO MODE: All Platform Architectural & Engineering Tools Unlocked
+             ========================================================================= */
+          <div className="flex flex-wrap items-center gap-2 animate-in fade-in duration-150">
+            {/* Architectural Perspectives Tabs (Views 1 to 6 per Catalog) */}
+            <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 overflow-x-auto max-w-full scrollbar-none">
+              <button
+                onClick={() => onPerspectiveChange('front-elevation')}
+                className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                  currentPerspective === 'front-elevation'
+                    ? 'bg-black text-white shadow-xs font-bold'
+                    : 'hover:text-gray-900 hover:bg-gray-200/60'
+                }`}
+                title="Doors & Windows front elevation view"
+              >
+                🚪 Front Facade
+              </button>
+              <button
+                onClick={() => onPerspectiveChange('front-3-4')}
+                className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                  currentPerspective === 'front-3-4' || currentPerspective === 'exterior-iso'
+                    ? 'bg-black text-white shadow-xs'
+                    : 'hover:text-gray-900 hover:bg-gray-200/60'
+                }`}
+                title="View 1: Front three-quarter exterior view"
+              >
+                V1 Front 3/4
+              </button>
+              <button
+                onClick={() => onPerspectiveChange('rear-3-4')}
+                className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  currentPerspective === 'rear-3-4' || currentPerspective === 'back-patio'
+                    ? 'bg-black text-white shadow-xs'
+                    : 'hover:text-gray-900 hover:bg-gray-200/60'
+                }`}
+                title="View 2: Rear three-quarter exterior view"
+              >
+                V2 Rear 3/4
+              </button>
+              <button
+                onClick={() => onPerspectiveChange('side-elevation')}
+                className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  currentPerspective === 'side-elevation'
+                    ? 'bg-black text-white shadow-xs'
+                    : 'hover:text-gray-900 hover:bg-gray-200/60'
+                }`}
+                title="View 3: Side elevation"
+              >
+                V3 Side
+              </button>
+              <button
+                onClick={() => {
+                  onPerspectiveChange('top-down-floorplan');
+                  if (!isRoofRemoved) {
+                    if (onRoofRemovedToggle) onRoofRemovedToggle();
+                    else setLocalRoofRemoved(true);
                   }
                 }}
-                className="w-14 accent-orange-600 cursor-pointer h-1 bg-gray-300 rounded-lg"
-                title="Elevate roof height"
-              />
-              <span className="font-mono text-[10px] font-bold text-gray-800">
-                {isRoofRemoved ? 'Off' : `${roofLiftPercent}%`}
-              </span>
+                className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  currentPerspective === 'top-down-floorplan'
+                    ? 'bg-black text-white shadow-xs'
+                    : 'hover:text-gray-900 hover:bg-gray-200/60'
+                }`}
+                title="View 4: Top or aerial floor plan view"
+              >
+                V4 Aerial Plan
+              </button>
+              <button
+                onClick={() => {
+                  onPerspectiveChange('floor-inspection');
+                  if (roofLiftPercent < 30) onRoofLiftChange(75);
+                }}
+                className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                  currentPerspective === 'floor-inspection'
+                    ? 'bg-orange-600 text-white shadow-xs font-bold'
+                    : 'hover:text-gray-900 hover:bg-gray-200/60'
+                }`}
+                title="Inspect Floor: 45° elevated isometric perspective"
+              >
+                🪵 Floor View
+              </button>
+              <button
+                onClick={() => {
+                  onPerspectiveChange('interior-walkthrough');
+                  if (!cutawayMode) onCutawayModeToggle();
+                }}
+                className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  currentPerspective === 'interior-walkthrough'
+                    ? 'bg-black text-white shadow-xs'
+                    : 'hover:text-gray-900 hover:bg-gray-200/60'
+                }`}
+                title="View 5: Interior perspective"
+              >
+                V5 Interior
+              </button>
+              <button
+                onClick={() => {
+                  onPerspectiveChange('sectional-cutaway');
+                  if (!cutawayMode) onCutawayModeToggle();
+                }}
+                className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  currentPerspective === 'sectional-cutaway'
+                    ? 'bg-black text-white shadow-xs'
+                    : 'hover:text-gray-900 hover:bg-gray-200/60'
+                }`}
+                title="View 6: Floor plan / sectional configuration"
+              >
+                V6 Sectional
+              </button>
             </div>
+
+            {/* Catalog-Mandated Expandable Transport / Deployed Mode Toggle */}
+            {(currentModel.series === 'expandable' || state.modelId.startsWith('expandable')) && (
+              <div className="flex items-center bg-orange-50/90 p-1 rounded-xl border border-orange-200 text-xs font-bold text-orange-950">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onStateChange) {
+                      onStateChange((prev) => ({
+                        ...prev,
+                        isFoldedTransportMode: !prev.isFoldedTransportMode,
+                      }));
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                    state.isFoldedTransportMode
+                      ? 'bg-orange-600 text-white shadow-xs'
+                      : 'bg-white text-orange-900 shadow-xs border border-orange-200'
+                  }`}
+                  title="Toggle between deployed living width and 2.2m transported shipping profile"
+                >
+                  <span>{state.isFoldedTransportMode ? '📦 Folded Transport (2.2m)' : '🏡 Fully Deployed'}</span>
+                </button>
+              </div>
+            )}
+
+            {/* Catalog-Mandated Duplex Upper / Lower Sectional View Toggle */}
+            {(state.modelId === 'apple-cabin-ad01' || state.modelId === 'apple-cabin-ad03') && (
+              <div className="flex items-center bg-blue-50/90 p-1 rounded-xl border border-blue-200 text-xs font-bold text-blue-950">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onStateChange) {
+                      onStateChange((prev) => ({
+                        ...prev,
+                        duplexLevelView: prev.duplexLevelView === 'upper' ? 'ground' : prev.duplexLevelView === 'ground' ? 'both' : 'upper',
+                      }));
+                    }
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg bg-white text-blue-900 border border-blue-200 shadow-xs cursor-pointer"
+                  title="Toggle between 2-storey exterior and cutaway view"
+                >
+                  🏢 Duplex: {state.duplexLevelView === 'upper' ? 'Upper Suite' : state.duplexLevelView === 'ground' ? 'Ground Floor' : 'Full 2-Storey (4.96m)'}
+                </button>
+              </div>
+            )}
+
+            {/* Cutaway & Roof Removal / Lift Tools */}
+            <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-xl border border-gray-200 shadow-2xs">
+              <button
+                type="button"
+                onClick={handleToggleRoof}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  isRoofRemoved
+                    ? 'bg-orange-600 text-white shadow-xs ring-2 ring-orange-500/50 hover:bg-orange-700 active:scale-95'
+                    : 'bg-white text-gray-800 border border-gray-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-300 shadow-2xs active:scale-95'
+                }`}
+                title={
+                  isRoofRemoved
+                    ? 'Click to put the roof back onto the home'
+                    : 'Click to completely remove the roof for open top-down interior inspection'
+                }
+              >
+                {isRoofRemoved ? (
+                  <>
+                    <Home className="w-3.5 h-3.5 text-white animate-pulse" />
+                    <span>Put Roof Back</span>
+                  </>
+                ) : (
+                  <>
+                    <Layers className="w-3.5 h-3.5 text-gray-600" />
+                    <span>Remove Roof</span>
+                  </>
+                )}
+              </button>
+
+              {/* Cutaway Mode Toggle */}
+              <button
+                type="button"
+                onClick={onCutawayModeToggle}
+                className={`flex items-center gap-1 font-bold px-2 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
+                  cutawayMode
+                    ? 'bg-gray-900 text-white shadow-xs'
+                    : 'text-gray-600 hover:bg-gray-200/60 hover:text-gray-900'
+                }`}
+                title="Toggle front wall cutaway visibility"
+              >
+                <span>{cutawayMode ? 'Wall Off' : 'Cutaway'}</span>
+              </button>
+
+              {/* Roof Elevation Slider */}
+              <div className="hidden lg:flex items-center gap-1.5 px-2 text-gray-600 text-xs border-l border-gray-200/80">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                  Lift
+                </span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={isRoofRemoved ? 0 : roofLiftPercent}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    if (isRoofRemoved) {
+                      handleToggleRoof();
+                    }
+                    onRoofLiftChange(val);
+                  }}
+                  className="w-14 accent-orange-600 cursor-pointer h-1 bg-gray-300 rounded-lg"
+                  title="Elevate roof height"
+                />
+                <span className="font-mono text-[10px] font-bold text-gray-800">
+                  {isRoofRemoved ? 'Off' : `${roofLiftPercent}%`}
+                </span>
+              </div>
+            </div>
+
+            {/* Back to Basic Mode Toggle */}
+            <button
+              type="button"
+              onClick={() => onToggleAdvancedMode && onToggleAdvancedMode()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer bg-black text-white shadow-xs hover:bg-gray-800"
+              title="Return to clean basic mode"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-orange-400" />
+              <span>Basic View</span>
+            </button>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

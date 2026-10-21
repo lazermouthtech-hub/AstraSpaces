@@ -1,11 +1,18 @@
 import React, { useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { HomeModelId } from '../types';
 import { BASE_MODELS } from '../data/models';
-import { FileText, RotateCcw, Share2, DollarSign, Globe, LayoutDashboard, Home, ChevronDown } from 'lucide-react';
+import { FileText, RotateCcw, Share2, DollarSign, Globe, LayoutDashboard, Home, ChevronDown, User, LogIn, Clock } from 'lucide-react';
 import { useAppConfig } from '../context/AppConfigContext';
-import { formatCurrency, normalizeCurrency, TWO_CURRENCIES } from '../utils/currency';
+import {
+  formatCurrency,
+  normalizeCurrency,
+  TWO_CURRENCIES,
+  getExchangeRate,
+  getCurrencySymbol,
+} from '../utils/currency';
 import { syncOrdersCurrency } from '../utils/orderManager';
+import { UserAccount } from '../utils/authManager';
 
 interface HeaderProps {
   selectedModelId: HomeModelId;
@@ -14,6 +21,11 @@ interface HeaderProps {
   onReset: () => void;
   totalPrice: number;
   onOpenReserve?: () => void;
+  showInvestmentBreakdown?: boolean;
+  onToggleInvestmentBreakdown?: () => void;
+  currentUser?: UserAccount | null;
+  onOpenAuthModal?: () => void;
+  timerSecondsRemaining?: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -23,8 +35,14 @@ export const Header: React.FC<HeaderProps> = ({
   onReset,
   totalPrice,
   onOpenReserve,
+  showInvestmentBreakdown,
+  onToggleInvestmentBreakdown,
+  currentUser,
+  onOpenAuthModal,
+  timerSecondsRemaining,
 }) => {
   const { config, updateConfig, setCurrency } = useAppConfig();
+  const navigate = useNavigate();
   
   const displayModels = useMemo(() => {
     const list = config.models && config.models.length > 0 ? config.models : BASE_MODELS;
@@ -49,17 +67,11 @@ export const Header: React.FC<HeaderProps> = ({
     <nav className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 sm:px-6 lg:px-8 shrink-0 z-30 shadow-xs">
       {/* Brand Logo & Name */}
       <Link to="/" className="flex items-center gap-2.5 hover:opacity-85 transition-opacity" title="Return to Homepage">
-        <div className="w-8 h-8 flex items-center justify-center font-black text-white rounded-md shadow-xs text-base tracking-tighter" style={{ backgroundColor: config.branding.primaryColor }}>
-          {config.branding.brandName ? config.branding.brandName.charAt(0).toUpperCase() : 'B'}
-        </div>
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-lg sm:text-xl font-bold tracking-tighter text-gray-900">
-            {config.branding.brandName || 'Boxabl'}
-          </span>
-          <span className="text-xs font-semibold text-gray-400 hidden sm:inline-block ml-1">
-            {config.branding.headerText}
-          </span>
-        </div>
+        <img
+          src="https://res.cloudinary.com/ddaxljfgp/image/upload/v1791201844/10apples_logo_main_eqm9wf.png"
+          alt="10Apples Logo"
+          className="h-7 sm:h-8 w-auto object-contain"
+        />
       </Link>
 
       {/* Center Model Selector (Desktop & Mobile) - CSS selector 1 */}
@@ -86,7 +98,7 @@ export const Header: React.FC<HeaderProps> = ({
         >
           {displayModels.map((model: any) => (
             <option key={model.id} value={model.id}>
-              {model.name} — {model.sqft} sq ft ({formatCurrency(model.basePrice, config.currency)})
+              {model.name} — {model.sqft} sq ft ({formatCurrency(model.basePrice, config.currency, { ratesMap: config.exchangeRates })})
             </option>
           ))}
         </select>
@@ -130,49 +142,125 @@ export const Header: React.FC<HeaderProps> = ({
           <RotateCcw className="w-4 h-4" />
         </button>
 
-        {/* Two-Currency Switcher */}
+        {/* Currency Switcher */}
         <div className="flex items-center gap-1 border-l border-gray-200 pl-3">
           <div className="inline-flex p-0.5 bg-gray-100 rounded-lg border border-gray-200">
-            {TWO_CURRENCIES.map((curr) => {
-              const isActive = normalizeCurrency(config.currency) === curr.code;
-              return (
-                <button
-                  key={curr.code}
-                  type="button"
-                  onClick={() => {
-                    if (setCurrency) {
-                      setCurrency(curr.code);
-                    } else {
-                      updateConfig({ ...config, currency: curr.code });
+            {(() => {
+              const activeCode = normalizeCurrency(config.currency);
+              const items = [
+                { code: 'USD', symbol: '$' },
+                ...(activeCode !== 'USD'
+                  ? [{ code: activeCode, symbol: getCurrencySymbol(activeCode) }]
+                  : [{ code: 'GHS', symbol: 'GH₵' }]),
+              ];
+              const uniqueItems = Array.from(new Map(items.map((i) => [i.code, i])).values());
+
+              return uniqueItems.map((curr) => {
+                const isActive = activeCode === curr.code;
+                const rate =
+                  curr.code === 'USD'
+                    ? 1.0
+                    : getExchangeRate(curr.code, config.exchangeRates);
+
+                return (
+                  <button
+                    key={curr.code}
+                    type="button"
+                    onClick={() => {
+                      if (setCurrency) {
+                        setCurrency(curr.code);
+                      } else {
+                        updateConfig({ ...config, currency: curr.code });
+                      }
+                      syncOrdersCurrency(curr.code);
+                    }}
+                    className={`px-2 py-1 text-[11px] font-extrabold rounded-md transition-all flex items-center gap-1 cursor-pointer ${
+                      isActive
+                        ? curr.code === 'USD'
+                          ? 'bg-black text-white shadow-xs'
+                          : 'bg-orange-600 text-white shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                    title={
+                      curr.code === 'USD'
+                        ? 'Master Default: USD ($) · Baseline Rate: 1.0000'
+                        : `Switch to ${curr.code} (${curr.symbol}) · Prevailing Rate: 1 USD = ${rate} ${curr.code}`
                     }
-                    syncOrdersCurrency(curr.code);
-                  }}
-                  className={`px-2 py-1 text-[11px] font-extrabold rounded-md transition-all flex items-center gap-1 cursor-pointer ${
-                    isActive
-                      ? curr.code === 'GHS'
-                        ? 'bg-orange-600 text-white shadow-xs'
-                        : 'bg-black text-white shadow-xs'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                  title={`Switch entire website and all orders to single currency: ${curr.name} (${curr.symbol})`}
-                >
-                  <span className="font-mono">{curr.symbol}</span>
-                  <span>{curr.code}</span>
-                </button>
-              );
-            })}
+                  >
+                    <span className="font-mono">{curr.symbol}</span>
+                    <span>{curr.code}</span>
+                  </button>
+                );
+              });
+            })()}
           </div>
         </div>
 
-        {/* Live Total Price */}
-        <div className="pl-2 border-l border-gray-200 hidden sm:block">
-          <div className="text-[9px] uppercase font-bold text-gray-400 tracking-wider">
-            Total Price
+        {/* Live Total Price & Breakdown Toggle */}
+        {onToggleInvestmentBreakdown ? (
+          <button
+            type="button"
+            onClick={onToggleInvestmentBreakdown}
+            className="pl-2.5 pr-2 py-1 border-l border-gray-200 hidden sm:flex flex-col text-left hover:bg-gray-50 rounded-lg transition-colors cursor-pointer group"
+            title={showInvestmentBreakdown ? 'Hide Investment Breakdown' : 'Show Investment Breakdown'}
+          >
+            <div className="flex items-center gap-1.5 text-[9px] uppercase font-bold text-gray-400 group-hover:text-orange-600 transition-colors tracking-wider">
+              <span>Total Price</span>
+              <span className="text-[8px] px-1.5 py-0.5 rounded bg-gray-100 group-hover:bg-orange-100 group-hover:text-orange-700 font-extrabold">
+                {showInvestmentBreakdown ? 'Hide Breakdown' : 'Show Breakdown'}
+              </span>
+            </div>
+            <div className="text-base font-extrabold text-gray-900 font-mono leading-none mt-0.5">
+              {formatCurrency(totalPrice, config.currency, { ratesMap: config.exchangeRates })}
+            </div>
+          </button>
+        ) : (
+          <div className="pl-2 border-l border-gray-200 hidden sm:block">
+            <div className="text-[9px] uppercase font-bold text-gray-400 tracking-wider">
+              Total Price
+            </div>
+            <div className="text-base font-extrabold text-gray-900 font-mono leading-none">
+              {formatCurrency(totalPrice, config.currency, { ratesMap: config.exchangeRates })}
+            </div>
           </div>
-          <div className="text-base font-extrabold text-gray-900 font-mono leading-none">
-            {formatCurrency(totalPrice, config.currency)}
-          </div>
-        </div>
+        )}
+
+        {/* User Account / Dashboard Navigation Button (button:nth-of-type(5)) */}
+        {currentUser ? (
+          <button
+            type="button"
+            onClick={() => navigate('/user-dashboard')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-950 border border-orange-200 text-xs font-bold transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-95"
+            title={`Signed in as ${currentUser.fullName} (${currentUser.email}). Click to open User Dashboard.`}
+          >
+            <div className="w-5 h-5 rounded-full bg-orange-600 text-white flex items-center justify-center text-[10px] font-black shrink-0 shadow-2xs">
+              {currentUser.fullName.charAt(0).toUpperCase()}
+            </div>
+            <span className="hidden sm:inline font-bold">Dashboard</span>
+            <span className="text-[10px] bg-orange-200/90 text-orange-900 px-1.5 py-0.2 rounded font-mono font-bold">
+              {currentUser.savedProjects?.length || 0}
+            </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => navigate('/user-dashboard')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-800 border border-gray-200 text-xs font-bold transition-all cursor-pointer shadow-2xs group hover:border-orange-300 hover:text-orange-950 active:scale-95"
+            title="Open User Dashboard to manage your modular projects & activities"
+          >
+            <User className="w-3.5 h-3.5 text-gray-500 group-hover:text-orange-600 transition-colors" />
+            <span className="hidden sm:inline font-bold">Dashboard</span>
+            {timerSecondsRemaining !== undefined && timerSecondsRemaining > 0 && timerSecondsRemaining <= 240 && (
+              <span
+                className="inline-flex items-center gap-1 text-[10px] font-mono text-orange-600 font-extrabold bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200/80"
+                title="Auto-save timer active (prompts at 4 minutes). Click to save to dashboard."
+              >
+                <Clock className="w-2.5 h-2.5 animate-pulse text-orange-500" />
+                <span>{Math.floor(timerSecondsRemaining / 60)}:{(timerSecondsRemaining % 60).toString().padStart(2, '0')}</span>
+              </span>
+            )}
+          </button>
+        )}
 
         {/* Admin Dashboard Navigation */}
         <Link
