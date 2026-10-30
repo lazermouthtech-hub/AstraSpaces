@@ -2403,7 +2403,7 @@ export function createMaterialLibrary(
       bumpScale: wallBumpScale,
     }),
     chassisMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#111827'), // Boxabl / Apple Cabin deep graphite frame
+      color: new THREE.Color('#111827'), // 10Apples deep graphite frame
       roughness: 0.3,
       metalness: 0.7,
     }),

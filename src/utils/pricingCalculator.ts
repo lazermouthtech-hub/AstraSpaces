@@ -148,8 +148,8 @@ export function getItemUnitSpec(
   if (item.id === 'hasLuxuryBathPod') {
     if (sizeCat === '10ft') {
       return {
-        sizeLabel: '10FT Micro Bath Pod (1.2m Run)',
-        specDetail: 'Compact Integrated Restroom Pod (1200×1100mm) with ceramic toilet, vanity sink, mirror, and shower system (Optional)',
+        sizeLabel: '10FT Micro Bath Pod (1.3m Run)',
+        specDetail: 'Integrated Waterproof Bath Pod (1300×1100mm) with ceramic toilet, floating vanity sink, LED mirror, and walk-in shower system',
       };
     }
     if (sizeCat === '40ft') {

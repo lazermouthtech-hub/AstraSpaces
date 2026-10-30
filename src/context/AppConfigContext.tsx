@@ -41,13 +41,13 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
       exchangeRates: { ...DEFAULT_EXCHANGE_RATES, ...getStoredExchangeRates() },
       markup: 0,
       branding: {
-        brandName: 'WANHAI',
+        brandName: '10Apples',
         headerText: 'Modular Living Solutions',
         tagline: 'Built on Steel. Designed for Life.',
         ctaText: 'Reserve Now',
         reservationFee: 250,
         primaryColor: '#000000',
-        supportEmail: 'shelley@wanhaisteel.com',
+        supportEmail: 'support@10apples.com',
       },
       viewerControls: {
         defaultModelId: 'expandable-20ft',
@@ -128,10 +128,32 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
               description: cleanText(baseDesc),
               isAvailable: p.isAvailable !== undefined ? Boolean(p.isAvailable) : true,
               isActive: p.isActive !== undefined ? Boolean(p.isActive) : true,
-              priceByModel: {
-                ...(defOpt?.priceByModel || {}),
-                ...(p.priceByModel || {}),
-              },
+              priceByModel: (() => {
+                const map = {
+                  ...(defOpt?.priceByModel || {}),
+                  ...(p.priceByModel || {}),
+                };
+                if (
+                  p.id === 'hasLuxuryBathPod' &&
+                  (map['expandable-10ft'] === 4200 ||
+                    map['expandable-10ft'] === 54600 ||
+                    map['expandable-10ft'] === 1905 ||
+                    !map['expandable-10ft'])
+                ) {
+                  map['expandable-10ft'] = 146.5385;
+                  map['10ft'] = 146.5385;
+                }
+                if (
+                  p.id === 'hasLuxuryBathPod' &&
+                  (map['10ft'] === 4200 ||
+                    map['10ft'] === 54600 ||
+                    map['10ft'] === 1905 ||
+                    !map['10ft'])
+                ) {
+                  map['10ft'] = 146.5385;
+                }
+                return map;
+              })(),
               unitSpecs: {
                 ...(defOpt?.unitSpecs || {}),
                 ...(p.unitSpecs || {}),
@@ -170,7 +192,23 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
           roofOptions: mergeOptions(parsed.roofOptions, defaults.roofOptions),
           cabinetryOptions: mergeOptions(parsed.cabinetryOptions, defaults.cabinetryOptions),
           addons: mergeOptions(parsed.addons, defaults.addons),
-          branding: { ...defaults.branding, ...(parsed.branding || {}) },
+          branding: {
+            ...defaults.branding,
+            ...(parsed.branding || {}),
+            brandName:
+              !parsed.branding?.brandName ||
+              parsed.branding.brandName === 'Boxabl' ||
+              parsed.branding.brandName === 'BOXABL' ||
+              parsed.branding.brandName === 'WANHAI'
+                ? '10Apples'
+                : parsed.branding.brandName,
+            supportEmail:
+              !parsed.branding?.supportEmail ||
+              parsed.branding.supportEmail.includes('boxabl') ||
+              parsed.branding.supportEmail.includes('wanhai')
+                ? 'support@10apples.com'
+                : parsed.branding.supportEmail,
+          },
           viewerControls: {
             ...defaults.viewerControls,
             defaultModelId: resolvedDefaultModelId,

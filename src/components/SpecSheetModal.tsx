@@ -254,7 +254,7 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
             <div className="flex items-start justify-between flex-wrap gap-4">
               <div>
                 <div className="text-[10px] font-black uppercase tracking-[0.25em] text-orange-600">
-                  {config.branding?.brandName || 'CASITA MODULAR HOMES'} • FACTORY ARCHITECTURAL SUBMITTAL
+                  {config.branding?.brandName || '10APPLES MODULAR ARCHITECTURE'} • FACTORY ARCHITECTURAL SUBMITTAL
                 </div>
                 <h1 className="text-xl sm:text-2xl font-black text-gray-950 tracking-tight mt-1">
                   {currentModel.name.toUpperCase()}

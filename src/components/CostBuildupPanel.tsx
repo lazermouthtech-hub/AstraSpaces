@@ -34,6 +34,10 @@ interface CostBuildupPanelProps {
   onToggleCollapse?: () => void;
   isReserved?: boolean;
   onSelectCategory?: (category: string) => void;
+  includeFreight?: boolean;
+  setIncludeFreight?: (val: boolean) => void;
+  includeSitePrep?: boolean;
+  setIncludeSitePrep?: (val: boolean) => void;
 }
 
 export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
@@ -46,8 +50,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
   onSelectCategory,
 }) => {
   const [isCollapsedMobile, setIsCollapsedMobile] = useState(false);
-  const [includeFreight, setIncludeFreight] = useState(true);
-  const [includeSitePrep, setIncludeSitePrep] = useState(true);
+
   const [showDoorFeaturesModal, setShowDoorFeaturesModal] = useState(false);
   const [doorModalSubFilter, setDoorModalSubFilter] = useState<'all' | 'Entrance Doors' | 'Windows'>('all');
   const { config } = useAppConfig();
@@ -85,9 +88,6 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
     (addon: any) => state[addon.id] && addon.isAvailable !== false && addon.isActive !== false
   );
 
-  const freightCost = includeFreight ? (config.logistics?.freightCost || 4500) : 0;
-  const sitePrepCost = includeSitePrep ? (config.logistics?.sitePrepCost || 5500) : 0;
-
   const isExpandableHouse =
     state.modelId.includes('expandable') ||
     state.modelId.includes('20ft') ||
@@ -116,11 +116,11 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
   const homeFactoryTotal = currentModel.basePrice + upgradesTotal;
   const markupFactor = 1 + ((config.markup || 0) / 100);
   const homeTotalWithMarkup = homeFactoryTotal * markupFactor;
-  
+
   const taxRate = config.logistics?.taxRate || 0;
-  const taxAmount = (homeTotalWithMarkup + freightCost + sitePrepCost) * (taxRate / 100);
+  const taxAmount = homeTotalWithMarkup * (taxRate / 100);
   
-  const grandTotal = homeTotalWithMarkup + freightCost + sitePrepCost + taxAmount;
+  const grandTotal = homeTotalWithMarkup + (taxRate > 0 ? taxAmount : 0);
 
   // Monthly financing calculation: 30 yr @ 6.25% APR with 15% down
   const principal = grandTotal * 0.85;
@@ -188,6 +188,29 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
           isCollapsedMobile ? 'hidden lg:block' : 'block'
         }`}
       >
+        {/* 10Apples Brand & Direct Production Header */}
+        <div className="flex items-center justify-between p-3 rounded-2xl bg-orange-50/70 border border-orange-200/80 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-orange-600 animate-pulse shrink-0" />
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-black text-gray-950 uppercase tracking-wider">
+                  {config.branding?.brandName || '10Apples'} Configurator
+                </span>
+                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-orange-200/70 text-orange-900 border border-orange-300">
+                  Direct
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-600 font-medium leading-none mt-0.5">
+                Precision modular architecture &amp; turnkey factory build
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] font-mono font-bold text-orange-950 bg-white px-2 py-1 rounded-xl border border-orange-200 shadow-2xs shrink-0">
+            Series 2026
+          </span>
+        </div>
+
         {/* Total Price Bento Card */}
         <div className="bg-[#F8F9FB] rounded-2xl p-4 sm:p-5 border border-gray-200 relative overflow-hidden">
           <div className="flex items-center justify-between text-xs text-gray-500">
@@ -199,6 +222,9 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
 
           <div className="mt-2 text-3xl sm:text-4xl font-extrabold font-mono tracking-tight text-gray-950">
             {formatCurrency(grandTotal)}
+          </div>
+          <div className="text-[10px] text-gray-500 font-medium mt-1">
+            {config.branding?.brandName || '10Apples'} factory build cost · Freight &amp; foundation fees are excluded and only calculated at checkout
           </div>
 
           <div className="mt-3 pt-3 border-t border-gray-200 flex items-center justify-between text-xs">
@@ -621,86 +647,53 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
           </div>
         </div>
 
-        {/* Estimated Logistics & Site Delivery */}
-        <div className="space-y-2 pt-2 border-t border-gray-100 text-xs">
-          <div className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">
-            Delivery & Installation
-          </div>
-
-          <label className="flex items-center justify-between p-3 rounded-2xl border border-gray-200 bg-[#F8F9FB] hover:bg-gray-100 cursor-pointer">
-            <div className="flex items-center gap-2.5">
-              <input
-                type="checkbox"
-                checked={includeFreight}
-                onChange={(e) => setIncludeFreight(e.target.checked)}
-                className="w-4 h-4 rounded text-[var(--primary)] focus:ring-[var(--primary)/80] border-gray-300 accent-[var(--primary)]"
-              />
-              <div>
-                <div className="font-semibold text-gray-900">Flatbed Freight Transport</div>
-                <div className="text-[10px] text-gray-500">Continental US direct delivery</div>
-              </div>
-            </div>
-            <span className="font-mono font-bold text-gray-900">
-              {includeFreight ? `+${formatCurrency(config.logistics?.freightCost || 4500)}` : formatCurrency(0)}
-            </span>
-          </label>
-
-          <label className="flex items-center justify-between p-3 rounded-2xl border border-gray-200 bg-[#F8F9FB] hover:bg-gray-100 cursor-pointer">
-            <div className="flex items-center gap-2.5">
-              <input
-                type="checkbox"
-                checked={includeSitePrep}
-                onChange={(e) => setIncludeSitePrep(e.target.checked)}
-                className="w-4 h-4 rounded text-[var(--primary)] focus:ring-[var(--primary)/80] border-gray-300 accent-[var(--primary)]"
-              />
-              <div>
-                <div className="font-semibold text-gray-900">Foundation & Utility Hookup</div>
-                <div className="text-[10px] text-gray-500">Certified local crew estimate</div>
-              </div>
-            </div>
-            <span className="font-mono font-bold text-gray-900">
-              {includeSitePrep ? `+${formatCurrency(config.logistics?.sitePrepCost || 5500)}` : formatCurrency(0)}
-            </span>
-          </label>
-          
-          {(config.logistics?.taxRate > 0) && (
+        {/* Estimated Taxes if applicable */}
+        {config.logistics?.taxRate > 0 && (
+          <div className="pt-2 border-t border-gray-100 text-xs">
             <div className="flex items-center justify-between p-3 rounded-2xl border border-gray-200 bg-white">
-               <div className="font-semibold text-gray-900">Estimated Taxes ({config.logistics.taxRate}%)</div>
-               <span className="font-mono font-bold text-gray-900">+{formatCurrency(taxAmount)}</span>
+              <div className="font-semibold text-gray-900">Estimated Taxes ({config.logistics.taxRate}%)</div>
+              <span className="font-mono font-bold text-gray-900">+{formatCurrency(taxAmount)}</span>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Guarantees Bento Card */}
         <div className="p-3.5 bg-[#F8F9FB] rounded-2xl border border-gray-200 space-y-2 text-[11px] text-gray-600">
           <div className="flex items-center gap-2 font-bold text-gray-900">
-            <ShieldCheck className="w-4 h-4 shrink-0" style={{ color: config.branding.primaryColor }} />
-            <span>{config.branding.brandName || 'Manufacturer'} Commitment</span>
+            <ShieldCheck className="w-4 h-4 shrink-0 text-orange-600" />
+            <span>{config.branding?.brandName || '10Apples'} Commitment</span>
           </div>
           <ul className="space-y-1 text-[10px] text-gray-500 pl-6 list-disc">
             <li>50-Year Structural Steel Frame Warranty</li>
-            <li>Class-A Fire Prevention & 40dB Sound Isolation</li>
+            <li>Class-A Fire Prevention &amp; 40dB Sound Isolation</li>
             <li>Category 5 Hurricane / Level 12 Typhoon Resistance</li>
-            <li>{formatCurrency(config.branding.reservationFee || 250)} Fully Refundable Reservation Slot</li>
+            <li>{formatCurrency(config.branding.reservationFee || 250)} Fully Refundable 10Apples Queue Slot</li>
           </ul>
           {config.branding.supportEmail && (
             <div className="mt-2 pt-2 border-t border-gray-200 text-[10px]">
-              Questions? Contact <a href={`mailto:${config.branding.supportEmail}`} className="font-bold hover:underline" style={{ color: config.branding.primaryColor }}>{config.branding.supportEmail}</a>
+              Questions? Contact <a href={`mailto:${config.branding.supportEmail}`} className="font-bold hover:underline text-orange-600">{config.branding.supportEmail}</a>
             </div>
           )}
         </div>
       </div>
 
       {/* Persistent Bottom Action Drawer */}
-      <div className="p-4 border-t border-gray-100 bg-white space-y-2 shrink-0">
+      <div className="p-4 border-t border-gray-100 bg-white space-y-2.5 shrink-0">
+        <div className="flex items-center justify-between text-xs px-1">
+          <span className="text-gray-500 font-medium">Build Subtotal (Excl. Freight &amp; Site)</span>
+          <span className="font-mono font-bold text-gray-900 text-sm">{formatCurrency(grandTotal)}</span>
+        </div>
         <button
           onClick={onOpenReserve}
           style={{ backgroundColor: config.branding.primaryColor }}
-          className="w-full py-3.5 px-4 hover:opacity-90 text-white rounded-2xl font-bold text-xs uppercase tracking-wider transition-all shadow-sm flex items-center justify-center gap-2 hover:shadow-md cursor-pointer"
+          className="w-full py-3.5 px-4 hover:opacity-95 active:scale-[0.99] text-white rounded-2xl font-bold text-xs uppercase tracking-wider transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer"
         >
           <CreditCard className="w-4 h-4" />
           <span>{config.branding.ctaText} ({formatCurrency(config.branding.reservationFee || 250)} Deposit)</span>
         </button>
+        <p className="text-[10px] text-center text-gray-400 font-medium leading-tight">
+          Freight transport and foundation fees are excluded here and only configured at checkout.
+        </p>
       </div>
       {/* Interactive Door & Window Features Modal */}
       {showDoorFeaturesModal && (

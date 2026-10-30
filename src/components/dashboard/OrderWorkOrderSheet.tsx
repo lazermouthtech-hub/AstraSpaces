@@ -86,16 +86,16 @@ export const OrderWorkOrderSheet: React.FC<OrderWorkOrderSheetProps> = ({
       {/* Top Document Header & Quick Actions */}
       <div className="bg-[#0A1628] text-white p-5 sm:p-6 rounded-3xl border border-sky-950 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4 print:bg-white print:text-black print:border-black print:shadow-none">
         <div className="flex items-start sm:items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-orange-600 text-white flex items-center justify-center font-black text-xl shadow-md shrink-0 print:border print:border-black">
-            B
+          <div className="w-12 h-12 rounded-2xl bg-orange-600 text-white flex items-center justify-center font-black text-base shadow-md shrink-0 print:border print:border-black">
+            10A
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-mono font-bold tracking-widest text-orange-400 uppercase print:text-black">
-                BOXABL ARCHITECTURAL &amp; PRODUCTION DIVISION
+                10APPLES ARCHITECTURAL &amp; PRODUCTION DIVISION
               </span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-sky-950 text-sky-300 border border-sky-800 print:border-black print:text-black">
-                DWG NO: BX-DWG-2026.4
+                DWG NO: 10A-DWG-2026.4
               </span>
             </div>
             <h1 className="text-lg sm:text-2xl font-black tracking-tight text-white mt-0.5 print:text-black">
@@ -654,11 +654,11 @@ export const OrderWorkOrderSheet: React.FC<OrderWorkOrderSheetProps> = ({
 
             <div className="border border-dashed border-gray-300 p-3 rounded-xl bg-gray-50/50 text-center flex flex-col items-center justify-center">
               <div className="w-16 h-16 rounded-full border-2 border-emerald-600 flex flex-col items-center justify-center text-emerald-700 font-extrabold text-[9px] uppercase tracking-tighter shadow-xs">
-                <span>BOXABL QC</span>
+                <span>10APPLES QC</span>
                 <span className="text-[11px] font-black">PASSED</span>
                 <span className="text-[7px]">DISPATCH OK</span>
               </div>
-              <span className="text-[9px] text-gray-400 mt-1">Serial Tag #BX-2026-MFG</span>
+              <span className="text-[9px] text-gray-400 mt-1">Serial Tag #10A-2026-MFG</span>
             </div>
           </div>
         </div>

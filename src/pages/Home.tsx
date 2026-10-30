@@ -209,7 +209,7 @@ export default function Home() {
   const faqs = [
     {
       q: 'What site foundations are required for the modular units?',
-      a: 'Boxabl modular units are built on a rigid structural steel chassis that can be supported by concrete pier blocks, continuous perimeter stem walls, full concrete slabs, or helical ground screws. Because the chassis is self-supporting, foundation prep is typically 60% faster than traditional wood framing.'
+      a: '10Apples modular units are built on a rigid structural steel chassis that can be supported by concrete pier blocks, continuous perimeter stem walls, full concrete slabs, or helical ground screws. Because the chassis is self-supporting, foundation prep is typically 60% faster than traditional wood framing.'
     },
     {
       q: 'How does the factory delivery and site crane placement work?',
@@ -1209,7 +1209,7 @@ export default function Home() {
             </Link>
 
             <a
-              href={`mailto:${config.branding?.supportEmail || 'support@boxabl.com'}`}
+              href={`mailto:${config.branding?.supportEmail || 'support@10apples.com'}`}
               className="w-full sm:w-auto px-6 py-4 rounded-full text-sm font-bold text-gray-300 bg-white/5 hover:bg-white/10 transition-colors border border-white/10 text-center"
             >
               Contact Engineering Team

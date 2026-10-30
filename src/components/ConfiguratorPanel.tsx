@@ -1150,100 +1150,118 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                       </div>
 
                       {/* 1. Optional L-Shaped Kitchenette */}
-                      <div className={`p-3.5 rounded-xl border transition-all ${
-                        state.hasKitchenetteModule
-                          ? 'bg-white border-amber-300 ring-1 ring-amber-400/30 shadow-xs'
-                          : 'bg-white/60 border-gray-200 opacity-80'
-                      }`}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-2.5">
-                            <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center text-lg shrink-0 mt-0.5">
-                              🍳
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <h5 className="text-xs font-extrabold text-gray-950">
-                                  "L"-Shaped Gourmet Kitchenette
-                                </h5>
-                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                                  state.hasKitchenetteModule
-                                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                                    : 'bg-gray-100 text-gray-600'
-                                }`}>
-                                  {state.hasKitchenetteModule ? 'Included (Optional)' : 'Removed (Open Space)'}
-                                </span>
+                      {(() => {
+                        const kitchenAddon = availableAddons.find((a: any) => a.id === 'hasKitchenetteModule');
+                        const kitchenPrice = (kitchenAddon ? getItemPriceForModel(kitchenAddon, state.modelId, config.models) : 4800) * markupFactor;
+                        return (
+                          <div className={`p-3.5 rounded-xl border transition-all ${
+                            state.hasKitchenetteModule
+                              ? 'bg-white border-amber-300 ring-1 ring-amber-400/30 shadow-xs'
+                              : 'bg-white/60 border-gray-200 opacity-80'
+                          }`}>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-2.5">
+                                <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center text-lg shrink-0 mt-0.5">
+                                  🍳
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h5 className="text-xs font-extrabold text-gray-950">
+                                      "L"-Shaped Gourmet Kitchenette
+                                    </h5>
+                                    <span className="text-[10px] font-mono font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                                      +{formatCurrency(kitchenPrice, config.currency, { ratesMap: config.exchangeRates })}
+                                    </span>
+                                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                                      state.hasKitchenetteModule
+                                        ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                        : 'bg-gray-100 text-gray-600'
+                                    }`}>
+                                      {state.hasKitchenetteModule ? 'Included (Optional)' : 'Removed (Open Space)'}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-gray-600 mt-1 leading-snug">
+                                    Continuous "L"-shaped quartz countertop along the rear and left wall with undermount stainless steel sink, gooseneck faucet, and 2-burner ceramic induction cooktop.
+                                  </p>
+                                </div>
                               </div>
-                              <p className="text-[11px] text-gray-600 mt-1 leading-snug">
-                                Continuous "L"-shaped quartz countertop along the rear and left wall with undermount stainless steel sink, gooseneck faucet, and 2-burner ceramic induction cooktop.
-                              </p>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onChange((prev) => ({
+                                    ...prev,
+                                    hasKitchenetteModule: !prev.hasKitchenetteModule,
+                                  }))
+                                }
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0 ${
+                                  state.hasKitchenetteModule
+                                    ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
+                                    : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
+                                }`}
+                              >
+                                {state.hasKitchenetteModule ? '✓ Included (Remove)' : '+ Add Kitchenette'}
+                              </button>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onChange((prev) => ({
-                                ...prev,
-                                hasKitchenetteModule: !prev.hasKitchenetteModule,
-                              }))
-                            }
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0 ${
-                              state.hasKitchenetteModule
-                                ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
-                                : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
-                            }`}
-                          >
-                            {state.hasKitchenetteModule ? '✓ Included (Remove)' : '+ Add Kitchenette'}
-                          </button>
-                        </div>
-                      </div>
+                        );
+                      })()}
 
                       {/* 2. Optional Central Bathroom Pod */}
-                      <div className={`p-3.5 rounded-xl border transition-all ${
-                        state.hasLuxuryBathPod
-                          ? 'bg-white border-emerald-300 ring-1 ring-emerald-400/30 shadow-xs'
-                          : 'bg-white/60 border-gray-200 opacity-80'
-                      }`}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-2.5">
-                            <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center text-lg shrink-0 mt-0.5">
-                              🛁
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <h5 className="text-xs font-extrabold text-gray-950">
-                                  Integrated Central Bathroom Pod
-                                </h5>
-                                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                                  state.hasLuxuryBathPod
-                                    ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                                    : 'bg-gray-100 text-gray-600'
-                                }`}>
-                                  {state.hasLuxuryBathPod ? 'Included (Optional)' : 'Removed (Open Foyer)'}
-                                </span>
+                      {(() => {
+                        const bathAddon = availableAddons.find((a: any) => a.id === 'hasLuxuryBathPod');
+                        const bathPrice = (bathAddon ? getItemPriceForModel(bathAddon, state.modelId, config.models) : 5800) * markupFactor;
+                        return (
+                          <div className={`p-3.5 rounded-xl border transition-all ${
+                            state.hasLuxuryBathPod
+                              ? 'bg-white border-emerald-300 ring-1 ring-emerald-400/30 shadow-xs'
+                              : 'bg-white/60 border-gray-200 opacity-80'
+                          }`}>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-2.5">
+                                <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center text-lg shrink-0 mt-0.5">
+                                  🛁
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h5 className="text-xs font-extrabold text-gray-950">
+                                      Integrated Central Bathroom Pod
+                                    </h5>
+                                    <span className="text-[10px] font-mono font-bold text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                      +{formatCurrency(bathPrice, config.currency, { ratesMap: config.exchangeRates })}
+                                    </span>
+                                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                                      state.hasLuxuryBathPod
+                                        ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                                        : 'bg-gray-100 text-gray-600'
+                                    }`}>
+                                      {state.hasLuxuryBathPod ? 'Included (Optional)' : 'Removed (Open Foyer)'}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-gray-600 mt-1 leading-snug">
+                                    Factory pre-plumbed central sanitation module with modern ceramic toilet, vanity sink, backlit mirror, and rainfall shower. Can be omitted for office/studio use.
+                                  </p>
+                                </div>
                               </div>
-                              <p className="text-[11px] text-gray-600 mt-1 leading-snug">
-                                Factory pre-plumbed central sanitation module with modern ceramic toilet, vanity sink, backlit mirror, and rainfall shower. Can be omitted for office/studio use.
-                              </p>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onChange((prev) => ({
+                                    ...prev,
+                                    hasLuxuryBathPod: !prev.hasLuxuryBathPod,
+                                  }))
+                                }
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0 ${
+                                  state.hasLuxuryBathPod
+                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
+                                    : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
+                                }`}
+                              >
+                                {state.hasLuxuryBathPod ? '✓ Included (Remove)' : '+ Add Bath Pod'}
+                              </button>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onChange((prev) => ({
-                                ...prev,
-                                hasLuxuryBathPod: !prev.hasLuxuryBathPod,
-                              }))
-                            }
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0 ${
-                              state.hasLuxuryBathPod
-                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
-                                : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
-                            }`}
-                          >
-                            {state.hasLuxuryBathPod ? '✓ Included (Remove)' : '+ Add Bath Pod'}
-                          </button>
-                        </div>
-                      </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 ) : (

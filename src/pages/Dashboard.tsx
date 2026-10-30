@@ -167,13 +167,13 @@ export default function Dashboard() {
   const [simulatorUsdAmount, setSimulatorUsdAmount] = useState<number>(54900);
   const [markup, setMarkup] = useState(config.markup || 0);
   const [branding, setBranding] = useState(config.branding || {
-    brandName: 'Boxabl',
+    brandName: '10Apples',
     headerText: 'Build Your Home',
     tagline: '20ft Cabin Series',
     ctaText: 'Reserve Now',
     reservationFee: 250,
     primaryColor: '#000000',
-    supportEmail: 'support@boxabl.com',
+    supportEmail: 'support@10apples.com',
   });
   const [viewerControls, setViewerControls] = useState(config.viewerControls || {
     defaultModelId: config.defaultModelId || 'expandable-20ft',
@@ -185,6 +185,21 @@ export default function Dashboard() {
     sitePrepCost: 5500,
     taxRate: 0,
   });
+
+  // Currency display and input converters:
+  // Converts internal USD value into the active dashboard baseCurrency
+  const toDisplayPrice = (usdPrice: number | undefined): number => {
+    if (usdPrice === undefined || usdPrice === null || isNaN(usdPrice)) return 0;
+    if (normalizeCurrency(baseCurrency) === 'USD') return Math.round(usdPrice * 100) / 100;
+    return convertUSDToCurrency(usdPrice, baseCurrency, undefined, exchangeRates);
+  };
+
+  // Converts input in active dashboard baseCurrency back into internal USD
+  const toStoredUsdPrice = (displayPrice: number): number => {
+    if (isNaN(displayPrice)) return 0;
+    if (normalizeCurrency(baseCurrency) === 'USD') return displayPrice;
+    return convertCurrencyToUSD(displayPrice, baseCurrency, undefined, exchangeRates);
+  };
 
   // Model Availability Management State & Helpers
   const [modelSearch, setModelSearch] = useState('');
@@ -470,13 +485,13 @@ export default function Dashboard() {
         customCurrencies: [],
         markup: 0,
         branding: {
-          brandName: 'Boxabl',
+          brandName: '10Apples',
           headerText: 'Build Your Home',
           tagline: '20ft Cabin Series',
           ctaText: 'Reserve Now',
           reservationFee: 250,
           primaryColor: '#000000',
-          supportEmail: 'support@boxabl.com',
+          supportEmail: 'support@10apples.com',
         },
         viewerControls: {
           defaultLighting: 'day',
@@ -642,7 +657,7 @@ export default function Dashboard() {
           <div>
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-orange-600 animate-pulse" />
-              <span className="font-extrabold text-gray-900 tracking-tight text-base">Boxabl Admin OS</span>
+              <span className="font-extrabold text-gray-900 tracking-tight text-base">10Apples Admin OS</span>
             </div>
             <p className="text-[11px] text-gray-400 mt-0.5 font-medium">Modular Home Configuration Suite</p>
           </div>
@@ -1039,7 +1054,7 @@ export default function Dashboard() {
             {/* Contextual Workspace Path & Live Sync Indicator */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-gray-200/70">
               <div className="flex items-center gap-2 text-xs font-medium text-gray-500 flex-wrap">
-                <span className="text-gray-400 font-extrabold tracking-wider uppercase text-[10px]">Boxabl Admin OS</span>
+                <span className="text-gray-400 font-extrabold tracking-wider uppercase text-[10px]">10Apples Admin OS</span>
                 <span className="text-gray-300">/</span>
                 <span className="text-gray-700 font-semibold capitalize">
                   {activeTab === 'orders' ? 'Production Pipeline' : activeTab === 'pricing' ? 'Financials & Logistics' : 'Catalog Customization'}
@@ -1423,11 +1438,11 @@ export default function Dashboard() {
                             </label>
                             <input
                               type="number"
-                              value={model.basePrice}
+                              value={toDisplayPrice(model.basePrice)}
                               onChange={(e) => {
                                 if (modelIndex === -1) return;
                                 const updated = [...models];
-                                updated[modelIndex].basePrice = Number(e.target.value);
+                                updated[modelIndex].basePrice = toStoredUsdPrice(Number(e.target.value));
                                 setModels(updated);
                               }}
                               className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold focus:outline-none focus:border-orange-500"
@@ -1619,10 +1634,10 @@ export default function Dashboard() {
                         <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Upgrade Price ({baseCurrency})</label>
                         <input
                           type="number"
-                          value={color.price}
+                          value={toDisplayPrice(color.price)}
                           onChange={(e) => {
                             const updated = [...wallColors];
-                            updated[idx].price = Number(e.target.value);
+                            updated[idx].price = toStoredUsdPrice(Number(e.target.value));
                             setWallColors(updated);
                           }}
                           className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold"
@@ -1799,10 +1814,10 @@ export default function Dashboard() {
                         <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Upgrade Price ({baseCurrency})</label>
                         <input
                           type="number"
-                          value={opt.price}
+                          value={toDisplayPrice(opt.price)}
                           onChange={(e) => {
                             const updated = [...glazingOptions];
-                            updated[idx].price = Number(e.target.value);
+                            updated[idx].price = toStoredUsdPrice(Number(e.target.value));
                             setGlazingOptions(updated);
                           }}
                           className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold"
@@ -1929,10 +1944,10 @@ export default function Dashboard() {
                           <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Upgrade Price ({baseCurrency})</label>
                           <input
                             type="number"
-                            value={opt.price}
+                            value={toDisplayPrice(opt.price)}
                             onChange={(e) => {
                               const updated = [...lightingOptions];
-                              updated[idx].price = Number(e.target.value);
+                              updated[idx].price = toStoredUsdPrice(Number(e.target.value));
                               setLightingOptions(updated);
                             }}
                             className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold"
@@ -2036,10 +2051,10 @@ export default function Dashboard() {
                           <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Upgrade Price ({baseCurrency})</label>
                           <input
                             type="number"
-                            value={opt.price}
+                            value={toDisplayPrice(opt.price)}
                             onChange={(e) => {
                               const updated = [...electricalOptions];
-                              updated[idx].price = Number(e.target.value);
+                              updated[idx].price = toStoredUsdPrice(Number(e.target.value));
                               setElectricalOptions(updated);
                             }}
                             className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold"
@@ -2164,10 +2179,10 @@ export default function Dashboard() {
                         <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Upgrade Price ({baseCurrency})</label>
                         <input
                           type="number"
-                          value={opt.price}
+                          value={toDisplayPrice(opt.price)}
                           onChange={(e) => {
                             const updated = [...flooringOptions];
-                            updated[idx].price = Number(e.target.value);
+                            updated[idx].price = toStoredUsdPrice(Number(e.target.value));
                             setFlooringOptions(updated);
                           }}
                           className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold"
@@ -2291,10 +2306,10 @@ export default function Dashboard() {
                         <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Upgrade Price ({baseCurrency})</label>
                         <input
                           type="number"
-                          value={opt.price}
+                          value={toDisplayPrice(opt.price)}
                           onChange={(e) => {
                             const updated = [...cabinetryOptions];
-                            updated[idx].price = Number(e.target.value);
+                            updated[idx].price = toStoredUsdPrice(Number(e.target.value));
                             setCabinetryOptions(updated);
                           }}
                           className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold"
@@ -2336,19 +2351,46 @@ export default function Dashboard() {
                           Unit / Size-Specific Cabinetry Pricing ({baseCurrency})
                         </span>
                         <span className="text-[10px] text-gray-400">
-                          Linear cabinetry scale (20ft, 30ft, 40ft homes)
+                          Linear cabinetry scale (10ft, 20ft, 30ft, 40ft homes)
                         </span>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+                        <div>
+                          <label className="block text-[9px] font-bold text-gray-500 mb-0.5">10FT Micro Unit</label>
+                          <input
+                            type="number"
+                            placeholder={String(toDisplayPrice(opt.price))}
+                            value={toDisplayPrice(
+                              opt.priceByModel?.['expandable-10ft'] ??
+                              opt.priceByModel?.['10ft'] ??
+                              opt.price
+                            )}
+                            onChange={(e) => {
+                              const updated = [...cabinetryOptions];
+                              const val = toStoredUsdPrice(Number(e.target.value));
+                              updated[idx].priceByModel = {
+                                ...(updated[idx].priceByModel || {}),
+                                'expandable-10ft': val,
+                                '10ft': val,
+                              };
+                              setCabinetryOptions(updated);
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-mono font-semibold"
+                          />
+                        </div>
                         <div>
                           <label className="block text-[9px] font-bold text-gray-500 mb-0.5">20FT Home Unit</label>
                           <input
                             type="number"
-                            placeholder={String(opt.price)}
-                            value={opt.priceByModel?.['expandable-20ft'] ?? opt.priceByModel?.['20ft'] ?? opt.price}
+                            placeholder={String(toDisplayPrice(opt.price))}
+                            value={toDisplayPrice(
+                              opt.priceByModel?.['expandable-20ft'] ??
+                              opt.priceByModel?.['20ft'] ??
+                              opt.price
+                            )}
                             onChange={(e) => {
                               const updated = [...cabinetryOptions];
-                              const val = Number(e.target.value);
+                              const val = toStoredUsdPrice(Number(e.target.value));
                               updated[idx].priceByModel = {
                                 ...(updated[idx].priceByModel || {}),
                                 'expandable-20ft': val,
@@ -2363,11 +2405,15 @@ export default function Dashboard() {
                           <label className="block text-[9px] font-bold text-gray-500 mb-0.5">30FT Home Unit</label>
                           <input
                             type="number"
-                            placeholder={String(opt.price)}
-                            value={opt.priceByModel?.['expandable-30ft'] ?? opt.priceByModel?.['30ft'] ?? opt.price}
+                            placeholder={String(toDisplayPrice(opt.price))}
+                            value={toDisplayPrice(
+                              opt.priceByModel?.['expandable-30ft'] ??
+                              opt.priceByModel?.['30ft'] ??
+                              opt.price
+                            )}
                             onChange={(e) => {
                               const updated = [...cabinetryOptions];
-                              const val = Number(e.target.value);
+                              const val = toStoredUsdPrice(Number(e.target.value));
                               updated[idx].priceByModel = {
                                 ...(updated[idx].priceByModel || {}),
                                 'expandable-30ft': val,
@@ -2382,11 +2428,15 @@ export default function Dashboard() {
                           <label className="block text-[9px] font-bold text-gray-500 mb-0.5">40FT Flagship Unit</label>
                           <input
                             type="number"
-                            placeholder={String(opt.price)}
-                            value={opt.priceByModel?.['expandable-40ft'] ?? opt.priceByModel?.['40ft'] ?? opt.price}
+                            placeholder={String(toDisplayPrice(opt.price))}
+                            value={toDisplayPrice(
+                              opt.priceByModel?.['expandable-40ft'] ??
+                              opt.priceByModel?.['40ft'] ??
+                              opt.price
+                            )}
                             onChange={(e) => {
                               const updated = [...cabinetryOptions];
-                              const val = Number(e.target.value);
+                              const val = toStoredUsdPrice(Number(e.target.value));
                               updated[idx].priceByModel = {
                                 ...(updated[idx].priceByModel || {}),
                                 'expandable-40ft': val,
@@ -2456,10 +2506,10 @@ export default function Dashboard() {
                         <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Upgrade Price ({baseCurrency})</label>
                         <input
                           type="number"
-                          value={opt.price}
+                          value={toDisplayPrice(opt.price)}
                           onChange={(e) => {
                             const updated = [...roofOptions];
-                            updated[idx].price = Number(e.target.value);
+                            updated[idx].price = toStoredUsdPrice(Number(e.target.value));
                             setRoofOptions(updated);
                           }}
                           className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold"
@@ -2895,11 +2945,11 @@ export default function Dashboard() {
                           </label>
                           <input
                             type="number"
-                            value={addon.price}
+                            value={toDisplayPrice(addon.price)}
                             onChange={(e) => {
                               if (addonIndex === -1) return;
                               const updated = [...addons];
-                              updated[addonIndex].price = Number(e.target.value);
+                              updated[addonIndex].price = toStoredUsdPrice(Number(e.target.value));
                               setAddons(updated);
                             }}
                             className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold focus:outline-none focus:border-orange-500"
@@ -2966,26 +3016,52 @@ export default function Dashboard() {
                             Unit / Size-Specific Add-on Pricing ({baseCurrency})
                           </span>
                           <span className="text-[10px] text-gray-400">
-                            Configure exact pricing for 20ft, 30ft, and 40ft units
+                            Configure exact pricing for 10ft, 20ft, 30ft, and 40ft units
                           </span>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+                          <div>
+                            <label className="block text-[9px] font-bold text-gray-500 mb-0.5">
+                              10FT Micro Unit
+                            </label>
+                            <input
+                              type="number"
+                              placeholder={String(toDisplayPrice(addon.price))}
+                              value={toDisplayPrice(
+                                addon.priceByModel?.['expandable-10ft'] ??
+                                addon.priceByModel?.['10ft'] ??
+                                addon.price
+                              )}
+                              onChange={(e) => {
+                                if (addonIndex === -1) return;
+                                const updated = [...addons];
+                                const val = toStoredUsdPrice(Number(e.target.value));
+                                updated[addonIndex].priceByModel = {
+                                  ...(updated[addonIndex].priceByModel || {}),
+                                  'expandable-10ft': val,
+                                  '10ft': val,
+                                };
+                                setAddons(updated);
+                              }}
+                              className="w-full px-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-mono font-semibold focus:outline-none focus:border-orange-500"
+                            />
+                          </div>
                           <div>
                             <label className="block text-[9px] font-bold text-gray-500 mb-0.5">
                               20FT Unit Price
                             </label>
                             <input
                               type="number"
-                              placeholder={String(addon.price)}
-                              value={
+                              placeholder={String(toDisplayPrice(addon.price))}
+                              value={toDisplayPrice(
                                 addon.priceByModel?.['expandable-20ft'] ??
                                 addon.priceByModel?.['20ft'] ??
                                 addon.price
-                              }
+                              )}
                               onChange={(e) => {
                                 if (addonIndex === -1) return;
                                 const updated = [...addons];
-                                const val = Number(e.target.value);
+                                const val = toStoredUsdPrice(Number(e.target.value));
                                 updated[addonIndex].priceByModel = {
                                   ...(updated[addonIndex].priceByModel || {}),
                                   'expandable-20ft': val,
@@ -3002,16 +3078,16 @@ export default function Dashboard() {
                             </label>
                             <input
                               type="number"
-                              placeholder={String(addon.price)}
-                              value={
+                              placeholder={String(toDisplayPrice(addon.price))}
+                              value={toDisplayPrice(
                                 addon.priceByModel?.['expandable-30ft'] ??
                                 addon.priceByModel?.['30ft'] ??
                                 addon.price
-                              }
+                              )}
                               onChange={(e) => {
                                 if (addonIndex === -1) return;
                                 const updated = [...addons];
-                                const val = Number(e.target.value);
+                                const val = toStoredUsdPrice(Number(e.target.value));
                                 updated[addonIndex].priceByModel = {
                                   ...(updated[addonIndex].priceByModel || {}),
                                   'expandable-30ft': val,
@@ -3028,16 +3104,16 @@ export default function Dashboard() {
                             </label>
                             <input
                               type="number"
-                              placeholder={String(addon.price)}
-                              value={
+                              placeholder={String(toDisplayPrice(addon.price))}
+                              value={toDisplayPrice(
                                 addon.priceByModel?.['expandable-40ft'] ??
                                 addon.priceByModel?.['40ft'] ??
                                 addon.price
-                              }
+                              )}
                               onChange={(e) => {
                                 if (addonIndex === -1) return;
                                 const updated = [...addons];
-                                const val = Number(e.target.value);
+                                const val = toStoredUsdPrice(Number(e.target.value));
                                 updated[addonIndex].priceByModel = {
                                   ...(updated[addonIndex].priceByModel || {}),
                                   'expandable-40ft': val,
@@ -3460,7 +3536,7 @@ export default function Dashboard() {
                             {(() => {
                               const code = normalizeCurrency(baseCurrency);
                               let presets: number[] = [];
-                              if (code === 'GHS') presets = [14.8, 15.0, 15.2, 15.5, 15.8, 16.0];
+                              if (code === 'GHS') presets = [13.0, 14.8, 15.0, 15.2, 15.5, 15.8, 16.0];
                               else if (code === 'EUR') presets = [0.9, 0.92, 0.94, 0.96];
                               else if (code === 'GBP') presets = [0.76, 0.78, 0.8, 0.82];
                               else if (code === 'CAD') presets = [1.32, 1.34, 1.36, 1.38];
@@ -3680,8 +3756,8 @@ export default function Dashboard() {
                       <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Flat Freight Estimate ({baseCurrency})</label>
                       <input
                         type="number"
-                        value={logistics.freightCost}
-                        onChange={(e) => setLogistics({ ...logistics, freightCost: Number(e.target.value) })}
+                        value={toDisplayPrice(logistics.freightCost)}
+                        onChange={(e) => setLogistics({ ...logistics, freightCost: toStoredUsdPrice(Number(e.target.value)) })}
                         className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold"
                       />
                     </div>
@@ -3689,8 +3765,8 @@ export default function Dashboard() {
                       <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Site Prep Baseline ({baseCurrency})</label>
                       <input
                         type="number"
-                        value={logistics.sitePrepCost}
-                        onChange={(e) => setLogistics({ ...logistics, sitePrepCost: Number(e.target.value) })}
+                        value={toDisplayPrice(logistics.sitePrepCost)}
+                        onChange={(e) => setLogistics({ ...logistics, sitePrepCost: toStoredUsdPrice(Number(e.target.value)) })}
                         className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold"
                       />
                     </div>
@@ -3763,8 +3839,8 @@ export default function Dashboard() {
                     <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Reservation Deposit Amount ({baseCurrency})</label>
                     <input
                       type="number"
-                      value={branding.reservationFee || 250}
-                      onChange={(e) => setBranding({ ...branding, reservationFee: Number(e.target.value) })}
+                      value={toDisplayPrice(branding.reservationFee || 250)}
+                      onChange={(e) => setBranding({ ...branding, reservationFee: toStoredUsdPrice(Number(e.target.value)) })}
                       className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold"
                     />
                   </div>

@@ -16,6 +16,7 @@ import {
   Compass,
   ChevronDown,
   Info,
+  ArrowRight,
 } from 'lucide-react';
 import { useAppConfig } from '../context/AppConfigContext';
 import { formatCurrency, normalizeCurrency } from '../utils/currency';
@@ -35,6 +36,10 @@ interface ReserveModalProps {
   totalPrice: number;
   onClose: () => void;
   onSuccess?: (orderId: string) => void;
+  includeFreight?: boolean;
+  setIncludeFreight?: (val: boolean) => void;
+  includeSitePrep?: boolean;
+  setIncludeSitePrep?: (val: boolean) => void;
 }
 
 export const ReserveModal: React.FC<ReserveModalProps> = ({
@@ -42,11 +47,41 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
   totalPrice,
   onClose,
   onSuccess,
+  includeFreight: externalIncludeFreight,
+  setIncludeFreight: externalSetIncludeFreight,
+  includeSitePrep: externalIncludeSitePrep,
+  setIncludeSitePrep: externalSetIncludeSitePrep,
 }) => {
   const { config } = useAppConfig();
   const currentUser = getCurrentUser();
   const [step, setStep] = useState<'form' | 'success'>('form');
   const [createdOrderId, setCreatedOrderId] = useState<string>('BX-2026-9841');
+
+  // Checkout Delivery & Site Prep Options (Users can uncheck to avoid extra costs)
+  const [internalIncludeFreight, setInternalIncludeFreight] = useState(
+    externalIncludeFreight !== undefined ? externalIncludeFreight : true
+  );
+  const [internalIncludeSitePrep, setInternalIncludeSitePrep] = useState(
+    externalIncludeSitePrep !== undefined ? externalIncludeSitePrep : true
+  );
+
+  const includeFreight = externalIncludeFreight !== undefined ? externalIncludeFreight : internalIncludeFreight;
+  const handleToggleFreight = (checked: boolean) => {
+    setInternalIncludeFreight(checked);
+    if (externalSetIncludeFreight) externalSetIncludeFreight(checked);
+  };
+
+  const includeSitePrep = externalIncludeSitePrep !== undefined ? externalIncludeSitePrep : internalIncludeSitePrep;
+  const handleToggleSitePrep = (checked: boolean) => {
+    setInternalIncludeSitePrep(checked);
+    if (externalSetIncludeSitePrep) externalSetIncludeSitePrep(checked);
+  };
+
+  const freightAmount = config.logistics?.freightCost || 4500;
+  const sitePrepAmount = config.logistics?.sitePrepCost || 5500;
+  const activeFreightCost = includeFreight ? freightAmount : 0;
+  const activeSitePrepCost = includeSitePrep ? sitePrepAmount : 0;
+  const checkoutTotal = totalPrice + activeFreightCost + activeSitePrepCost;
 
   // Dynamic Country, State/Region, and District Hierarchy
   const defaultCountryCode = config.currency === 'GHS' ? 'GH' : 'US';
@@ -148,10 +183,8 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
       }
     });
 
-    const freight = config.logistics?.freightCost || 4500;
-    const sitePrep = config.logistics?.sitePrepCost || 5500;
     const basePrice = currentModel.basePrice || 54900;
-    const optionsTotal = Math.max(0, totalPrice - basePrice - freight - sitePrep);
+    const optionsTotal = Math.max(0, totalPrice - basePrice);
 
     const newOrder = addOrder({
       status: 'deposit_received',
@@ -186,16 +219,16 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
       pricing: {
         basePrice,
         optionsTotal,
-        freightCost: freight,
-        sitePrepCost: sitePrep,
+        freightCost: activeFreightCost,
+        sitePrepCost: activeSitePrepCost,
         taxAmount: 0,
-        totalPrice,
+        totalPrice: checkoutTotal,
         depositDue: reservationFee,
         depositPaid: true,
         currency: normalizeCurrency(config.currency),
       },
       estimatedDeliveryDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 35).toISOString().split('T')[0],
-      initialNote: `Deposit of ${formatCurrency(reservationFee, config.currency, { ratesMap: config.exchangeRates })} authorized online. Route: ${resolvedDistrict}, ${subdivisionName}, ${selectedCountry.name}.`,
+      initialNote: `Deposit of ${formatCurrency(reservationFee, config.currency, { ratesMap: config.exchangeRates })} authorized online. Route: ${resolvedDistrict}, ${subdivisionName}, ${selectedCountry.name}. Freight Transport: ${includeFreight ? 'Included' : 'Unchecked (Customer self-arranging)'}, Foundation Hookup: ${includeSitePrep ? 'Included' : 'Unchecked (Customer self-arranging)'}.`,
     });
 
     setCreatedOrderId(newOrder.id);
@@ -254,9 +287,17 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
             <div className="p-3.5 bg-[#F8F9FB] rounded-2xl border border-gray-200 flex items-center justify-between text-xs">
               <div>
                 <span className="font-bold text-gray-900 text-sm">{currentModel.name}</span>
-                <span className="text-gray-500 block text-[11px] mt-0.5">
-                  Turnkey Investment: <span className="font-semibold text-gray-800 font-mono">{formatCurrency(totalPrice, config.currency, { ratesMap: config.exchangeRates })}</span>
-                </span>
+                <div className="text-gray-500 text-[11px] mt-0.5 flex items-center gap-1.5 flex-wrap">
+                  <span>Turnkey Investment:</span>
+                  <span className="font-bold text-gray-950 font-mono text-xs">
+                    {formatCurrency(checkoutTotal, config.currency, { ratesMap: config.exchangeRates })}
+                  </span>
+                  {(!includeFreight || !includeSitePrep) && (
+                    <span className="text-[10px] text-emerald-800 bg-emerald-100 font-bold px-1.5 py-0.2 rounded border border-emerald-200">
+                      Savings Applied
+                    </span>
+                  )}
+                </div>
               </div>
               <span
                 className="font-mono font-extrabold px-3 py-1.5 rounded-xl border text-xs shadow-2xs"
@@ -520,6 +561,115 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
               </div>
             </div>
 
+            {/* SECTION 3: TURNKEY DELIVERY & FOUNDATION OPTIONS (OPTIONAL EXTRAS) */}
+            <div className="space-y-3 pt-2 border-t border-gray-100">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                  <Truck className="w-3.5 h-3.5 text-orange-600" />
+                  <span>Turnkey Delivery &amp; Foundation Options</span>
+                </span>
+                <span className="text-[10px] font-bold text-orange-800 bg-orange-100/90 px-2 py-0.5 rounded-full border border-orange-200">
+                  Optional Services
+                </span>
+              </div>
+
+              <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200/90 text-[11px] text-amber-950 flex items-start gap-2">
+                <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                <p className="leading-relaxed">
+                  These two turnkey services are included by default. <span className="font-bold">You can uncheck either option below if you are not ready for that extra cost</span> or plan to handle logistics or foundation setup independently.
+                </p>
+              </div>
+
+              <div className="space-y-2.5">
+                {/* Option 1: Flatbed Freight Transport */}
+                <label className={`flex items-start justify-between p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                  includeFreight
+                    ? 'border-orange-500 bg-orange-50/20 ring-1 ring-orange-500/20 shadow-2xs'
+                    : 'border-gray-200 bg-gray-50/70 hover:bg-gray-100 opacity-80'
+                }`}>
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={includeFreight}
+                      onChange={(e) => handleToggleFreight(e.target.checked)}
+                      className="mt-1 w-4 h-4 rounded text-orange-600 focus:ring-orange-500/30 border-gray-300 accent-orange-600 cursor-pointer"
+                    />
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-gray-900 text-xs">Flatbed Freight Transport</span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                          includeFreight ? 'text-orange-700 bg-orange-100' : 'text-gray-600 bg-gray-200'
+                        }`}>
+                          {includeFreight ? 'Included in Total' : 'Unchecked (Removed)'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        Certified flatbed direct transport from staging hub ({selectedCountry.logisticsHub}) to your destination.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0 ml-3">
+                    <span className={`font-mono font-bold text-xs ${includeFreight ? 'text-gray-900' : 'line-through text-gray-400'}`}>
+                      +{formatCurrency(freightAmount, config.currency, { ratesMap: config.exchangeRates })}
+                    </span>
+                    {!includeFreight && (
+                      <div className="text-[10px] text-emerald-600 font-bold">Unchecked ($0)</div>
+                    )}
+                  </div>
+                </label>
+
+                {/* Option 2: Foundation & Utility Hookup */}
+                <label className={`flex items-start justify-between p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                  includeSitePrep
+                    ? 'border-orange-500 bg-orange-50/20 ring-1 ring-orange-500/20 shadow-2xs'
+                    : 'border-gray-200 bg-gray-50/70 hover:bg-gray-100 opacity-80'
+                }`}>
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={includeSitePrep}
+                      onChange={(e) => handleToggleSitePrep(e.target.checked)}
+                      className="mt-1 w-4 h-4 rounded text-orange-600 focus:ring-orange-500/30 border-gray-300 accent-orange-600 cursor-pointer"
+                    />
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-gray-900 text-xs">Foundation &amp; Utility Hookup</span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
+                          includeSitePrep ? 'text-orange-700 bg-orange-100' : 'text-gray-600 bg-gray-200'
+                        }`}>
+                          {includeSitePrep ? 'Included in Total' : 'Unchecked (Removed)'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        Certified local installation crew, ground leveling, foundation tie-downs, and plumbing/electrical hookups.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0 ml-3">
+                    <span className={`font-mono font-bold text-xs ${includeSitePrep ? 'text-gray-900' : 'line-through text-gray-400'}`}>
+                      +{formatCurrency(sitePrepAmount, config.currency, { ratesMap: config.exchangeRates })}
+                    </span>
+                    {!includeSitePrep && (
+                      <div className="text-[10px] text-emerald-600 font-bold">Unchecked ($0)</div>
+                    )}
+                  </div>
+                </label>
+              </div>
+
+              {/* Dynamic Savings Notification if options are unchecked */}
+              {(!includeFreight || !includeSitePrep) && (
+                <div className="p-2.5 rounded-xl bg-emerald-50/90 border border-emerald-200 text-xs flex items-center justify-between text-emerald-950">
+                  <span className="flex items-center gap-1.5 font-bold text-[11px]">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Extra Cost Deducted:</span>
+                  </span>
+                  <span className="font-mono font-bold text-[11px] text-emerald-800">
+                    Saved {formatCurrency((!includeFreight ? freightAmount : 0) + (!includeSitePrep ? sitePrepAmount : 0), config.currency, { ratesMap: config.exchangeRates })}
+                  </span>
+                </div>
+              )}
+            </div>
+
             {/* Refundable Guarantee Notice */}
             <div className="p-3.5 bg-gray-50 border border-gray-200 rounded-2xl flex items-start gap-2.5 text-[11px] text-gray-700">
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
@@ -535,14 +685,49 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
               type="submit"
               disabled={isSubmitting}
               style={{ backgroundColor: primaryColor }}
-              className="w-full py-3.5 px-4 hover:opacity-95 text-white font-extrabold rounded-2xl text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md hover:shadow-lg active:scale-98"
+              className="w-full py-3.5 px-4 sm:px-5 hover:opacity-95 text-white rounded-2xl transition-all flex flex-col sm:flex-row items-center justify-between gap-3 cursor-pointer disabled:opacity-50 shadow-md hover:shadow-lg active:scale-[0.99]"
             >
-              <CreditCard className="w-4 h-4" />
-              <span>
-                {isSubmitting
-                  ? 'Securing Production Queue...'
-                  : `Place ${formatCurrency(reservationFee, config.currency, { ratesMap: config.exchangeRates })} Fully Refundable Deposit`}
-              </span>
+              <div className="flex items-center gap-3 text-left w-full sm:w-auto">
+                <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                  <CreditCard className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <div className="font-extrabold text-xs tracking-wider uppercase flex items-center gap-2">
+                    <span>
+                      {isSubmitting
+                        ? 'Securing Production Queue...'
+                        : `Place ${formatCurrency(reservationFee, config.currency, { ratesMap: config.exchangeRates })} Refundable Deposit`}
+                    </span>
+                  </div>
+                  <div className="text-[10px] font-medium text-white/90 flex items-center gap-1.5 flex-wrap mt-0.5">
+                    <span className="font-mono font-bold">
+                      Turnkey Total: {formatCurrency(checkoutTotal, config.currency, { ratesMap: config.exchangeRates })}
+                    </span>
+                    {!includeFreight && !includeSitePrep ? (
+                      <span className="bg-black/25 text-white px-1.5 py-0.2 rounded font-semibold text-[9px] border border-white/20">
+                        Excludes Freight &amp; Foundation (-{formatCurrency(freightAmount + sitePrepAmount, config.currency, { ratesMap: config.exchangeRates })})
+                      </span>
+                    ) : !includeFreight ? (
+                      <span className="bg-black/25 text-white px-1.5 py-0.2 rounded font-semibold text-[9px] border border-white/20">
+                        Excludes Freight (-{formatCurrency(freightAmount, config.currency, { ratesMap: config.exchangeRates })})
+                      </span>
+                    ) : !includeSitePrep ? (
+                      <span className="bg-black/25 text-white px-1.5 py-0.2 rounded font-semibold text-[9px] border border-white/20">
+                        Excludes Foundation (-{formatCurrency(sitePrepAmount, config.currency, { ratesMap: config.exchangeRates })})
+                      </span>
+                    ) : (
+                      <span className="bg-white/20 text-white px-1.5 py-0.2 rounded font-semibold text-[9px]">
+                        Freight &amp; Foundation Included
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-1.5 text-[11px] font-bold uppercase tracking-wider bg-white/20 hover:bg-white/30 px-3.5 py-2 rounded-xl border border-white/30 shrink-0 w-full sm:w-auto shadow-2xs">
+                <span>Confirm Slot</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </div>
             </button>
           </form>
         ) : (
@@ -583,8 +768,26 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
                 <span className="font-bold text-gray-900">{currentModel.leadTime}</span>
               </div>
               <div className="flex justify-between text-gray-600">
+                <span>Flatbed Freight Delivery:</span>
+                <span className={`font-bold ${includeFreight ? 'text-gray-900' : 'text-emerald-700'}`}>
+                  {includeFreight ? 'Included (Direct Flatbed)' : 'Unchecked (Customer Arranged)'}
+                </span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>Foundation &amp; Hookup:</span>
+                <span className={`font-bold ${includeSitePrep ? 'text-gray-900' : 'text-emerald-700'}`}>
+                  {includeSitePrep ? 'Included (Certified Crew)' : 'Unchecked (Customer Arranged)'}
+                </span>
+              </div>
+              <div className="flex justify-between text-gray-600">
                 <span>Postal / Routing:</span>
                 <span className="font-bold text-gray-900">{formData.zipCode || 'Verified'}</span>
+              </div>
+              <div className="flex justify-between text-gray-900 pt-2 border-t border-gray-200 font-bold">
+                <span>Total Turnkey Investment:</span>
+                <span className="font-mono text-orange-700 text-sm">
+                  {formatCurrency(checkoutTotal, config.currency, { ratesMap: config.exchangeRates })}
+                </span>
               </div>
             </div>
 

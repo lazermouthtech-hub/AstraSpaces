@@ -1379,7 +1379,8 @@ export const MODULAR_ADDONS: AddonOptionItem[] = [
     category: 'Interior Modules',
     specDetail: 'Fiberglass waterproof shell, PEX hot/cold supply manifolds, odorless P-trap assembly',
     priceByModel: {
-      'expandable-10ft': 4200,
+      'expandable-10ft': 146.5385, // Baseline yields GHC 1,905 at prevailing conversion rate
+      '10ft': 146.5385,
       'expandable-20ft': 5800,
       'expandable-30ft': 6800,
       'expandable-40ft': 8500,

@@ -137,6 +137,10 @@ export default function Configurator() {
   const [showReserve, setShowReserve] = useState<boolean>(false);
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
 
+  // Optional Turnkey Services (Freight Transport & Site Prep / Foundation)
+  const [includeFreight, setIncludeFreight] = useState<boolean>(true);
+  const [includeSitePrep, setIncludeSitePrep] = useState<boolean>(true);
+
   // Customer Account & 4-Minute Usage Popup Timer
   const { currentUser: authContextUser } = useAuth();
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => authContextUser || getCurrentUser());
@@ -421,7 +425,7 @@ export default function Configurator() {
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#F4F4F7] font-sans select-none">
-      {/* Boxabl Top Brand Navigation Bar */}
+      {/* 10Apples Top Brand Navigation Bar */}
       <Header
         selectedModelId={state.modelId}
         onSelectModel={handleSelectModel}
@@ -584,6 +588,10 @@ export default function Configurator() {
               onToggleCollapse={() => setShowInvestmentBreakdown(false)}
               isReserved={isProjectReserved}
               onSelectCategory={handleSelectCategoryFromCostPanel}
+              includeFreight={includeFreight}
+              setIncludeFreight={setIncludeFreight}
+              includeSitePrep={includeSitePrep}
+              setIncludeSitePrep={setIncludeSitePrep}
             />
           </div>
         </div>
@@ -642,6 +650,10 @@ export default function Configurator() {
         <ReserveModal
           state={state}
           totalPrice={totalPrice}
+          includeFreight={includeFreight}
+          setIncludeFreight={setIncludeFreight}
+          includeSitePrep={includeSitePrep}
+          setIncludeSitePrep={setIncludeSitePrep}
           onClose={() => setShowReserve(false)}
           onSuccess={(orderId) => {
             setIsProjectReservedState(true);

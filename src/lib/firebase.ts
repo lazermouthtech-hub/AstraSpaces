@@ -30,20 +30,21 @@ import { UserAccount, UserSavedProject, CustomizationState, HomeModelId } from '
 const app = initializeApp(firebaseConfig);
 
 // Initialize Firestore with experimentalForceLongPolling to ensure reliable HTTPS connectivity in iframe/sandbox environments
+let firestoreDb;
 try {
-  initializeFirestore(
+  firestoreDb = initializeFirestore(
     app,
     {
       experimentalForceLongPolling: true,
     },
     firebaseConfig.firestoreDatabaseId
   );
-} catch (e) {
-  // If already initialized, continue
+} catch {
+  firestoreDb = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 }
 
 // CRITICAL: The app will break without specifying the firestoreDatabaseId
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = firestoreDb;
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 

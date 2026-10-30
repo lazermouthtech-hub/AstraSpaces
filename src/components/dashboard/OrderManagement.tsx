@@ -372,7 +372,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ onGoToConfigur
         currency: activeCurrency,
       },
       estimatedDeliveryDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString().split('T')[0],
-      initialNote: 'Order manually created by operator through Boxabl Admin OS.',
+      initialNote: 'Order manually created by operator through 10Apples Admin OS.',
     });
 
     setShowNewOrderModal(false);
@@ -442,7 +442,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ onGoToConfigur
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `boxabl_orders_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `10apples_orders_export_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -466,7 +466,7 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ onGoToConfigur
       }
       if (printableWorkOrderRef.current) {
         await exportElementToPDF(printableWorkOrderRef.current, {
-          filename: `BOXABL-WORK-ORDER-${selectedOrder.id}.pdf`,
+          filename: `10APPLES-WORK-ORDER-${selectedOrder.id}.pdf`,
           orderId: selectedOrder.id,
           onSuccess: () => {
             setIsExportingPDF(false);
