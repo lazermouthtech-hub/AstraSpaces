@@ -44,6 +44,9 @@ import {
   Eye,
   LayoutGrid,
   ExternalLink,
+  ChevronLeft,
+  ChevronRight,
+  X,
 } from 'lucide-react';
 
 export function DoorWindowDiagram({ id }: { id: string }) {
@@ -233,6 +236,8 @@ interface ConfiguratorPanelProps {
   cutawayMode?: boolean;
   isAdvancedMode?: boolean;
   onToggleAdvancedMode?: () => void;
+  isMenuRevealed?: boolean;
+  onToggleMenuRevealed?: (revealed: boolean) => void;
 }
 
 export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
@@ -247,6 +252,8 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
   cutawayMode,
   isAdvancedMode = false,
   onToggleAdvancedMode,
+  isMenuRevealed: isMenuRevealedProp,
+  onToggleMenuRevealed,
 }) => {
   const { config } = useAppConfig();
   const markupFactor = 1 + ((config.markup || 0) / 100);
@@ -260,6 +267,15 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
   const [glazingSubFilter, setGlazingSubFilter] = useState<'all' | 'Windows' | 'Entrance Doors'>('all');
   const [flooringSubFilter, setFlooringSubFilter] = useState<string>('all');
   const [addonSubFilter, setAddonSubFilter] = useState<'all' | 'living' | 'climate' | 'smart'>('all');
+  
+  const [internalMenuRevealed, setInternalMenuRevealed] = useState<boolean>(true);
+  const isMenuRevealed = isMenuRevealedProp !== undefined ? isMenuRevealedProp : internalMenuRevealed;
+  const setIsMenuRevealed = (revealed: boolean) => {
+    setInternalMenuRevealed(revealed);
+    if (onToggleMenuRevealed) {
+      onToggleMenuRevealed(revealed);
+    }
+  };
 
   // Automatically align wall scope to interior when cutaway mode is triggered
   useEffect(() => {
@@ -477,278 +493,287 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
 
   return (
     <div 
-      className="bg-white flex flex-col h-full overflow-hidden"
+      className="bg-white flex flex-row h-full overflow-hidden relative"
       style={{ '--primary': config.branding.primaryColor } as React.CSSProperties}
     >
-      {/* Panel Top Header: Configuration Mode Status & Quick Access to Advanced Tools */}
-      <div className="px-3 sm:px-3.5 py-2.5 bg-white border-b border-gray-100 flex items-center justify-between gap-2 shrink-0">
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs font-black text-gray-950 tracking-tight">
-              {isAdvancedMode ? 'Advanced Studio Tools' : 'Basic Configuration'}
-            </span>
-            <span className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded ${
-              isAdvancedMode ? 'bg-orange-100 text-orange-900 border border-orange-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-            }`}>
-              {isAdvancedMode ? 'All 8 Suites Active' : 'Default Mode'}
-            </span>
-          </div>
-          <p className="text-[10px] text-gray-500 truncate mt-0.5">
-            {isAdvancedMode
-              ? 'All modular categories, specs & engineering tools unlocked'
-              : 'Clean, essential building tools for fast configuration'}
-          </p>
+      {/* 1. Vertical Icon Menu Rail (Clean, icons-only navigation) */}
+      <div className="w-13 sm:w-14 shrink-0 bg-[#F8FAFC] border-r border-gray-200/90 flex flex-col items-center py-2 sm:py-3 gap-1 sm:gap-1.5 z-20 select-none overflow-y-auto scrollbar-none">
+        {/* Brand / Prefab Indicator */}
+        <div className="w-8 h-8 rounded-xl bg-orange-500/10 text-orange-600 flex items-center justify-center font-black text-xs mb-1 shrink-0" title="10Apples Home Configurator">
+          🍎
         </div>
-        <button
-          type="button"
-          onClick={() => onToggleAdvancedMode && onToggleAdvancedMode()}
-          className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0 active:scale-95 ${
-            isAdvancedMode
-              ? 'bg-gray-100 hover:bg-gray-200 text-gray-800 shadow-2xs'
-              : 'bg-orange-600 hover:bg-orange-700 text-white shadow-2xs'
-          }`}
-          title={isAdvancedMode ? 'Switch back to Basic Tools' : 'Unlock all tools across the platform'}
-        >
-          {isAdvancedMode ? (
-            <>
-              <Sparkles className="w-3.5 h-3.5 text-orange-500" />
-              <span>Basic View</span>
-            </>
-          ) : (
-            <>
-              <Sliders className="w-3.5 h-3.5" />
-              <span>Advanced Tools</span>
-            </>
-          )}
-        </button>
-      </div>
 
-      {/* Quick Add-ons & Furniture Access Bar */}
-      <div className="px-3 py-1.5 bg-gradient-to-r from-orange-50/90 via-amber-50/70 to-orange-50/90 border-b border-orange-200/80 flex items-center justify-between gap-2 shrink-0">
-        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-          <Sparkles className="w-3.5 h-3.5 text-orange-600 shrink-0" />
-          <span className="text-[11px] font-bold text-gray-950 shrink-0">
-            Modules:
-          </span>
-          {/* Quick toggle Bath Pod */}
-          <button
-            type="button"
-            onClick={() =>
-              onChange((prev) => ({
-                ...prev,
-                hasLuxuryBathPod: !prev.hasLuxuryBathPod,
-              }))
-            }
-            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
-              state.hasLuxuryBathPod
-                ? 'bg-emerald-100 text-emerald-900 border border-emerald-300 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
-                : 'bg-white text-gray-500 border border-gray-300 hover:border-emerald-400'
-            }`}
-            title={state.hasLuxuryBathPod ? 'Bath Pod is included by default. Click to remove.' : 'Click to add Bath Pod'}
-          >
-            <span>🛁</span>
-            <span>{state.hasLuxuryBathPod ? '✓ Bath Pod' : '+ Bath Pod'}</span>
-          </button>
-
-          {/* Quick toggle Kitchenette */}
-          <button
-            type="button"
-            onClick={() =>
-              onChange((prev) => ({
-                ...prev,
-                hasKitchenetteModule: !prev.hasKitchenetteModule,
-              }))
-            }
-            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
-              state.hasKitchenetteModule
-                ? 'bg-emerald-100 text-emerald-900 border border-emerald-300 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
-                : 'bg-white text-gray-500 border border-gray-300 hover:border-emerald-400'
-            }`}
-            title={state.hasKitchenetteModule ? 'Kitchenette is included by default. Click to remove.' : 'Click to add Kitchenette'}
-          >
-            <span>🍳</span>
-            <span>{state.hasKitchenetteModule ? '✓ Kitchen' : '+ Kitchen'}</span>
-          </button>
-
-          {/* Quick toggle Bed Suite */}
-          <button
-            type="button"
-            onClick={() =>
-              onChange((prev) => ({
-                ...prev,
-                hasLuxuryBedSuite: !prev.hasLuxuryBedSuite,
-              }))
-            }
-            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
-              state.hasLuxuryBedSuite
-                ? 'bg-indigo-100 text-indigo-900 border border-indigo-300 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
-                : 'bg-white text-gray-500 border border-gray-300 hover:border-indigo-400'
-            }`}
-            title={state.hasLuxuryBedSuite ? 'Bed is added. Click to remove.' : 'Click to self-add Architectural Bed Suite'}
-          >
-            <span>🛏️</span>
-            <span>{state.hasLuxuryBedSuite ? '✓ Bed' : '+ Add Bed'}</span>
-          </button>
-
-          {/* Quick toggle Living Sofa */}
-          <button
-            type="button"
-            onClick={() =>
-              onChange((prev) => ({
-                ...prev,
-                hasLivingSofa: !prev.hasLivingSofa,
-              }))
-            }
-            className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md transition-all cursor-pointer flex items-center gap-1 ${
-              state.hasLivingSofa
-                ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
-                : 'bg-white text-gray-500 border border-gray-300 hover:border-amber-400'
-            }`}
-            title={state.hasLivingSofa ? 'Sofa is added. Click to remove.' : 'Click to self-add Designer Living Sofa'}
-          >
-            <span>🛋️</span>
-            <span>{state.hasLivingSofa ? '✓ Sofa' : '+ Add Sofa'}</span>
-          </button>
-        </div>
-        <button
-          type="button"
-          onClick={() => onSelectCategory('Add-ons')}
-          className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 ${
-            activeCategory === 'Add-ons' || activeCategory === 'Interior Modules'
-              ? 'bg-orange-600 text-white shadow-2xs'
-              : 'bg-white hover:bg-orange-600 hover:text-white text-orange-700 border border-orange-300 shadow-2xs'
-          }`}
-          title="Open Add-on & Furniture Manager to add bed, sofa, kitchenette, bath, etc."
-        >
-          {activeCategory === 'Add-ons' || activeCategory === 'Interior Modules' ? 'Managing Add-ons' : 'Manage Add-ons →'}
-        </button>
-      </div>
-
-      {/* Category Navigation Tabs */}
-      <div className="flex border-b border-gray-200/80 bg-[#FAFAFC] overflow-x-auto p-2.5 gap-1.5 shrink-0 scrollbar-thin scrollbar-thumb-gray-200">
+        {/* Category Icons (Icons Only) */}
         {categories.map((cat) => {
           const Icon = cat.icon;
           const isGlazingTab = cat.id === 'Glazing & Windows' || cat.id === 'Doors & Windows';
           const isActive =
             activeCategory === cat.id ||
             (isGlazingTab && (activeCategory === 'Glazing & Windows' || activeCategory === 'Doors & Windows'));
-          const isWallPanelsTab = cat.id === 'Wall Panels';
-          const isFloorPlanTab = cat.id === 'Floor plan';
-          const isAddonTab = cat.id === 'Add-ons' || cat.id === 'Interior Modules';
           return (
             <button
               key={cat.id}
-              onClick={() => onSelectCategory(cat.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                isFloorPlanTab
-                  ? isActive
-                    ? 'bg-gradient-to-r from-blue-700 via-indigo-600 to-indigo-700 text-white shadow-sm font-bold ring-2 ring-indigo-400/30'
-                    : 'bg-blue-50/90 hover:bg-blue-100/90 text-blue-900 border border-blue-200/80 shadow-2xs font-semibold'
-                  : isWallPanelsTab
-                  ? isActive
-                    ? 'bg-gradient-to-r from-orange-50 via-white to-amber-50 text-gray-950 shadow-sm border border-orange-300 ring-2 ring-orange-500/20 font-bold'
-                    : 'bg-white/80 hover:bg-orange-50/40 text-gray-800 hover:text-gray-950 border border-gray-200 hover:border-orange-200 shadow-2xs font-semibold'
-                  : isAddonTab
-                  ? isActive
-                    ? 'bg-gradient-to-r from-orange-600 via-amber-600 to-orange-700 text-white shadow-sm font-bold ring-2 ring-orange-400/30'
-                    : 'bg-orange-50/80 hover:bg-orange-100 text-orange-950 border border-orange-200/90 shadow-2xs font-bold'
-                  : isActive
-                  ? 'bg-white text-gray-900 shadow-xs border border-gray-200/90 ring-1 ring-black/5 font-bold'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100/80 border border-transparent'
+              type="button"
+              onClick={() => {
+                onSelectCategory(cat.id);
+                setIsMenuRevealed(true);
+              }}
+              className={`w-9.5 h-9.5 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer relative group ${
+                isActive && isMenuRevealed
+                  ? 'bg-orange-600 text-white shadow-xs ring-2 ring-orange-500/30'
+                  : 'text-gray-600 hover:text-gray-950 hover:bg-white hover:shadow-2xs'
               }`}
+              title={`${cat.label}${cat.count ? ` (${cat.count} options)` : ''}`}
             >
-              <Icon
-                className={`w-3.5 h-3.5 transition-colors ${
-                  isFloorPlanTab
-                    ? isActive
-                      ? 'text-white'
-                      : 'text-blue-600'
-                    : isWallPanelsTab
-                    ? isActive
-                      ? 'text-orange-600'
-                      : 'text-orange-500/80'
-                    : isAddonTab
-                    ? isActive
-                      ? 'text-white'
-                      : 'text-orange-600'
-                    : isActive
-                    ? 'text-[var(--primary)]'
-                    : 'text-gray-400'
-                }`}
-              />
-              <span>{cat.label}</span>
-              {isFloorPlanTab ? (
-                <span className="flex items-center gap-1">
-                  <span
-                    className={`text-[9px] px-1.5 py-0.5 rounded-full font-mono font-bold tracking-tight transition-colors ${
-                      isActive
-                        ? 'bg-white/20 text-white shadow-2xs'
-                        : 'bg-blue-200/70 text-blue-900 border border-blue-300/60'
-                    }`}
-                  >
-                    6 Plans
-                  </span>
-                </span>
-              ) : isWallPanelsTab ? (
-                <span className="flex items-center gap-1">
-                  <span
-                    className={`text-[9px] px-1.5 py-0.5 rounded-full font-mono font-bold tracking-tight transition-colors ${
-                      isActive
-                        ? 'bg-orange-600 text-white shadow-2xs'
-                        : 'bg-orange-100 text-orange-800 border border-orange-200/80'
-                    }`}
-                  >
-                    In/Out • {cat.count}
-                  </span>
-                </span>
-              ) : isAddonTab ? (
-                <span className="flex items-center gap-1">
-                  <span
-                    className={`text-[9px] px-1.5 py-0.5 rounded-full font-mono font-bold tracking-tight transition-colors ${
-                      isActive
-                        ? 'bg-white/25 text-white shadow-2xs'
-                        : activeAddonsCount > 0
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                        : 'bg-orange-200/80 text-orange-900 border border-orange-300/80'
-                    }`}
-                  >
-                    {activeAddonsCount > 0 ? `${activeAddonsCount} Added` : `${cat.count} Available`}
-                  </span>
-                </span>
-              ) : cat.count > 0 ? (
+              <Icon className="w-4.5 h-4.5" />
+              {/* Active dot indicator */}
+              {cat.count > 0 && (
                 <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold transition-colors ${
-                    isActive
-                      ? 'bg-orange-50 text-orange-700 border border-orange-200/60'
-                      : 'bg-gray-100 text-gray-400'
+                  className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${
+                    isActive && isMenuRevealed ? 'bg-white' : 'bg-orange-500'
                   }`}
-                >
-                  {cat.count}
-                </span>
-              ) : null}
+                />
+              )}
             </button>
           );
         })}
 
-        {/* In Basic Mode, provide clean +3 Advanced Tools button at the end of the tabs */}
-        {!isAdvancedMode && (
+        {/* Divider */}
+        <div className="w-6 h-px bg-gray-200 my-1 shrink-0" />
+
+        {/* Workspace Mode (Basic vs Advanced Pro) Icon */}
+        <button
+          type="button"
+          onClick={() => {
+            onSelectCategory('Tools');
+            setIsMenuRevealed(true);
+          }}
+          className={`w-9.5 h-9.5 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer relative ${
+            activeCategory === 'Tools' && isMenuRevealed
+              ? 'bg-black text-white shadow-xs ring-2 ring-black/20'
+              : isAdvancedMode
+              ? 'bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100'
+              : 'text-gray-600 hover:text-gray-950 hover:bg-white'
+          }`}
+          title={isAdvancedMode ? 'Advanced Studio Tools Active (Click to manage)' : 'Basic Tools (Click to switch to Pro)'}
+        >
+          <Sliders className="w-4.5 h-4.5 text-orange-500" />
+          {isAdvancedMode && (
+            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-orange-600 ring-1 ring-white" />
+          )}
+        </button>
+
+        {/* Bottom Expand / Collapse Icon */}
+        <div className="mt-auto pt-2 flex flex-col items-center shrink-0">
           <button
             type="button"
-            onClick={() => onToggleAdvancedMode && onToggleAdvancedMode()}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-orange-800 bg-orange-50 hover:bg-orange-100/90 border border-orange-200/90 whitespace-nowrap transition-all cursor-pointer shrink-0 shadow-2xs active:scale-95 group"
-            title="Click to reveal all tools: Roof & Terraces, 24 SPC Floorings, Smart Living IoT"
+            onClick={() => setIsMenuRevealed(!isMenuRevealed)}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-800 hover:bg-white transition-colors cursor-pointer"
+            title={isMenuRevealed ? 'Collapse menu (Icons only)' : 'Reveal menu items'}
           >
-            <Sliders className="w-3.5 h-3.5 text-orange-600 group-hover:rotate-45 transition-transform" />
-            <span>+3 Advanced Tools</span>
-            <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-orange-200/80 text-orange-900 font-extrabold">
-              Pro
-            </span>
+            {isMenuRevealed ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
           </button>
-        )}
+        </div>
       </div>
 
-      {/* Options Body Container - CSS selector 2 */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-6 overscroll-contain scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent hover:scrollbar-thumb-gray-300">
+      {/* 2. Revealed Items Menu Container */}
+      {isMenuRevealed && (
+        <div className="flex-1 min-w-0 bg-white flex flex-col h-full overflow-hidden transition-all duration-300">
+          {/* Header of Revealed Category */}
+          <div className="px-3 sm:px-4 py-2 bg-white border-b border-gray-100 flex items-center justify-between gap-2 shrink-0">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-black text-gray-950 truncate">
+                    {activeCategory === 'Tools'
+                      ? 'Workspace & Tools Mode'
+                      : activeCategory === 'Base House'
+                      ? 'Shop Base House'
+                      : activeCategory === 'Floor plan'
+                      ? 'Floor Plan Layout'
+                      : activeCategory === 'Wall Panels'
+                      ? 'Wall Finishes (Interior & Exterior)'
+                      : activeCategory === 'Glazing & Windows' || activeCategory === 'Doors & Windows'
+                      ? 'Doors & Glazing'
+                      : activeCategory === 'Add-ons' || activeCategory === 'Interior Modules'
+                      ? 'Add-ons & Furniture Modules'
+                      : activeCategory === 'Flooring'
+                      ? 'SPC Acoustic Flooring'
+                      : activeCategory === 'Roof & Energy'
+                      ? 'Roof Options & Solar'
+                      : activeCategory === 'Smart Living'
+                      ? 'Smart Living & AI Systems'
+                      : activeCategory}
+                  </span>
+                  {activeCategory !== 'Tools' && (
+                    <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-orange-50 text-orange-800 border border-orange-200/80 shrink-0">
+                      {activeCategory === 'Base House' ? `${availableModels.length} Models` :
+                       activeCategory === 'Floor plan' ? 'Plans' :
+                       activeCategory === 'Wall Panels' ? 'In/Out' :
+                       activeCategory === 'Flooring' ? `${availableFlooringOptions.length} SPC` :
+                       activeCategory === 'Add-ons' || activeCategory === 'Interior Modules' ? `${activeAddonsCount} Added` :
+                       'Catalog'}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10px] text-gray-500 truncate">
+                  {activeCategory === 'Base House' && 'Select prefab modular architecture & dimensions'}
+                  {activeCategory === 'Floor plan' && 'Configure room partitions & interior space layout'}
+                  {activeCategory === 'Wall Panels' && 'Customize exterior cladding & interior bamboo walls'}
+                  {(activeCategory === 'Glazing & Windows' || activeCategory === 'Doors & Windows') && 'Double-glazed broken bridge doors & windows'}
+                  {(activeCategory === 'Add-ons' || activeCategory === 'Interior Modules') && 'Select furniture suites, bath pod & patio deck'}
+                  {activeCategory === 'Flooring' && 'Choose from 24 rigid acoustic SPC floorings'}
+                  {activeCategory === 'Roof & Energy' && 'Configure roof profile, insulation & solar energy'}
+                  {activeCategory === 'Smart Living' && 'Configure smart locks, electric blinds & IoT'}
+                  {activeCategory === 'Tools' && 'Toggle between Basic Tools and Advanced Studio Tools'}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => onToggleAdvancedMode && onToggleAdvancedMode()}
+                  className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                    isAdvancedMode
+                      ? 'bg-black text-white'
+                      : 'bg-orange-50 text-orange-800 border border-orange-200 hover:bg-orange-100'
+                  }`}
+                  title={isAdvancedMode ? 'Advanced Pro Tools are active' : 'Switch to Advanced Tools'}
+                >
+                  <Sliders className="w-3 h-3 text-orange-400" />
+                  <span className="hidden sm:inline">{isAdvancedMode ? 'Pro Mode' : 'Basic'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsMenuRevealed(false)}
+                  className="p-1.5 rounded-xl text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-all cursor-pointer active:scale-90"
+                  title="Close window & expand 3D canvas"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Modules Bar for Fast Add/Remove (Integrated cleanly) */}
+            {(activeCategory === 'Add-ons' || activeCategory === 'Interior Modules' || activeCategory === 'Base House') && (
+              <div className="px-3 py-1.5 bg-gradient-to-r from-orange-50/90 via-amber-50/70 to-orange-50/90 border-b border-orange-200/80 flex items-center justify-between gap-1.5 shrink-0 overflow-x-auto scrollbar-none">
+                <div className="flex items-center gap-1 min-w-0 flex-wrap">
+                  <Sparkles className="w-3 h-3 text-orange-600 shrink-0" />
+                  <span className="text-[10px] font-bold text-gray-950 shrink-0">Quick Modules:</span>
+                  <button
+                    type="button"
+                    onClick={() => onChange((prev) => ({ ...prev, hasLuxuryBathPod: !prev.hasLuxuryBathPod }))}
+                    className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+                      state.hasLuxuryBathPod
+                        ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                        : 'bg-white text-gray-500 border border-gray-300'
+                    }`}
+                  >
+                    <span>🛁</span>
+                    <span>{state.hasLuxuryBathPod ? '✓ Bath' : '+ Bath'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onChange((prev) => ({ ...prev, hasKitchenetteModule: !prev.hasKitchenetteModule }))}
+                    className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+                      state.hasKitchenetteModule
+                        ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                        : 'bg-white text-gray-500 border border-gray-300'
+                    }`}
+                  >
+                    <span>🍳</span>
+                    <span>{state.hasKitchenetteModule ? '✓ Kitchen' : '+ Kitchen'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onChange((prev) => ({ ...prev, hasLuxuryBedSuite: !prev.hasLuxuryBedSuite }))}
+                    className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+                      state.hasLuxuryBedSuite
+                        ? 'bg-indigo-100 text-indigo-900 border border-indigo-300'
+                        : 'bg-white text-gray-500 border border-gray-300'
+                    }`}
+                  >
+                    <span>🛏️</span>
+                    <span>{state.hasLuxuryBedSuite ? '✓ Bed' : '+ Bed'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onChange((prev) => ({ ...prev, hasLivingSofa: !prev.hasLivingSofa }))}
+                    className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+                      state.hasLivingSofa
+                        ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                        : 'bg-white text-gray-500 border border-gray-300'
+                    }`}
+                  >
+                    <span>🛋️</span>
+                    <span>{state.hasLivingSofa ? '✓ Sofa' : '+ Sofa'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Options Body Container */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-3.5 space-y-4 overscroll-contain scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent hover:scrollbar-thumb-gray-300">
+              {/* Dedicated Tools & Workspace View */}
+              {activeCategory === 'Tools' && (
+                <div className="space-y-4">
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-br from-orange-50/80 via-white to-amber-50/60 border border-orange-200 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-orange-600 text-white flex items-center justify-center font-bold">
+                        <Sliders className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-gray-950">Platform Workspace Tools</h4>
+                        <p className="text-[10px] text-gray-500">Choose between clean basic essentials or full architectural pro tools</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isAdvancedMode && onToggleAdvancedMode) onToggleAdvancedMode();
+                        }}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                          !isAdvancedMode
+                            ? 'bg-white border-orange-500 ring-2 ring-orange-500/30 shadow-xs'
+                            : 'bg-white/80 border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-black text-gray-950 flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-orange-500" />
+                            Basic Tools
+                          </span>
+                          {!isAdvancedMode && <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold">ACTIVE</span>}
+                        </div>
+                        <p className="text-[10px] text-gray-500">Clean, uncluttered default workspace for swift modular home configuration.</p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!isAdvancedMode && onToggleAdvancedMode) onToggleAdvancedMode();
+                        }}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                          isAdvancedMode
+                            ? 'bg-black text-white border-black ring-2 ring-orange-500/40 shadow-xs'
+                            : 'bg-white/80 border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`text-xs font-black flex items-center gap-1.5 ${isAdvancedMode ? 'text-white' : 'text-gray-950'}`}>
+                            <Sliders className="w-3.5 h-3.5 text-orange-400" />
+                            Advanced Tools Pro
+                          </span>
+                          {isAdvancedMode && <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-orange-600 text-white font-bold">ACTIVE</span>}
+                        </div>
+                        <p className={`text-[10px] ${isAdvancedMode ? 'text-gray-300' : 'text-gray-500'}`}>Full access to all 8 architectural suites, 3D cutaways, roof lift slider, 24 SPC swatches, and smart IoT.</p>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
         
         {/* =========================================================================
             0. BASE HOUSE SELECTION (SHOP FROM BASE HOUSE)
@@ -834,32 +859,34 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                     }`}
                   >
                     {/* Top Row: Series Tag & Base Price */}
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[10px] font-mono uppercase font-black tracking-wider text-orange-800 bg-orange-100 px-2 py-0.5 rounded">
-                          {model.series ? model.series.toUpperCase() : 'PREFAB'}
-                        </span>
-                        <span className="text-xs font-black text-gray-950 truncate max-w-[210px]">
-                          {model.name}
-                        </span>
-                        {isSelected && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            Live in 3D
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[9px] font-mono uppercase font-black tracking-wider text-orange-800 bg-orange-100 px-1.5 py-0.2 rounded shrink-0">
+                            {model.series ? model.series.toUpperCase() : 'PREFAB'}
                           </span>
-                        )}
+                          {isSelected && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
+                              <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                              Active 3D
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-xs font-black text-gray-950 truncate mt-1">
+                          {model.name}
+                        </h4>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-sm font-black font-mono text-gray-950">
+                      <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                        <span className="text-xs font-black font-mono text-gray-950">
                           {formatCurrency(model.basePrice * markupFactor, config.currency, { ratesMap: config.exchangeRates })}
                         </span>
                         {isSelected ? (
-                          <div className="w-5 h-5 rounded-full bg-orange-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                          <div className="w-4 h-4 rounded-full bg-orange-600 text-white flex items-center justify-center font-bold text-[9px] shadow-xs">
                             ✓
                           </div>
                         ) : (
-                          <div className="w-5 h-5 rounded-full border border-gray-300" />
+                          <div className="w-4 h-4 rounded-full border border-gray-300" />
                         )}
                       </div>
                     </div>
@@ -870,19 +897,19 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                     </p>
 
                     {/* Dimensions & Specs Badge Row */}
-                    <div className="grid grid-cols-3 gap-2 bg-gray-50/90 p-2.5 rounded-xl border border-gray-100 text-[11px]">
-                      <div>
-                        <span className="text-[10px] text-gray-400 uppercase font-bold block">Floor Area</span>
-                        <span className="font-mono font-bold text-gray-900">{model.sqft} sq ft</span>
-                        {model.areaM2 && <span className="text-[10px] text-gray-500 ml-1">({model.areaM2}m²)</span>}
+                    <div className="grid grid-cols-3 gap-1.5 bg-gray-50/90 p-2 rounded-xl border border-gray-100 text-[10px]">
+                      <div className="min-w-0">
+                        <span className="text-[9px] text-gray-400 uppercase font-bold block truncate">Floor Area</span>
+                        <span className="font-mono font-bold text-gray-900 block truncate">{model.sqft} sq ft</span>
+                        {model.areaM2 && <span className="text-[9px] text-gray-500 block truncate">({model.areaM2}m²)</span>}
                       </div>
-                      <div>
-                        <span className="text-[10px] text-gray-400 uppercase font-bold block">Rooms</span>
-                        <span className="font-bold text-gray-900">{model.bedrooms} Bed · {model.bathrooms} Bath</span>
+                      <div className="min-w-0">
+                        <span className="text-[9px] text-gray-400 uppercase font-bold block truncate">Rooms</span>
+                        <span className="font-bold text-gray-900 block truncate">{model.bedrooms}B · {model.bathrooms}Ba</span>
                       </div>
-                      <div>
-                        <span className="text-[10px] text-gray-400 uppercase font-bold block">Lead Time</span>
-                        <span className="font-mono text-orange-700 font-semibold">{model.leadTime}</span>
+                      <div className="min-w-0">
+                        <span className="text-[9px] text-gray-400 uppercase font-bold block truncate">Lead Time</span>
+                        <span className="font-mono text-orange-700 font-semibold block truncate">{model.leadTime}</span>
                       </div>
                     </div>
 
@@ -980,7 +1007,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                 </div>
 
                 {/* Quick 3D Viewpoint Mode Bar */}
-                <div className="bg-gradient-to-r from-blue-950 via-indigo-950 to-slate-900 p-3 rounded-2xl text-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="bg-gradient-to-r from-blue-950 via-indigo-950 to-slate-900 p-3 rounded-2xl text-white shadow-sm flex flex-col gap-2.5">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
                       <LayoutGrid className="w-4 h-4 text-blue-300" />
@@ -995,7 +1022,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => {
@@ -1003,11 +1030,11 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                         if (!cutawayMode && onCutawayToggle) onCutawayToggle();
                         if (onRoofLiftChange) onRoofLiftChange(0);
                       }}
-                      className="px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold flex items-center gap-1 transition-all shadow-xs cursor-pointer"
+                      className="px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold flex items-center justify-center gap-1 transition-all shadow-xs cursor-pointer"
                       title="Switch to Top-Down 3D Blueprint View"
                     >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Top-Down View</span>
+                      <Eye className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Top-Down View</span>
                     </button>
                     <button
                       type="button"
@@ -1015,11 +1042,11 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                         if (onPerspectiveChange) onPerspectiveChange('sectional-cutaway');
                         if (!cutawayMode && onCutawayToggle) onCutawayToggle();
                       }}
-                      className="px-2.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer"
+                      className="px-2.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-[11px] font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer"
                       title="View Cross-Section Cutaway"
                     >
-                      <Box className="w-3.5 h-3.5" />
-                      <span>Cutaway</span>
+                      <Box className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Cutaway</span>
                     </button>
                   </div>
                 </div>
@@ -1115,24 +1142,24 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                       </div>
 
                       {/* Room Metrics & Specs */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                        <div className="flex items-center gap-2 p-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold">
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="flex items-center gap-2 p-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold min-w-0">
                           <Bed className="w-4 h-4 text-blue-600 shrink-0" />
-                          <span className="truncate">1 Bedroom (Fixed)</span>
+                          <span className="truncate">1 Bed (Fixed)</span>
                         </div>
-                        <div className="flex items-center gap-2 p-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold">
+                        <div className="flex items-center gap-2 p-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold min-w-0">
                           <Bath className="w-4 h-4 text-emerald-600 shrink-0" />
                           <span className="truncate">
-                            {state.hasLuxuryBathPod ? '1 Restroom (Opt)' : 'No Restroom'}
+                            {state.hasLuxuryBathPod ? '1 Restroom' : 'No Restroom'}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 p-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold">
+                        <div className="flex items-center gap-2 p-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold min-w-0">
                           <Utensils className="w-4 h-4 text-amber-600 shrink-0" />
                           <span className="truncate">
-                            {state.hasKitchenetteModule ? '"L"-Kitchen (Opt)' : 'No Kitchen'}
+                            {state.hasKitchenetteModule ? '"L"-Kitchen' : 'No Kitchen'}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 p-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold">
+                        <div className="flex items-center gap-2 p-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold min-w-0">
                           <Maximize2 className="w-4 h-4 text-indigo-600 shrink-0" />
                           <span className="truncate">18 m² / 195 sq ft</span>
                         </div>
@@ -1387,20 +1414,20 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                         </div>
 
                         {/* Room Metrics & Icons */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px]">
-                          <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-gray-50 border border-gray-100 text-gray-700 font-semibold">
+                        <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                          <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-gray-50 border border-gray-100 text-gray-700 font-semibold min-w-0">
                             <Bed className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                             <span className="truncate">{plan.bedrooms} Bed{plan.bedrooms > 1 ? 's' : ''}</span>
                           </div>
-                          <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-gray-50 border border-gray-100 text-gray-700 font-semibold">
+                          <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-gray-50 border border-gray-100 text-gray-700 font-semibold min-w-0">
                             <Bath className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                             <span className="truncate">1 Restroom</span>
                           </div>
-                          <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-gray-50 border border-gray-100 text-gray-700 font-semibold">
+                          <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-gray-50 border border-gray-100 text-gray-700 font-semibold min-w-0">
                             <Tv className="w-3.5 h-3.5 text-purple-600 shrink-0" />
                             <span className="truncate">{plan.livingRooms > 0 ? `${plan.livingRooms} Living` : 'Quad Enclosed'}</span>
                           </div>
-                          <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-gray-50 border border-gray-100 text-gray-700 font-semibold">
+                          <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-gray-50 border border-gray-100 text-gray-700 font-semibold min-w-0">
                             <Utensils className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                             <span className="truncate">
                               {plan.id === '4-bed-quad-suite'
@@ -1674,7 +1701,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     {factory12WallOptions.map((opt: any) => {
                       const isCurrent = state.wallCladding === opt.id;
                       const englishName = opt.name.split(' (')[0];
@@ -1688,7 +1715,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                           key={opt.id}
                           type="button"
                           onClick={() => onChange((prev) => ({ ...prev, wallCladding: opt.id }))}
-                          className={`group flex flex-col items-center gap-1.5 p-2.5 rounded-2xl border transition-all cursor-pointer select-none active:scale-[0.98] ${
+                          className={`group flex flex-col items-center gap-1.5 p-2 rounded-2xl border transition-all cursor-pointer select-none active:scale-[0.98] ${
                             isCurrent
                               ? 'bg-orange-50/50 border-orange-500 ring-2 ring-orange-500/25 shadow-xs'
                               : 'bg-white border-gray-200 hover:border-orange-300 hover:bg-orange-50/20 shadow-2xs'
@@ -1696,7 +1723,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                           title={`${englishName} — ${getItemPriceForModel(opt, state.modelId, config.models) === 0 ? 'Included' : formatCurrency(getItemPriceForModel(opt, state.modelId, config.models) * markupFactor, config.currency, { ratesMap: config.exchangeRates })}`}
                         >
                           <span
-                            className="w-11 h-11 rounded-xl border border-black/15 shadow-2xs shrink-0 flex items-center justify-center relative overflow-hidden transition-transform group-hover:scale-105"
+                            className="w-10 h-10 rounded-xl border border-black/15 shadow-2xs shrink-0 flex items-center justify-center relative overflow-hidden transition-transform group-hover:scale-105"
                             style={{ backgroundColor: opt.color || '#ccc' }}
                           >
                             {/* Realistic Simulated Visual Reliefs */}
@@ -1722,11 +1749,11 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                               </span>
                             )}
                           </span>
-                          <span className="text-[11px] font-bold text-gray-900 truncate w-full text-center leading-tight tracking-tight">
+                          <span className="text-[10px] font-bold text-gray-900 truncate w-full text-center leading-tight tracking-tight">
                             {englishName}
                           </span>
                           <span
-                            className={`text-[9px] font-mono font-semibold px-2 py-0.5 rounded-full transition-colors ${
+                            className={`text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-full transition-colors truncate max-w-full ${
                               isCurrent
                                 ? 'bg-orange-600 text-white shadow-2xs'
                                 : 'bg-gray-100 text-gray-600 group-hover:bg-orange-100/80 group-hover:text-orange-900'
@@ -1931,7 +1958,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                     {filteredInteriorWallOptions.map((opt: any) => {
                       const isCurrent = state.interiorWall === opt.id;
                       const isWood = opt.category === 'Wood Grain';
@@ -2183,29 +2210,31 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                         : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 bg-white'
                     }`}
                   >
-                    <div className="flex gap-3 items-center">
+                    <div className="flex gap-2.5 items-start">
                       {/* Architectural Vector Diagram Thumbnail */}
-                      <div className="w-20 h-16 rounded-xl bg-slate-50 border border-gray-200/90 shrink-0 overflow-hidden p-1 shadow-2xs flex items-center justify-center">
+                      <div className="w-14 h-12 rounded-xl bg-slate-50 border border-gray-200/90 shrink-0 overflow-hidden p-0.5 shadow-2xs flex items-center justify-center mt-0.5">
                         <DoorWindowDiagram id={opt.id} />
                       </div>
 
                       {/* Content & Details */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-1">
-                          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                            {opt.color && (
-                              <span
-                                className="w-3 h-3 rounded-full border border-gray-300 shrink-0 shadow-2xs"
-                                style={{ backgroundColor: opt.color }}
-                                title={opt.color === '#f8fafc' ? 'White finish' : 'Architectural black finish'}
-                              />
-                            )}
-                            <span className="text-xs font-bold text-gray-900 truncate">
-                              {opt.name}
-                            </span>
+                        <div className="flex items-start justify-between gap-1.5">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              {opt.color && (
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full border border-gray-300 shrink-0 shadow-2xs"
+                                  style={{ backgroundColor: opt.color }}
+                                  title={opt.color === '#f8fafc' ? 'White finish' : 'Architectural black finish'}
+                                />
+                              )}
+                              <span className="text-xs font-bold text-gray-900 truncate">
+                                {opt.name}
+                              </span>
+                            </div>
                             {opt.badge && (
                               <span
-                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md whitespace-nowrap ${
+                                className={`text-[9px] font-bold px-1.5 py-0.2 rounded mt-0.5 inline-block shrink-0 ${
                                   opt.badge.includes('White')
                                     ? 'bg-gray-100 text-gray-800 border border-gray-200'
                                     : 'bg-zinc-900 text-white shadow-2xs'
@@ -2216,16 +2245,16 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                             )}
                           </div>
 
-                          <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex items-center gap-1.5 shrink-0 ml-1">
                             <span className="text-xs font-bold font-mono text-gray-900">
                               {opt.price === 0 ? 'Included' : formatCurrency(opt.price * markupFactor, config.currency, { showPlus: true, ratesMap: config.exchangeRates })}
                             </span>
                             {isSelected ? (
-                              <div className="w-5 h-5 rounded-full bg-orange-600 flex items-center justify-center shrink-0">
-                                <span className="text-[10px] text-white font-bold">✓</span>
+                              <div className="w-4 h-4 rounded-full bg-orange-600 flex items-center justify-center shrink-0">
+                                <span className="text-[9px] text-white font-bold">✓</span>
                               </div>
                             ) : (
-                              <div className="w-5 h-5 rounded-full border border-gray-300 shrink-0" />
+                              <div className="w-4 h-4 rounded-full border border-gray-300 shrink-0" />
                             )}
                           </div>
                         </div>
@@ -2397,7 +2426,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                   Tap to preview in 3D
                 </span>
               </div>
-              <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+              <div className="grid grid-cols-4 gap-1.5">
                 {filteredFlooringOptions.map((opt: any) => {
                   const isSelected = state.flooring === opt.id;
                   const isWood = opt.category === 'Wood Grain';
@@ -2706,7 +2735,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 gap-2.5">
                 {/* Bath Pod Toggle */}
                 <div className={`p-3 rounded-xl border transition-all flex flex-col justify-between gap-2 ${
                   state.hasLuxuryBathPod
@@ -2866,7 +2895,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 gap-2.5">
                 {/* Bed Suite Toggle */}
                 <div className={`p-3 rounded-xl border transition-all flex flex-col justify-between gap-2 ${
                   state.hasLuxuryBedSuite
@@ -3134,6 +3163,9 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                               if (isHvac) {
                                 onPerspectiveChange('living-lounge');
                               } else if (addon.id === 'hasExteriorPergolaDeck') {
+                                if (!isChecked) {
+                                  onChange((prev) => ({ ...prev, hasExteriorPergolaDeck: true }));
+                                }
                                 onPerspectiveChange('exterior-iso');
                               } else if (addon.id === 'hasLuxuryBathPod') {
                                 onPerspectiveChange('interior-walkthrough');
@@ -3156,11 +3188,12 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                     </div>
                   );
                 })}
+              </div>
             </div>
-          </div>
-        )}
-
+          )}
+        </div>
       </div>
-    </div>
-  );
+    )}
+  </div>
+);
 };

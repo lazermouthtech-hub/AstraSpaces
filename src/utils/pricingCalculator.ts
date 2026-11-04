@@ -192,19 +192,25 @@ export function getItemUnitSpec(
   if (item.id === 'hasExteriorPergolaDeck') {
     if (sizeCat === '40ft') {
       return {
-        sizeLabel: '40FT Deck (320 sq ft)',
-        specDetail: 'Full-facade 38ft WPC composite terrace platform (320 sq ft) with dual aluminum pergola louvers',
+        sizeLabel: '40FT Executive Pavilion Deck (340 sq ft)',
+        specDetail: 'Triple-bay motorized louvered aluminum pergola with 8 structural posts, composite decking, LED soffits & access steps',
       };
     }
     if (sizeCat === '30ft') {
       return {
-        sizeLabel: '30FT Deck (240 sq ft)',
-        specDetail: '30ft length matching outdoor terrace platform (240 sq ft) with adjustable leveling foundation piers',
+        sizeLabel: '30FT Panoramic Terrace (270 sq ft)',
+        specDetail: 'Dual-bay architectural aluminum pergola with 6 heavy-duty columns, WPC composite decking, glass balustrade & steps',
+      };
+    }
+    if (sizeCat === '10ft') {
+      return {
+        sizeLabel: '10FT Compact Patio Deck (120 sq ft)',
+        specDetail: '10ft compact front outdoor patio deck (120 sq ft) with integrated aluminum louvered pergola, leveling footings & steps',
       };
     }
     return {
-      sizeLabel: '20FT Deck (160 sq ft)',
-      specDetail: '20ft front entryway deck platform (160 sq ft) with aluminum overhead pergola frame',
+      sizeLabel: '20FT Outdoor Living Deck (200 sq ft)',
+      specDetail: '20ft front entryway deck (200 sq ft) with dual-rafter aluminum pergola louvers, glass balustrade & perimeter trim',
     };
   }
 

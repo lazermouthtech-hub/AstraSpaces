@@ -2477,9 +2477,9 @@ export function createMaterialLibrary(
       roughness: 0.1,
     }),
     woodDeckMaterial: new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#334155'),
-      roughness: 0.5,
-      metalness: 0.1,
+      color: new THREE.Color('#5c4a3c'), // warm architectural teak WPC composite decking
+      roughness: 0.65,
+      metalness: 0.05,
     }),
     interiorWallMaterial: new THREE.MeshPhysicalMaterial({
       color: intWallMap ? new THREE.Color('#ffffff') : new THREE.Color(intWallColor),

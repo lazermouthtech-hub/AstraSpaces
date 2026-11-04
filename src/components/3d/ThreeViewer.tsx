@@ -23,6 +23,8 @@ import {
   Box,
   X,
   Sliders,
+  Info,
+  Zap,
 } from 'lucide-react';
 
 interface ThreeViewerProps {
@@ -95,11 +97,29 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
     }
   };
 
+  const handleToggleFrontSide = () => {
+    const nextCutaway = !cutawayMode;
+
+    // Immediately toggle visibility on Three.js frontWallGroup directly
+    if (homeModelRef.current?.frontWallGroup) {
+      homeModelRef.current.frontWallGroup.visible = !nextCutaway;
+      homeModelRef.current.frontWallGroup.traverse((child) => {
+        child.visible = !nextCutaway;
+      });
+      homeModelRef.current.frontWallGroup.position.y = nextCutaway ? -2.2 : 0;
+    }
+
+    if (onCutawayModeToggle) {
+      onCutawayModeToggle();
+    }
+  };
+
   const [autoRotate, setAutoRotate] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showHotspots, setShowHotspots] = useState(true);
   const [viewerFlooringSubFilter, setViewerFlooringSubFilter] = useState<string>('all');
   const [isFlooringOverlayOpen, setIsFlooringOverlayOpen] = useState(true);
+  const [activeVerticalMenu, setActiveVerticalMenu] = useState<'quick' | 'info' | 'structure' | 'views' | 'addons' | 'hotspots' | 'mode' | 'lighting' | null>(null);
 
   const flooringList = config?.flooringOptions?.length ? config.flooringOptions : FLOORING_OPTIONS;
   const activeFloorOpt = flooringList.find((f: any) => f.id === state.flooring) || flooringList[0];
@@ -526,13 +546,13 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
       roofGroup.position.y = liftY;
     }
 
-    // Cutaway mode lowers front wall or makes it semi-transparent
-    if (cutawayMode) {
-      frontWallGroup.position.y = -2.2;
-      frontWallGroup.visible = false;
-    } else {
-      frontWallGroup.position.y = 0;
-      frontWallGroup.visible = true;
+    // Cutaway mode lowers front wall or restores it
+    if (frontWallGroup) {
+      frontWallGroup.visible = !cutawayMode;
+      frontWallGroup.traverse((child) => {
+        child.visible = !cutawayMode;
+      });
+      frontWallGroup.position.y = cutawayMode ? -2.2 : 0;
     }
   }, [roofLiftPercent, cutawayMode, isRoofRemoved]);
 
@@ -567,264 +587,1105 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
         className="absolute inset-0 z-0 w-full h-full block cursor-grab active:cursor-grabbing outline-none touch-none transition-all duration-500 will-change-transform drop-shadow-[0_25px_60px_rgba(0,0,0,0.18)] select-none filter contrast-[1.03] brightness-[1.02]"
       />
 
-      {/* Bento Floating Top Action Layer */}
-      <div className="absolute top-4 sm:top-5 left-4 sm:left-5 right-4 sm:right-5 flex items-start justify-between pointer-events-none gap-2 z-10">
-        {/* Real-time Render Active Badge */}
-        <div className="pointer-events-auto bg-white/90 backdrop-blur-md px-3.5 sm:px-4 py-2 rounded-full border border-gray-200/90 flex items-center gap-2 shadow-sm ring-1 ring-black/5">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wider">
-            Live 3D Viewport
-          </span>
-          <span className="text-gray-300 hidden sm:inline">|</span>
-          <span className="text-[10px] font-bold text-gray-900 hidden sm:inline">
-            {currentModel.name}
-          </span>
-          {isPubliclyAvailable && (
-            <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-[9px] font-extrabold text-emerald-700 border border-emerald-200 hidden md:inline-flex items-center gap-1">
-              <Check className="w-2.5 h-2.5" />
-              Publicly Available
-            </span>
-          )}
-        </div>
+      {/* Vertical Icon Menu Layer - Placed on the Left side with icons only, revealing words on select to keep canvas completely clear (Mobile Only) */}
+      <div className="md:hidden absolute top-3 sm:top-4 left-3 sm:left-4 z-20 pointer-events-none flex flex-col items-start">
+        {/* Transparent Dismiss Backdrop when flyout is open */}
+        {activeVerticalMenu && (
+          <div
+            className="fixed inset-0 z-20 pointer-events-auto bg-black/20 backdrop-blur-2xs sm:bg-transparent"
+            onClick={() => setActiveVerticalMenu(null)}
+          />
+        )}
 
-        {/* Bento Top-Right Action Controls */}
-        <div className="pointer-events-auto flex items-center gap-2 flex-wrap justify-end">
-          {/* Mode Switcher Pill: Basic (Default) vs Advanced */}
-          <div className="bg-white/95 backdrop-blur-md p-1 rounded-2xl border border-gray-200/90 flex items-center gap-1 shadow-sm ring-1 ring-black/5">
+        <div className="relative pointer-events-auto flex items-start gap-2">
+          {/* Vertical Icon Rail */}
+          <div className="bg-white/95 backdrop-blur-md p-1 sm:p-1.5 rounded-2xl border border-gray-200/90 shadow-lg flex flex-col items-center gap-1 sm:gap-1.5 ring-1 ring-black/5 z-30 md:hidden">
+            {/* 0. Quick House Controls (All Essential Features in One Place) */}
+            <button
+              type="button"
+              onClick={() => setActiveVerticalMenu(activeVerticalMenu === 'quick' ? null : 'quick')}
+              className={`w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer relative ${
+                activeVerticalMenu === 'quick'
+                  ? 'bg-orange-600 text-white shadow-xs ring-2 ring-orange-500/40'
+                  : 'text-orange-600 bg-orange-50/90 hover:bg-orange-100 hover:text-orange-700 border border-orange-200/90'
+              }`}
+              title="⚡ Quick House Controls (Views, Roof, Front Wall, Add-ons & Tools)"
+            >
+              <Zap className="w-4 h-4 fill-current" />
+            </button>
+
+            {/* 1. Model / Viewport Info Icon */}
+            <button
+              type="button"
+              onClick={() => setActiveVerticalMenu(activeVerticalMenu === 'info' ? null : 'info')}
+              className={`w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer relative ${
+                activeVerticalMenu === 'info'
+                  ? 'bg-orange-600 text-white shadow-xs'
+                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+              title="House Specifications & Live Viewport Info"
+            >
+              <Info className="w-4 h-4" />
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            </button>
+
+            {/* 2. 3D Views Icon */}
+            <button
+              type="button"
+              onClick={() => setActiveVerticalMenu(activeVerticalMenu === 'views' ? null : 'views')}
+              className={`w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                activeVerticalMenu === 'views'
+                  ? 'bg-orange-600 text-white shadow-xs'
+                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+              title="3D Views (Exterior, Top Plan, Inside View, Camera)"
+            >
+              <Eye className="w-4 h-4" />
+            </button>
+
+            {/* 3. Structure (Roof & Walls) Toggle Icon */}
+            <button
+              type="button"
+              onClick={() => setActiveVerticalMenu(activeVerticalMenu === 'structure' ? null : 'structure')}
+              className={`w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer relative ${
+                activeVerticalMenu === 'structure'
+                  ? 'bg-orange-600 text-white shadow-xs ring-2 ring-orange-500/40'
+                  : (cutawayMode || isRoofRemoved)
+                  ? 'bg-orange-50 text-orange-600 border border-orange-200'
+                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+              title="Structure: Cover/Remove Front Wall & Roof"
+            >
+              <Home className="w-4 h-4" />
+            </button>
+
+            {/* 4. Furniture & Add-ons Icon */}
+            <button
+              type="button"
+              onClick={() => setActiveVerticalMenu(activeVerticalMenu === 'addons' ? null : 'addons')}
+              className={`w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer relative ${
+                activeVerticalMenu === 'addons'
+                  ? 'bg-orange-600 text-white shadow-xs'
+                  : (Boolean(state.hasLuxuryBedSuite) || Boolean(state.hasLivingSofa) || Boolean(state.hasExteriorPergolaDeck))
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+              title="Add-ons & Furniture (Bed, Sofa, Pergola)"
+            >
+              <Sparkles className="w-4 h-4" />
+            </button>
+
+            {/* 5. Hotspots & Architectural Components (Inspect & Focus) */}
+            <button
+              type="button"
+              onClick={() => setActiveVerticalMenu(activeVerticalMenu === 'hotspots' ? null : 'hotspots')}
+              className={`w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer relative ${
+                activeVerticalMenu === 'hotspots'
+                  ? 'bg-orange-600 text-white shadow-xs'
+                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+              title="Architectural Hotspots & Components"
+            >
+              <Compass className="w-4 h-4" />
+            </button>
+
+            {/* 6. Lighting Mode (Daylight / Sunset / Night) */}
+            <button
+              type="button"
+              onClick={() => setActiveVerticalMenu(activeVerticalMenu === 'lighting' ? null : 'lighting')}
+              className={`w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                activeVerticalMenu === 'lighting'
+                  ? 'bg-orange-600 text-white shadow-xs'
+                  : lightingMode === 'night-ambient'
+                  ? 'bg-slate-900 text-amber-300'
+                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+              title="Lighting & Sun Ambiance"
+            >
+              {lightingMode === 'night-ambient' ? (
+                <Moon className="w-4 h-4" />
+              ) : lightingMode === 'golden-hour' ? (
+                <Sunset className="w-4 h-4 text-amber-600" />
+              ) : (
+                <Sun className="w-4 h-4 text-amber-500" />
+              )}
+            </button>
+
+            {/* 7. Mode Switcher (Basic vs Advanced Pro) */}
+            <button
+              type="button"
+              onClick={() => setActiveVerticalMenu(activeVerticalMenu === 'mode' ? null : 'mode')}
+              className={`w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                activeVerticalMenu === 'mode'
+                  ? 'bg-orange-600 text-white shadow-xs'
+                  : isAdvancedMode
+                  ? 'bg-black text-white'
+                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+              title="Tools & Workspace Mode (Basic vs Advanced Pro)"
+            >
+              {isAdvancedMode ? <Sliders className="w-4 h-4 text-orange-400" /> : <Box className="w-4 h-4" />}
+            </button>
+
+            {/* 8. Fullscreen Toggle */}
             <button
               type="button"
               onClick={() => {
-                if (isAdvancedMode && onToggleAdvancedMode) {
-                  onToggleAdvancedMode();
-                }
+                toggleFullscreen();
+                setActiveVerticalMenu(null);
               }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                !isAdvancedMode
-                  ? 'bg-orange-600 text-white shadow-2xs font-black'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-              title="Clean default 3D workspace with basic essential tools"
+              className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
+              title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen 3D Viewer'}
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Basic Tools</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!isAdvancedMode && onToggleAdvancedMode) {
-                  onToggleAdvancedMode();
-                }
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                isAdvancedMode
-                  ? 'bg-black text-white shadow-2xs font-black'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-              title="Access all advanced platform tools: technical elevations, cutaway, lift slider, swatches & telemetry"
-            >
-              <Sliders className="w-3.5 h-3.5 text-orange-400" />
-              <span>Advanced</span>
-              <span className={`px-1 py-0.2 rounded-full text-[9px] font-mono ${isAdvancedMode ? 'bg-orange-500 text-white font-bold' : 'bg-gray-200 text-gray-700'}`}>
-                Pro
-              </span>
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
           </div>
 
-          {/* Lighting Mode Selector */}
-          <div className="bg-white/90 backdrop-blur-md p-1 rounded-2xl border border-gray-200 flex items-center gap-1 shadow-sm">
-            <button
-              onClick={() => onLightingModeChange('daylight')}
-              className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                lightingMode === 'daylight'
-                  ? 'bg-orange-50 text-orange-600 shadow-xs font-bold'
-                  : 'text-gray-400 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-              title="Daylight (5500K)"
-            >
-              <Sun className="w-4 h-4" />
-            </button>
-            {isAdvancedMode && (
-              <button
-                onClick={() => onLightingModeChange('golden-hour')}
-                className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                  lightingMode === 'golden-hour'
-                    ? 'bg-orange-50 text-orange-600 shadow-xs font-bold'
-                    : 'text-gray-400 hover:text-gray-900 hover:bg-gray-100'
-                }`}
-                title="Golden Hour Sunset"
-              >
-                <Sunset className="w-4 h-4" />
-              </button>
-            )}
-            <button
-              onClick={() => onLightingModeChange('night-ambient')}
-              className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                lightingMode === 'night-ambient'
-                  ? 'bg-black text-white shadow-xs'
-                  : 'text-gray-400 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-              title="Night LED Glow"
-            >
-              <Moon className="w-4 h-4" />
-            </button>
-          </div>
+          {/* Reveal Words & Options Flyout Card when any icon is selected */}
+          {activeVerticalMenu && (
+            <div className="z-30 w-[calc(100vw-64px)] max-w-xs sm:w-80 bg-white/95 backdrop-blur-md rounded-2xl border border-gray-200/90 shadow-2xl p-3 sm:p-3.5 space-y-3 animate-in fade-in slide-in-from-left-2 duration-150 ring-1 ring-black/5 pointer-events-auto max-h-[calc(100dvh-135px)] sm:max-h-[75vh] flex flex-col overflow-y-auto">
+              {/* Header with Title and Close Button */}
+              <div className="flex items-center justify-between pb-2 border-b border-gray-100 shrink-0">
+                <span className="text-[11px] font-black uppercase tracking-wider text-gray-500">
+                  {activeVerticalMenu === 'quick' && '⚡ Quick House Controls'}
+                  {activeVerticalMenu === 'info' && 'House Specifications'}
+                  {activeVerticalMenu === 'views' && '3D Camera Views'}
+                  {activeVerticalMenu === 'structure' && 'Structure: Roof & Walls'}
+                  {activeVerticalMenu === 'addons' && 'Furniture & Add-ons'}
+                  {activeVerticalMenu === 'hotspots' && 'Architectural Hotspots'}
+                  {activeVerticalMenu === 'lighting' && 'Lighting & Sun Ambiance'}
+                  {activeVerticalMenu === 'mode' && 'Workspace Mode'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveVerticalMenu(null)}
+                  className="p-1 rounded-lg text-gray-400 hover:text-gray-800 hover:bg-gray-100 transition-colors cursor-pointer"
+                  title="Close Menu"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
 
-          {/* Quick Camera Manipulation Bento Buttons - in Advanced Mode or screen space */}
-          {isAdvancedMode && (
-            <div className="hidden sm:flex items-center gap-1 bg-white/90 backdrop-blur-md p-1 rounded-2xl border border-gray-200 shadow-sm animate-in fade-in duration-150">
-              <button
-                onClick={() => handleZoom(1)}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors font-bold text-base cursor-pointer"
-                title="Zoom In"
-              >
-                +
-              </button>
-              <button
-                onClick={() => handleZoom(-1)}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors font-bold text-base cursor-pointer"
-                title="Zoom Out"
-              >
-                -
-              </button>
-              <button
-                onClick={() => setAutoRotate(!autoRotate)}
-                className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
-                  autoRotate
-                    ? 'bg-orange-600 text-white'
-                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-                }`}
-                title={autoRotate ? 'Stop Rotation' : 'Auto 360° Rotate'}
-              >
-                <RotateCw className={`w-3.5 h-3.5 ${autoRotate ? 'animate-spin' : ''}`} />
-              </button>
+              {/* Reveal Words: QUICK HOUSE CONTROLS (All essential features consolidated in one clean card) */}
+              {activeVerticalMenu === 'quick' && (
+                <div className="space-y-3">
+                  {/* Model Quick Summary Header */}
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-orange-50/70 border border-orange-200/80">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-black text-gray-950 truncate">{currentModel.name}</span>
+                        <span className="text-[9px] font-mono font-bold uppercase text-orange-800 bg-white px-1.5 py-0.2 rounded border border-orange-200">
+                          {currentModel.series || 'PREFAB'}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-gray-600 font-medium">
+                        {currentModel.sqft} sq ft · {currentModel.bedrooms} Bed · {currentModel.bathrooms} Bath
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 1. 3D Views */}
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      3D Views:
+                    </span>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onPerspectiveChange('exterior-iso');
+                        }}
+                        className={`py-2 px-1.5 rounded-xl text-xs font-bold text-center transition-all cursor-pointer ${
+                          currentPerspective === 'exterior-iso' || currentPerspective === 'front-3-4'
+                            ? 'bg-black text-white shadow-2xs font-black'
+                            : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                        }`}
+                      >
+                        <div>🏡</div>
+                        <div className="text-[10px] mt-0.5 truncate">3D Exterior</div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onPerspectiveChange('top-down-floorplan');
+                          if (!isRoofRemoved) handleToggleRoof();
+                        }}
+                        className={`py-2 px-1.5 rounded-xl text-xs font-bold text-center transition-all cursor-pointer ${
+                          currentPerspective === 'top-down-floorplan'
+                            ? 'bg-black text-white shadow-2xs font-black'
+                            : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                        }`}
+                      >
+                        <div>📐</div>
+                        <div className="text-[10px] mt-0.5 truncate">Top Plan</div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onPerspectiveChange('interior-walkthrough');
+                        }}
+                        className={`py-2 px-1.5 rounded-xl text-xs font-bold text-center transition-all cursor-pointer ${
+                          currentPerspective === 'interior-walkthrough' || currentPerspective === 'bedroom-suite'
+                            ? 'bg-black text-white shadow-2xs font-black'
+                            : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                        }`}
+                      >
+                        <div>🛋️</div>
+                        <div className="text-[10px] mt-0.5 truncate">Inside View</div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2. Structure (Roof & Front Wall) */}
+                  <div className="space-y-1.5 pt-2 border-t border-gray-100">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Structure Enclosure:
+                    </span>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleToggleRoof}
+                        className={`py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          isRoofRemoved
+                            ? 'bg-orange-600 text-white shadow-2xs font-black ring-1 ring-orange-500/50'
+                            : 'bg-gray-50 text-gray-800 hover:bg-gray-100 border border-gray-200/80'
+                        }`}
+                      >
+                        <Layers className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{isRoofRemoved ? 'Put Roof Back' : 'Remove Roof'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleToggleFrontSide}
+                        className={`py-2 px-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          cutawayMode
+                            ? 'bg-orange-600 text-white shadow-2xs font-black ring-1 ring-orange-500/50'
+                            : 'bg-gray-50 text-gray-800 hover:bg-gray-100 border border-gray-200/80'
+                        }`}
+                      >
+                        <Eye className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{cutawayMode ? 'Cover Front' : 'Remove Front'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 3. Furniture & Add-ons */}
+                  <div className="space-y-1.5 pt-2 border-t border-gray-100">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400">
+                        Add-ons &amp; Furniture:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSelectCategory('Add-ons');
+                          setActiveVerticalMenu(null);
+                        }}
+                        className="text-[10px] font-bold text-orange-600 hover:underline cursor-pointer"
+                      >
+                        Open Panel →
+                      </button>
+                    </div>
+
+                    <div className="space-y-1">
+                      {/* Bed Suite */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onStateChange) {
+                            onStateChange((prev) => ({
+                              ...prev,
+                              hasLuxuryBedSuite: !prev.hasLuxuryBedSuite,
+                            }));
+                          }
+                        }}
+                        className={`w-full py-1.5 px-2.5 rounded-lg text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                          state.hasLuxuryBedSuite
+                            ? 'bg-emerald-50 border border-emerald-300 text-emerald-950 font-black'
+                            : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <span>🛏️</span>
+                          <span>Bed Suite</span>
+                        </span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
+                          state.hasLuxuryBedSuite ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-600'
+                        }`}>
+                          {state.hasLuxuryBedSuite ? '✓ Added' : '+ Add'}
+                        </span>
+                      </button>
+
+                      {/* Living Sofa */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onStateChange) {
+                            onStateChange((prev) => ({
+                              ...prev,
+                              hasLivingSofa: !prev.hasLivingSofa,
+                            }));
+                          }
+                        }}
+                        className={`w-full py-1.5 px-2.5 rounded-lg text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                          state.hasLivingSofa
+                            ? 'bg-emerald-50 border border-emerald-300 text-emerald-950 font-black'
+                            : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <span>🛋️</span>
+                          <span>Living Sofa</span>
+                        </span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
+                          state.hasLivingSofa ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-600'
+                        }`}>
+                          {state.hasLivingSofa ? '✓ Added' : '+ Add'}
+                        </span>
+                      </button>
+
+                      {/* Pergola Deck */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onStateChange) {
+                            onStateChange((prev) => ({
+                              ...prev,
+                              hasExteriorPergolaDeck: !prev.hasExteriorPergolaDeck,
+                            }));
+                          }
+                        }}
+                        className={`w-full py-1.5 px-2.5 rounded-lg text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                          state.hasExteriorPergolaDeck
+                            ? 'bg-emerald-50 border border-emerald-300 text-emerald-950 font-black'
+                            : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <span>🌿</span>
+                          <span>Pergola Deck</span>
+                        </span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
+                          state.hasExteriorPergolaDeck ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-600'
+                        }`}>
+                          {state.hasExteriorPergolaDeck ? '✓ Installed' : '+ Add'}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 4. Tools Mode (Basic vs Advanced) */}
+                  <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400">
+                      Mode:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onToggleAdvancedMode) onToggleAdvancedMode();
+                      }}
+                      className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        isAdvancedMode
+                          ? 'bg-black text-white shadow-2xs font-black'
+                          : 'bg-orange-50 text-orange-900 border border-orange-200 hover:bg-orange-100'
+                      }`}
+                    >
+                      <Sliders className="w-3.5 h-3.5 text-orange-400" />
+                      <span>{isAdvancedMode ? 'Advanced Pro Active' : 'Switch to Advanced Pro'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Reveal Words: 3D VIEWS */}
+              {activeVerticalMenu === 'views' && (
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-600 font-medium">
+                    Select a camera angle to inspect the house:
+                  </p>
+                  
+                  {/* 3 Core Essential Views */}
+                  <div className="space-y-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onPerspectiveChange('exterior-iso');
+                        setActiveVerticalMenu(null);
+                      }}
+                      className={`w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                        currentPerspective === 'exterior-iso' || currentPerspective === 'front-3-4'
+                          ? 'bg-black text-white shadow-2xs font-black'
+                          : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>🏡</span>
+                        <span>3D Exterior View</span>
+                      </div>
+                      {(currentPerspective === 'exterior-iso' || currentPerspective === 'front-3-4') && (
+                        <Check className="w-4 h-4 text-white" />
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onPerspectiveChange('top-down-floorplan');
+                        if (!isRoofRemoved) handleToggleRoof();
+                        setActiveVerticalMenu(null);
+                      }}
+                      className={`w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                        currentPerspective === 'top-down-floorplan'
+                          ? 'bg-black text-white shadow-2xs font-black'
+                          : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>📐</span>
+                        <span>Top Plan (Open Floor Plan)</span>
+                      </div>
+                      {currentPerspective === 'top-down-floorplan' && (
+                        <Check className="w-4 h-4 text-white" />
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onPerspectiveChange('interior-walkthrough');
+                        setActiveVerticalMenu(null);
+                      }}
+                      className={`w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                        currentPerspective === 'interior-walkthrough' || currentPerspective === 'bedroom-suite'
+                          ? 'bg-black text-white shadow-2xs font-black'
+                          : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>🛋️</span>
+                        <span>Inside Walkthrough View</span>
+                      </div>
+                      {(currentPerspective === 'interior-walkthrough' || currentPerspective === 'bedroom-suite') && (
+                        <Check className="w-4 h-4 text-white" />
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onPerspectiveChange('front-elevation');
+                        setActiveVerticalMenu(null);
+                      }}
+                      className={`w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                        currentPerspective === 'front-elevation'
+                          ? 'bg-black text-white shadow-2xs font-black'
+                          : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>🚪</span>
+                        <span>Front Facade Elevation</span>
+                      </div>
+                      {currentPerspective === 'front-elevation' && (
+                        <Check className="w-4 h-4 text-white" />
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Turntable and Zoom Controls */}
+                  <div className="pt-2 border-t border-gray-100 space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setAutoRotate(!autoRotate)}
+                      className={`w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                        autoRotate
+                          ? 'bg-orange-600 text-white shadow-2xs font-black'
+                          : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <RotateCw className={`w-4 h-4 ${autoRotate ? 'animate-spin' : ''}`} />
+                        <span>{autoRotate ? 'Stop Rotation' : 'Auto 360° Orbit'}</span>
+                      </div>
+                      {autoRotate && <span className="text-[10px] font-mono bg-white/20 px-1.5 py-0.5 rounded">ON</span>}
+                    </button>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleZoom(1)}
+                        className="py-1.5 px-3 rounded-xl text-xs font-bold bg-gray-50 hover:bg-gray-100 text-gray-800 border border-gray-200/80 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                      >
+                        <span className="text-base font-black">+</span>
+                        <span>Zoom In</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleZoom(-1)}
+                        className="py-1.5 px-3 rounded-xl text-xs font-bold bg-gray-50 hover:bg-gray-100 text-gray-800 border border-gray-200/80 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                      >
+                        <span className="text-base font-black">-</span>
+                        <span>Zoom Out</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Reveal Words: STRUCTURE (ROOF & WALLS) */}
+              {activeVerticalMenu === 'structure' && (
+                <div className="space-y-2.5">
+                  <p className="text-xs text-gray-600 font-medium">
+                    Cover or remove components to see interior or exterior:
+                  </p>
+
+                  {/* Front Wall Enclosure */}
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Front Wall:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (cutawayMode) handleToggleFrontSide();
+                      }}
+                      className={`w-full py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                        !cutawayMode
+                          ? 'bg-orange-600 text-white shadow-2xs font-black'
+                          : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Home className="w-4 h-4 shrink-0" />
+                        <span>+ Cover / Add Front Side</span>
+                      </div>
+                      {!cutawayMode && <Check className="w-3.5 h-3.5 text-white" />}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!cutawayMode) handleToggleFrontSide();
+                      }}
+                      className={`w-full py-2 px-2.5 rounded-xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                        cutawayMode
+                          ? 'bg-orange-600 text-white shadow-2xs font-black'
+                          : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Eye className="w-4 h-4 shrink-0" />
+                        <span>Remove Front Side (See Inside)</span>
+                      </div>
+                      {cutawayMode && <Check className="w-3.5 h-3.5 text-white" />}
+                    </button>
+                  </div>
+
+                  {/* Roof Enclosure */}
+                  <div className="space-y-1.5 pt-2 border-t border-gray-100">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-400 block">
+                      Roof Structure:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleToggleRoof}
+                      className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                        isRoofRemoved
+                          ? 'bg-orange-600 text-white shadow-2xs font-black ring-2 ring-orange-500/40'
+                          : 'bg-gray-50 text-gray-800 hover:bg-gray-100 border border-gray-200/80'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-4 h-4 shrink-0" />
+                        <span>{isRoofRemoved ? 'Put Roof Back' : 'Remove Roof (Open Interior)'}</span>
+                      </div>
+                      {isRoofRemoved && <span className="text-[10px] font-mono bg-white/20 px-1.5 py-0.5 rounded">REMOVED</span>}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Reveal Words: FURNITURE & ADD-ONS */}
+              {activeVerticalMenu === 'addons' && (
+                <div className="space-y-2.5">
+                  <p className="text-xs text-gray-600 font-medium">
+                    Configure interior furniture & outdoor modules:
+                  </p>
+
+                  <div className="space-y-1.5">
+                    {/* Bed Suite */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onStateChange) {
+                          onStateChange((prev) => ({
+                            ...prev,
+                            hasLuxuryBedSuite: !prev.hasLuxuryBedSuite,
+                          }));
+                        }
+                      }}
+                      className={`w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                        state.hasLuxuryBedSuite
+                          ? 'bg-emerald-50 border border-emerald-300 text-emerald-950 font-black'
+                          : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>🛏️</span>
+                        <span>Luxury Bed Suite</span>
+                      </div>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                        state.hasLuxuryBedSuite ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-600'
+                      }`}>
+                        {state.hasLuxuryBedSuite ? '✓ Added' : '+ Add'}
+                      </span>
+                    </button>
+
+                    {/* Living Sofa */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onStateChange) {
+                          onStateChange((prev) => ({
+                            ...prev,
+                            hasLivingSofa: !prev.hasLivingSofa,
+                          }));
+                        }
+                      }}
+                      className={`w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                        state.hasLivingSofa
+                          ? 'bg-emerald-50 border border-emerald-300 text-emerald-950 font-black'
+                          : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>🛋️</span>
+                        <span>Living Lounge Sofa</span>
+                      </div>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                        state.hasLivingSofa ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-600'
+                      }`}>
+                        {state.hasLivingSofa ? '✓ Added' : '+ Add'}
+                      </span>
+                    </button>
+
+                    {/* Pergola Deck */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onStateChange) {
+                          onStateChange((prev) => ({
+                            ...prev,
+                            hasExteriorPergolaDeck: !prev.hasExteriorPergolaDeck,
+                          }));
+                        }
+                      }}
+                      className={`w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                        state.hasExteriorPergolaDeck
+                          ? 'bg-emerald-50 border border-emerald-300 text-emerald-950 font-black'
+                          : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span>🌿</span>
+                        <span>Pergola Patio Deck</span>
+                      </div>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                        state.hasExteriorPergolaDeck ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-600'
+                      }`}>
+                        {state.hasExteriorPergolaDeck ? '✓ Installed' : '+ Add'}
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="pt-2 border-t border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelectCategory('Add-ons');
+                        setActiveVerticalMenu(null);
+                      }}
+                      className="w-full py-2 px-3 rounded-xl text-xs font-bold bg-orange-600 text-white shadow-2xs hover:bg-orange-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Open Full Add-ons Manager</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Reveal Words: ARCHITECTURAL HOTSPOTS & COMPONENTS */}
+              {activeVerticalMenu === 'hotspots' && (
+                <div className="space-y-2.5">
+                  <p className="text-xs text-gray-600 font-medium">
+                    Quick-focus camera and inspect architectural components:
+                  </p>
+                  
+                  <div className="space-y-1.5 max-h-[50vh] overflow-y-auto pr-1 scrollbar-thin">
+                    {/* 1. Exterior Walls */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelectCategory('Wall Panels');
+                        onPerspectiveChange('exterior-iso');
+                        if (cutawayMode) onCutawayModeToggle();
+                        setActiveVerticalMenu(null);
+                      }}
+                      className="w-full py-2 px-2.5 rounded-xl text-xs font-bold bg-gray-50 hover:bg-gray-100 border border-gray-200/80 text-gray-800 flex items-center justify-between transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-orange-600 shrink-0" />
+                        <span>Exterior Walls</span>
+                      </div>
+                      <span className="text-[10px] text-gray-400 font-medium">Exterior</span>
+                    </button>
+
+                    {/* 2. Interior Walls */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelectCategory('Wall Panels');
+                        onPerspectiveChange('interior-walkthrough');
+                        if (!cutawayMode) onCutawayModeToggle();
+                        if (roofLiftPercent < 30) onRoofLiftChange(50);
+                        setActiveVerticalMenu(null);
+                      }}
+                      className="w-full py-2 px-2.5 rounded-xl text-xs font-bold bg-gray-50 hover:bg-gray-100 border border-gray-200/80 text-gray-800 flex items-center justify-between transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                        <span>Interior Walls</span>
+                      </div>
+                      <span className="text-[10px] text-gray-400 font-medium">Cutaway</span>
+                    </button>
+
+                    {/* 3. Glazing */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelectCategory('Glazing & Windows');
+                        setActiveVerticalMenu(null);
+                      }}
+                      className="w-full py-2 px-2.5 rounded-xl text-xs font-bold bg-gray-50 hover:bg-gray-100 border border-gray-200/80 text-gray-800 flex items-center justify-between transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                        <span>Glazing & Windows</span>
+                      </div>
+                      <span className="text-[10px] text-gray-400 font-medium">Windows</span>
+                    </button>
+
+                    {/* 4. Lighting */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelectCategory('Lighting System');
+                        setActiveVerticalMenu(null);
+                      }}
+                      className="w-full py-2 px-2.5 rounded-xl text-xs font-bold bg-gray-50 hover:bg-gray-100 border border-gray-200/80 text-gray-800 flex items-center justify-between transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                        <span>Lighting System</span>
+                      </div>
+                      <span className="text-[10px] text-gray-400 font-medium">Illumination</span>
+                    </button>
+
+                    {/* 5. Roof & Observatory */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelectCategory('Roof & Energy');
+                        if (cutawayMode) onCutawayModeToggle();
+                        if (roofLiftPercent > 0) onRoofLiftChange(0);
+                        onPerspectiveChange('rooftop-observatory');
+                        setActiveVerticalMenu(null);
+                      }}
+                      className="w-full py-2 px-2.5 rounded-xl text-xs font-bold bg-gray-50 hover:bg-gray-100 border border-gray-200/80 text-gray-800 flex items-center justify-between transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                        <span>Roof & Observatory</span>
+                      </div>
+                      <span className="text-[10px] text-gray-400 font-medium">Deck/Roof</span>
+                    </button>
+
+                    {/* 6. Cabinetry */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelectCategory('Cabinetry');
+                        if (!cutawayMode) onCutawayModeToggle();
+                        onPerspectiveChange('interior-walkthrough');
+                        setActiveVerticalMenu(null);
+                      }}
+                      className="w-full py-2 px-2.5 rounded-xl text-xs font-bold bg-gray-50 hover:bg-gray-100 border border-gray-200/80 text-gray-800 flex items-center justify-between transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-slate-800 shrink-0" />
+                        <span>Cabinetry</span>
+                      </div>
+                      <span className="text-[10px] text-gray-400 font-medium">Interior</span>
+                    </button>
+
+                    {/* 7. Pods & Modules */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelectCategory('Interior Modules');
+                        setActiveVerticalMenu(null);
+                      }}
+                      className="w-full py-2 px-2.5 rounded-xl text-xs font-bold bg-gray-50 hover:bg-gray-100 border border-gray-200/80 text-gray-800 flex items-center justify-between transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
+                        <span>Pods & Modules</span>
+                      </div>
+                      <span className="text-[10px] text-gray-400 font-medium">Modular</span>
+                    </button>
+
+                    {/* 8. Bed Suite */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelectCategory('Interior Modules');
+                        if (!cutawayMode) onCutawayModeToggle();
+                        onPerspectiveChange('bedroom-suite');
+                        setActiveVerticalMenu(null);
+                      }}
+                      className="w-full py-2 px-2.5 rounded-xl text-xs font-bold bg-gray-50 hover:bg-gray-100 border border-gray-200/80 text-gray-800 flex items-center justify-between transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0" />
+                        <span>Bed Suite</span>
+                      </div>
+                      <span className="text-[10px] text-gray-400 font-medium">Bedroom</span>
+                    </button>
+
+                    {/* 9. Flooring */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelectCategory('Flooring');
+                        onPerspectiveChange('floor-inspection');
+                        if (roofLiftPercent < 30) onRoofLiftChange(75);
+                        setIsFlooringOverlayOpen(true);
+                        setActiveVerticalMenu(null);
+                      }}
+                      className="w-full py-2 px-2.5 rounded-xl text-xs font-bold bg-gray-50 hover:bg-gray-100 border border-gray-200/80 text-gray-800 flex items-center justify-between transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-600 shrink-0" />
+                        <span>Flooring ({flooringList.length} Finishes)</span>
+                      </div>
+                      <span className="text-[10px] text-gray-400 font-medium">Flooring</span>
+                    </button>
+
+                    {/* 10. Living Lounge */}
+                    {state.modelId !== 'studio' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSelectCategory('Interior Modules');
+                          if (!cutawayMode) onCutawayModeToggle();
+                          onPerspectiveChange('living-lounge');
+                          setActiveVerticalMenu(null);
+                        }}
+                        className="w-full py-2 px-2.5 rounded-xl text-xs font-bold bg-gray-50 hover:bg-gray-100 border border-gray-200/80 text-gray-800 flex items-center justify-between transition-all cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                          <span>Living Lounge</span>
+                        </div>
+                        <span className="text-[10px] text-gray-400 font-medium">Lounge</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Reveal Words: MODE SWITCHER */}
+              {activeVerticalMenu === 'mode' && (
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-600 font-medium">
+                    Choose your editing experience:
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isAdvancedMode && onToggleAdvancedMode) onToggleAdvancedMode();
+                      setActiveVerticalMenu(null);
+                    }}
+                    className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                      !isAdvancedMode
+                        ? 'bg-orange-600 text-white shadow-2xs font-black'
+                        : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Sparkles className="w-4 h-4 shrink-0" />
+                      <div className="text-left">
+                        <div className="font-bold">Basic Tools</div>
+                        <div className="text-[10px] opacity-80 font-normal">Clean default essential tools</div>
+                      </div>
+                    </div>
+                    {!isAdvancedMode && <Check className="w-4 h-4 text-white shrink-0" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isAdvancedMode && onToggleAdvancedMode) onToggleAdvancedMode();
+                      setActiveVerticalMenu(null);
+                    }}
+                    className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                      isAdvancedMode
+                        ? 'bg-black text-white shadow-2xs font-black'
+                        : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Sliders className="w-4 h-4 text-orange-400 shrink-0" />
+                      <div className="text-left">
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <span>Advanced Pro</span>
+                          <span className="px-1.5 py-0.2 rounded-full text-[9px] font-mono bg-orange-500 text-white font-bold">PRO</span>
+                        </div>
+                        <div className="text-[10px] opacity-80 font-normal">Technical elevations, sliders & telemetry</div>
+                      </div>
+                    </div>
+                    {isAdvancedMode && <Check className="w-4 h-4 text-white shrink-0" />}
+                  </button>
+                </div>
+              )}
+
+              {/* Reveal Words: LIGHTING MODE */}
+              {activeVerticalMenu === 'lighting' && (
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-600 font-medium">
+                    Select natural daylight or ambient scene:
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onLightingModeChange('daylight');
+                      setActiveVerticalMenu(null);
+                    }}
+                    className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                      lightingMode === 'daylight'
+                        ? 'bg-orange-600 text-white shadow-2xs font-black'
+                        : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Sun className="w-4 h-4 text-amber-400 shrink-0" />
+                      <div className="text-left">
+                        <div className="font-bold">Daylight (5500K)</div>
+                        <div className="text-[10px] opacity-80 font-normal">Natural high daylight illumination</div>
+                      </div>
+                    </div>
+                    {lightingMode === 'daylight' && <Check className="w-4 h-4 text-white shrink-0" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onLightingModeChange('golden-hour');
+                      setActiveVerticalMenu(null);
+                    }}
+                    className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                      lightingMode === 'golden-hour'
+                        ? 'bg-orange-600 text-white shadow-2xs font-black'
+                        : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Sunset className="w-4 h-4 text-amber-500 shrink-0" />
+                      <div className="text-left">
+                        <div className="font-bold">Golden Hour Sunset</div>
+                        <div className="text-[10px] opacity-80 font-normal">Warm dusk architectural horizon</div>
+                      </div>
+                    </div>
+                    {lightingMode === 'golden-hour' && <Check className="w-4 h-4 text-white shrink-0" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onLightingModeChange('night-ambient');
+                      setActiveVerticalMenu(null);
+                    }}
+                    className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-between transition-all cursor-pointer ${
+                      lightingMode === 'night-ambient'
+                        ? 'bg-black text-white shadow-2xs font-black'
+                        : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200/80'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Moon className="w-4 h-4 text-blue-300 shrink-0" />
+                      <div className="text-left">
+                        <div className="font-bold">Night LED Glow</div>
+                        <div className="text-[10px] opacity-80 font-normal">Architectural night accent lighting</div>
+                      </div>
+                    </div>
+                    {lightingMode === 'night-ambient' && <Check className="w-4 h-4 text-white shrink-0" />}
+                  </button>
+                </div>
+              )}
+
+              {/* Reveal Words: MODEL INFO */}
+              {activeVerticalMenu === 'info' && (
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-gray-950">{currentModel.name}</span>
+                    <span className="text-[9px] font-mono font-bold uppercase text-orange-800 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200">
+                      {currentModel.series || 'PREFAB'}
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-gray-50 border border-gray-200/70 space-y-1.5 text-xs text-gray-600">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Living Area:</span>
+                      <span className="font-bold text-gray-900">{currentModel.sqft} sq ft</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Layout:</span>
+                      <span className="font-bold text-gray-900">{currentModel.bedrooms} Bed · {currentModel.bathrooms} Bath</span>
+                    </div>
+                    {currentModel.dimensions?.lengthFt && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Dimensions:</span>
+                        <span className="font-mono font-semibold text-gray-800">{currentModel.dimensions.lengthFt}ft × {currentModel.dimensions.widthFt}ft</span>
+                      </div>
+                    )}
+                    {isPubliclyAvailable && (
+                      <div className="flex justify-between items-center pt-1 border-t border-gray-200/60">
+                        <span className="text-gray-500">Availability:</span>
+                        <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 flex items-center gap-1">
+                          <Check className="w-2.5 h-2.5" />
+                          Publicly Available
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1.5 rounded-xl border border-emerald-200">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                    <span>Real-time Interactive 3D Canvas Active</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
-
-          {/* Fullscreen Button */}
-          <button
-            onClick={toggleFullscreen}
-            className="w-9 h-9 bg-white/90 backdrop-blur-md border border-gray-200 rounded-2xl flex items-center justify-center shadow-sm text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
-            title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen 3D Viewer'}
-          >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-          </button>
         </div>
       </div>
 
-      {/* Floating Interactive 3D Hotspot Tags - Only in Advanced Mode */}
-      {isAdvancedMode && showHotspots && (
-        <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">
-          <div className="absolute bottom-20 left-5 pointer-events-auto flex flex-wrap gap-1.5 max-w-sm">
-            <button
-              onClick={() => {
-                onSelectCategory('Wall Panels');
-                onPerspectiveChange('exterior-iso');
-                if (cutawayMode) onCutawayModeToggle();
-              }}
-              className="px-3 py-1 bg-white/90 hover:bg-white border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-wider text-gray-700 shadow-xs flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-orange-600" />
-              Exterior Walls
-            </button>
-            <button
-              onClick={() => {
-                onSelectCategory('Wall Panels');
-                onPerspectiveChange('interior-walkthrough');
-                if (!cutawayMode) onCutawayModeToggle();
-                if (roofLiftPercent < 30) onRoofLiftChange(50);
-              }}
-              className="px-3 py-1 bg-white/90 hover:bg-white border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-wider text-gray-700 shadow-xs flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-              Interior Walls
-            </button>
-            <button
-              onClick={() => onSelectCategory('Glazing & Windows')}
-              className="px-3 py-1 bg-white/90 hover:bg-white border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-wider text-gray-700 shadow-xs flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-              Glazing
-            </button>
-            <button
-              onClick={() => onSelectCategory('Lighting System')}
-              className="px-3 py-1 bg-white/90 hover:bg-white border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-wider text-gray-700 shadow-xs flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-              Lighting
-            </button>
-            <button
-              onClick={() => {
-                onSelectCategory('Roof & Energy');
-                if (cutawayMode) onCutawayModeToggle();
-                if (roofLiftPercent > 0) onRoofLiftChange(0);
-                onPerspectiveChange('rooftop-observatory');
-              }}
-              className="px-3 py-1 bg-white/90 hover:bg-white border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-wider text-gray-700 shadow-xs flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              Roof & Observatory
-            </button>
-            <button
-              onClick={() => {
-                onSelectCategory('Cabinetry');
-                if (!cutawayMode) onCutawayModeToggle();
-                onPerspectiveChange('interior-walkthrough');
-              }}
-              className="px-3 py-1 bg-white/90 hover:bg-white border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-wider text-gray-700 shadow-xs flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-slate-800" />
-              Cabinetry
-            </button>
-            <button
-              onClick={() => onSelectCategory('Interior Modules')}
-              className="px-3 py-1 bg-white/90 hover:bg-white border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-wider text-gray-700 shadow-xs flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-              Pods & Modules
-            </button>
-            <button
-              onClick={() => {
-                onSelectCategory('Interior Modules');
-                if (!cutawayMode) onCutawayModeToggle();
-                onPerspectiveChange('bedroom-suite');
-              }}
-              className="px-3 py-1 bg-white/90 hover:bg-white border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-wider text-gray-700 shadow-xs flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-              Bed Suite
-            </button>
-            <button
-              onClick={() => {
-                onSelectCategory('Flooring');
-                onPerspectiveChange('floor-inspection');
-                if (roofLiftPercent < 30) onRoofLiftChange(75);
-                setIsFlooringOverlayOpen(true);
-              }}
-              className="px-3 py-1 bg-white/90 hover:bg-white border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-wider text-gray-700 shadow-xs flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
-              Flooring ({flooringList.length})
-            </button>
-            {state.modelId !== 'studio' && (
-              <button
-                onClick={() => {
-                  onSelectCategory('Interior Modules');
-                  if (!cutawayMode) onCutawayModeToggle();
-                  onPerspectiveChange('living-lounge');
-                }}
-                className="px-3 py-1 bg-white/90 hover:bg-white border border-gray-200 rounded-full text-[10px] font-bold uppercase tracking-wider text-gray-700 shadow-xs flex items-center gap-1.5 transition-all hover:scale-105 cursor-pointer"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                Living Lounge
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Architectural Hotspots and Component Inspection are consolidated in the Left Vertical Menu */}
 
       {/* Floating Floor Selector & Expandable Size Matrix Bar - Only in Advanced Mode */}
       {isAdvancedMode && (isFlooringOverlayOpen ? (
-        <div className="absolute bottom-16 sm:bottom-18 left-3 sm:left-5 right-3 sm:right-auto z-20 pointer-events-auto max-w-xl bg-white/95 backdrop-blur-md border border-gray-200/90 rounded-2xl shadow-xl p-3 sm:p-3.5 space-y-2 ring-1 ring-black/5 animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <div className="hidden md:block absolute bottom-16 sm:bottom-18 left-3 sm:left-5 right-3 sm:right-auto z-20 pointer-events-auto max-w-xl bg-white/95 backdrop-blur-md border border-gray-200/90 rounded-2xl shadow-xl p-3 sm:p-3.5 space-y-2 ring-1 ring-black/5 animate-in fade-in slide-in-from-bottom-2 duration-200">
           {/* Header with Active Floor Info & View Actions */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
@@ -991,7 +1852,7 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
           </div>
         </div>
       ) : (
-        <div className="absolute bottom-16 sm:bottom-18 left-3 sm:left-5 z-20 pointer-events-auto flex items-center gap-2 flex-wrap">
+        <div className="hidden md:flex absolute bottom-16 sm:bottom-18 left-3 sm:left-5 z-20 pointer-events-auto items-center gap-2 flex-wrap">
           <button
             type="button"
             onClick={() => setIsFlooringOverlayOpen(true)}
@@ -1034,11 +1895,41 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
                 : 'Add Bed / Sofa'}
             </span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (onStateChange) {
+                onStateChange((prev) => ({
+                  ...prev,
+                  hasExteriorPergolaDeck: !prev.hasExteriorPergolaDeck,
+                }));
+              }
+            }}
+            className={`px-3 py-1.5 rounded-full backdrop-blur-md border shadow-md flex items-center gap-2 transition-all cursor-pointer text-xs font-bold ring-1 ring-black/5 active:scale-95 ${
+              state.hasExteriorPergolaDeck
+                ? 'bg-orange-50 border-orange-300 text-orange-950 hover:bg-orange-100'
+                : 'bg-white/95 border-gray-200/90 text-gray-800 hover:bg-orange-50/70'
+            }`}
+            title="Toggle Exterior Louvered Pergola & Patio Deck on the house"
+          >
+            <span className="text-sm">🌿</span>
+            <span className="text-[11px] font-black text-gray-900">
+              Pergola Deck
+            </span>
+            <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+              state.hasExteriorPergolaDeck
+                ? 'bg-emerald-600 text-white shadow-2xs font-bold'
+                : 'bg-orange-100 text-orange-800 border border-orange-200'
+            }`}>
+              {state.hasExteriorPergolaDeck ? '✓ Installed' : '+ Add Pergola'}
+            </span>
+          </button>
         </div>
       ))}
 
-      {/* Bento Bottom Telemetry & Controls Bar */}
-      <div className="relative z-10 bg-white/90 backdrop-blur-md border-t border-gray-200/80 px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-3">
+      {/* Bento Bottom Telemetry & Controls Bar - Hidden on mobile screens so it does not block the canvas or house */}
+      <div className="hidden md:flex relative z-10 bg-white/90 backdrop-blur-md border-t border-gray-200/80 px-3 sm:px-5 py-2.5 flex-wrap items-center justify-between gap-3">
         {/* Selected House Identification & Architectural Telemetry */}
         <div className="flex items-center gap-3 sm:gap-5 flex-wrap">
           {/* Active House Card synchronized with Left Side Panel */}
@@ -1218,6 +2109,34 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
                 <>
                   <Layers className="w-3.5 h-3.5 text-gray-600" />
                   <span>Remove Roof</span>
+                </>
+              )}
+            </button>
+
+            {/* Primary Action Button: Cover or Add Front Side of the House */}
+            <button
+              type="button"
+              onClick={handleToggleFrontSide}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                cutawayMode
+                  ? 'bg-orange-600 text-white shadow-xs ring-2 ring-orange-500/40 hover:bg-orange-700 active:scale-95'
+                  : 'bg-white text-gray-800 border border-gray-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-300 shadow-2xs active:scale-95'
+              }`}
+              title={
+                cutawayMode
+                  ? 'Front side is currently open/removed. Click to cover and add the front side back onto the house.'
+                  : 'Click to remove the front side of the house for an open view inside.'
+              }
+            >
+              {cutawayMode ? (
+                <>
+                  <Home className="w-3.5 h-3.5 text-white animate-pulse" />
+                  <span>Cover / Add Front Side</span>
+                </>
+              ) : (
+                <>
+                  <Eye className="w-3.5 h-3.5 text-gray-600" />
+                  <span>Remove Front Side</span>
                 </>
               )}
             </button>
@@ -1423,18 +2342,32 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
                 )}
               </button>
 
-              {/* Cutaway Mode Toggle */}
+              {/* Cover or Add Front Side Toggle */}
               <button
                 type="button"
-                onClick={onCutawayModeToggle}
-                className={`flex items-center gap-1 font-bold px-2 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
+                onClick={handleToggleFrontSide}
+                className={`flex items-center gap-1.5 font-bold px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
                   cutawayMode
-                    ? 'bg-gray-900 text-white shadow-xs'
-                    : 'text-gray-600 hover:bg-gray-200/60 hover:text-gray-900'
+                    ? 'bg-orange-600 text-white shadow-xs'
+                    : 'bg-white text-gray-800 border border-gray-200 hover:bg-orange-50 hover:text-orange-700'
                 }`}
-                title="Toggle front wall cutaway visibility"
+                title={
+                  cutawayMode
+                    ? 'Front wall is currently open. Click to cover and add the front side back onto the house.'
+                    : 'Click to remove the front side of the house to see inside.'
+                }
               >
-                <span>{cutawayMode ? 'Wall Off' : 'Cutaway'}</span>
+                {cutawayMode ? (
+                  <>
+                    <Home className="w-3 h-3 text-white" />
+                    <span>Cover Front Side</span>
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-3 h-3 text-gray-600" />
+                    <span>Remove Front Side</span>
+                  </>
+                )}
               </button>
 
               {/* Roof Elevation Slider */}

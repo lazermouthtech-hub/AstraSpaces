@@ -5782,49 +5782,444 @@ export function buildHomeModel(
   // 5. EXTERIOR PERGOLA & PATIO DECK
   // =========================================================================
   if (state.hasExteriorPergolaDeck && !isFoldedMode) {
-    const deckDepth = 2.8;
-    const deckWidth = isExpandable ? expandableWidth + 0.6 : length + 0.6;
-    const deckCenterZ = (isExpandable ? houseDepth : effectiveDepth) / 2 + deckDepth / 2;
-    const deckBaseY = 0.12;
+    // -----------------------------------------------------------------------
+    // A. Proportions & Structural Dimensions Tailored to Each House Size
+    // -----------------------------------------------------------------------
+    const deckDepth = is10ft ? 2.3 : is20ft ? 2.7 : is30ft ? 3.1 : 3.4;
+    const deckWidth = isExpandable
+      ? (is10ft ? 5.2 : is20ft ? 6.0 : is30ft ? 6.6 : 6.8)
+      : length + 0.6;
+    const frontZ = (isExpandable ? houseDepth : effectiveDepth) / 2;
+    const deckCenterZ = frontZ + deckDepth / 2;
+    const deckSurfaceY = 0.15; // Flush with interior subfloor
+    const plankThick = 0.024;
+    const joistH = 0.096;
+    const pierH = 0.03;
 
-    const deckFloor = new THREE.Mesh(
-      new THREE.BoxGeometry(deckWidth, deckBaseY, deckDepth),
-      materials.woodDeckMaterial
-    );
-    deckFloor.position.set(0, deckBaseY / 2, deckCenterZ);
-    deckFloor.receiveShadow = true;
-    pergolaGroup.add(deckFloor);
+    // High-fidelity materials
+    const darkFasciaMat = materials.chassisMaterial; // Powdercoated matte graphite
+    const deckPlankMat = materials.woodDeckMaterial;
+    const aluminumBeamMat = materials.chassisMaterial;
+    const postMat = materials.q235SteelMaterial || materials.chassisMaterial;
+    const hardwareMat = materials.metalTrimMaterial;
+    const glassRailMat = materials.glassMaterial;
+    const ledMat = materials.ledStripMaterial;
+    const outdoorFabricMat = materials.furnitureFabricMaterial;
+    const planterMat = new THREE.MeshStandardMaterial({ color: '#f1f5f9', roughness: 0.35 });
+    const foliageMat = new THREE.MeshStandardMaterial({ color: '#274e13', roughness: 0.65 });
+    const tableTopMat = new THREE.MeshStandardMaterial({ color: '#18181b', roughness: 0.3, metalness: 0.2 });
 
-    const postGeo = new THREE.BoxGeometry(0.12, height + 0.2, 0.12);
-    [
-      [-deckWidth / 2 + 0.15, deckCenterZ - deckDepth / 2 + 0.15],
-      [deckWidth / 2 - 0.15, deckCenterZ - deckDepth / 2 + 0.15],
-      [-deckWidth / 2 + 0.15, deckCenterZ + deckDepth / 2 - 0.15],
-      [deckWidth / 2 - 0.15, deckCenterZ + deckDepth / 2 - 0.15],
-    ].forEach(([px, pz]) => {
-      const col = new THREE.Mesh(postGeo, materials.q235SteelMaterial || materials.chassisMaterial);
-      col.position.set(px, (height + 0.2) / 2, pz);
-      col.castShadow = true;
-      pergolaGroup.add(col);
-    });
+    // -----------------------------------------------------------------------
+    // B. Substructure: Foundation Leveling Footings & Perimeter Rim Joists
+    // -----------------------------------------------------------------------
+    // 1. Concrete leveling pads with steel screw-jack collars
+    const pierGeo = new THREE.CylinderGeometry(0.08, 0.09, pierH, 16);
+    const pierMat = new THREE.MeshStandardMaterial({ color: '#475569', roughness: 0.9 });
+    const pierJackGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.02, 12);
 
-    const ringY = height + 0.2 + 0.06;
-    const ringBeamFront = new THREE.Mesh(new THREE.BoxGeometry(deckWidth, 0.12, 0.12), materials.chassisMaterial);
-    ringBeamFront.position.set(0, ringY, deckCenterZ + deckDepth / 2 - 0.15);
-    pergolaGroup.add(ringBeamFront);
+    const pierCols = is10ft ? 3 : is20ft ? 4 : is30ft ? 5 : 6;
+    const pierRows = 3;
+    for (let c = 0; c < pierCols; c++) {
+      const px = -deckWidth / 2 + 0.25 + (c / (pierCols - 1)) * (deckWidth - 0.5);
+      for (let r = 0; r < pierRows; r++) {
+        const pz = frontZ + 0.25 + (r / (pierRows - 1)) * (deckDepth - 0.5);
+        const pier = new THREE.Mesh(pierGeo, pierMat);
+        pier.position.set(px, pierH / 2, pz);
+        pier.receiveShadow = true;
+        pergolaGroup.add(pier);
 
-    const numLouvers = Math.round(deckWidth / 0.35);
-    for (let l = 0; l < numLouvers; l++) {
-      const lx = -deckWidth / 2 + 0.3 + l * 0.35;
-      const louver = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, deckDepth - 0.3), materials.chassisMaterial);
-      louver.position.set(lx, ringY + 0.04, deckCenterZ);
-      louver.rotation.z = Math.PI / 4;
-      pergolaGroup.add(louver);
+        const jack = new THREE.Mesh(pierJackGeo, hardwareMat);
+        jack.position.set(px, pierH + 0.01, pz);
+        pergolaGroup.add(jack);
+      }
     }
 
-    const pRail = new THREE.Mesh(new THREE.BoxGeometry(deckWidth - 0.6, 0.95, 0.016), materials.glassMaterial);
-    pRail.position.set(0, deckBaseY + 0.48, deckCenterZ + deckDepth / 2 - 0.08);
-    pergolaGroup.add(pRail);
+    // 2. Perimeter Structural Rim Joists
+    const rimJoistY = pierH + joistH / 2;
+    const rimThick = 0.05;
+    // Front & rear rim joists
+    const rimFront = new THREE.Mesh(new THREE.BoxGeometry(deckWidth, joistH, rimThick), darkFasciaMat);
+    rimFront.position.set(0, rimJoistY, deckCenterZ + deckDepth / 2 - rimThick / 2);
+    const rimRear = new THREE.Mesh(new THREE.BoxGeometry(deckWidth, joistH, rimThick), darkFasciaMat);
+    rimRear.position.set(0, rimJoistY, frontZ + rimThick / 2);
+    // Left & right rim joists
+    const rimLeft = new THREE.Mesh(new THREE.BoxGeometry(rimThick, joistH, deckDepth), darkFasciaMat);
+    rimLeft.position.set(-deckWidth / 2 + rimThick / 2, rimJoistY, deckCenterZ);
+    const rimRight = new THREE.Mesh(new THREE.BoxGeometry(rimThick, joistH, deckDepth), darkFasciaMat);
+    rimRight.position.set(deckWidth / 2 - rimThick / 2, rimJoistY, deckCenterZ);
+    pergolaGroup.add(rimFront, rimRear, rimLeft, rimRight);
+
+    // -----------------------------------------------------------------------
+    // C. Realistic WPC Composite Decking Planks with Physical Shadow Grooves
+    // -----------------------------------------------------------------------
+    // 1. Outer Picture-Frame Border (Fascia Nosing)
+    const borderW = 0.14;
+    const borderY = deckSurfaceY - plankThick / 2;
+    const borderFront = new THREE.Mesh(new THREE.BoxGeometry(deckWidth, plankThick, borderW), darkFasciaMat);
+    borderFront.position.set(0, borderY, deckCenterZ + deckDepth / 2 - borderW / 2);
+    const borderRear = new THREE.Mesh(new THREE.BoxGeometry(deckWidth, plankThick, borderW), darkFasciaMat);
+    borderRear.position.set(0, borderY, frontZ + borderW / 2);
+    const innerL = deckDepth - borderW * 2;
+    const borderLeft = new THREE.Mesh(new THREE.BoxGeometry(borderW, plankThick, innerL), darkFasciaMat);
+    borderLeft.position.set(-deckWidth / 2 + borderW / 2, borderY, deckCenterZ);
+    const borderRight = new THREE.Mesh(new THREE.BoxGeometry(borderW, plankThick, innerL), darkFasciaMat);
+    borderRight.position.set(deckWidth / 2 - borderW / 2, borderY, deckCenterZ);
+    pergolaGroup.add(borderFront, borderRear, borderLeft, borderRight);
+
+    // 2. Individual Composite Deck Boards spanning along X with shadow reveals
+    const plankW = 0.135;
+    const plankGap = 0.005;
+    const innerDepth = deckDepth - borderW * 2;
+    const numPlanks = Math.floor(innerDepth / (plankW + plankGap));
+    const fieldZStart = frontZ + borderW + plankW / 2;
+    const fieldWidth = deckWidth - borderW * 2;
+
+    const plankGeo = new THREE.BoxGeometry(fieldWidth, plankThick, plankW);
+    for (let p = 0; p < numPlanks; p++) {
+      const pz = fieldZStart + p * (plankW + plankGap);
+      const plank = new THREE.Mesh(plankGeo, deckPlankMat);
+      plank.position.set(0, borderY, pz);
+      plank.receiveShadow = true;
+      pergolaGroup.add(plank);
+    }
+
+    // -----------------------------------------------------------------------
+    // D. Low-Rise Front Entrance Access Steps with Step Nosing Trim
+    // -----------------------------------------------------------------------
+    const stepW = is10ft ? 2.0 : is20ft ? 2.2 : is30ft ? 2.6 : 3.0;
+    const step1D = 0.36;
+    const step1H = 0.075;
+    const step1Z = deckCenterZ + deckDepth / 2 + step1D / 2;
+    const step1 = new THREE.Mesh(new THREE.BoxGeometry(stepW, step1H, step1D), deckPlankMat);
+    step1.position.set(0, step1H / 2 + 0.02, step1Z);
+    step1.receiveShadow = true;
+    const step1Trim = new THREE.Mesh(new THREE.BoxGeometry(stepW + 0.04, 0.015, 0.03), darkFasciaMat);
+    step1Trim.position.set(0, step1H + 0.012, step1Z + step1D / 2 - 0.015);
+    pergolaGroup.add(step1, step1Trim);
+
+    const step2D = 0.36;
+    const step2H = 0.035;
+    const step2Z = step1Z + step1D / 2 + step2D / 2;
+    const step2 = new THREE.Mesh(new THREE.BoxGeometry(stepW + 0.2, step2H, step2D), darkFasciaMat);
+    step2.position.set(0, step2H / 2, step2Z);
+    step2.receiveShadow = true;
+    pergolaGroup.add(step2);
+
+    // -----------------------------------------------------------------------
+    // E. Heavy-Duty Aluminum Pergola Posts with Base Plinths & Moment Brackets
+    // -----------------------------------------------------------------------
+    const postW = 0.12;
+    const colHeight = height + 0.22;
+    const colCenterY = deckSurfaceY + colHeight / 2;
+    const postGeo = new THREE.BoxGeometry(postW, colHeight, postW);
+    const plinthGeo = new THREE.BoxGeometry(0.18, 0.025, 0.18);
+    const boltGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.015, 8);
+
+    // Structural columns count and distribution:
+    // 10ft: 4 posts (2 front, 2 rear)
+    // 20ft: 4 main posts + rear anchor
+    // 30ft: 6 posts (3 front, 3 rear)
+    // 40ft: 8 posts (4 front, 4 rear)
+    const postPositions: [number, number][] = [];
+    if (is10ft) {
+      [-deckWidth / 2 + 0.18, deckWidth / 2 - 0.18].forEach((px) => {
+        postPositions.push([px, frontZ + 0.18]);
+        postPositions.push([px, deckCenterZ + deckDepth / 2 - 0.18]);
+      });
+    } else if (is20ft) {
+      [-deckWidth / 2 + 0.18, deckWidth / 2 - 0.18].forEach((px) => {
+        postPositions.push([px, frontZ + 0.18]);
+        postPositions.push([px, deckCenterZ + deckDepth / 2 - 0.18]);
+      });
+      postPositions.push([0, frontZ + 0.18]);
+    } else if (is30ft) {
+      [-deckWidth / 2 + 0.18, 0, deckWidth / 2 - 0.18].forEach((px) => {
+        postPositions.push([px, frontZ + 0.18]);
+        postPositions.push([px, deckCenterZ + deckDepth / 2 - 0.18]);
+      });
+    } else {
+      // 40ft executive model: 4 columns front and 4 columns rear
+      [-deckWidth / 2 + 0.18, -deckWidth / 6, deckWidth / 6, deckWidth / 2 - 0.18].forEach((px) => {
+        postPositions.push([px, frontZ + 0.18]);
+        postPositions.push([px, deckCenterZ + deckDepth / 2 - 0.18]);
+      });
+    }
+
+    // Build each column with base flange and corner moment brackets
+    postPositions.forEach(([px, pz]) => {
+      const col = new THREE.Mesh(postGeo, postMat);
+      col.position.set(px, colCenterY, pz);
+      col.castShadow = true;
+      pergolaGroup.add(col);
+
+      // Base plinth plate
+      const plinth = new THREE.Mesh(plinthGeo, hardwareMat);
+      plinth.position.set(px, deckSurfaceY + 0.0125, pz);
+      pergolaGroup.add(plinth);
+
+      // 4 stainless bolt caps
+      [-0.065, 0.065].forEach((bx) => {
+        [-0.065, 0.065].forEach((bz) => {
+          const bolt = new THREE.Mesh(boltGeo, hardwareMat);
+          bolt.position.set(px + bx, deckSurfaceY + 0.025 + 0.0075, pz + bz);
+          pergolaGroup.add(bolt);
+        });
+      });
+
+      // Top corner gusset stiffeners (moment bracket connection)
+      const gussetY = deckSurfaceY + colHeight - 0.12;
+      const isFrontPost = pz > deckCenterZ;
+      const gussetDirZ = isFrontPost ? -1 : 1;
+      const gussetZ = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.16, 0.04), hardwareMat);
+      gussetZ.position.set(px, gussetY, pz + gussetDirZ * 0.08);
+      gussetZ.rotation.x = (gussetDirZ * Math.PI) / 4;
+      pergolaGroup.add(gussetZ);
+    });
+
+    // -----------------------------------------------------------------------
+    // F. Complete 4-Sided Overhead Box-Beam Header System & Divider Rafters
+    // -----------------------------------------------------------------------
+    const beamY = deckSurfaceY + colHeight + 0.06;
+    const beamH = 0.14;
+    const beamW = 0.08;
+
+    // Front carrying beam (spans full deckWidth + 0.12m cantilever)
+    const beamFront = new THREE.Mesh(new THREE.BoxGeometry(deckWidth + 0.12, beamH, beamW), aluminumBeamMat);
+    beamFront.position.set(0, beamY, deckCenterZ + deckDepth / 2 - 0.18);
+    beamFront.castShadow = true;
+    pergolaGroup.add(beamFront);
+
+    // Rear carrying beam (spans full deckWidth along house front wall)
+    const beamRear = new THREE.Mesh(new THREE.BoxGeometry(deckWidth + 0.12, beamH, beamW), aluminumBeamMat);
+    beamRear.position.set(0, beamY, frontZ + 0.18);
+    beamRear.castShadow = true;
+    pergolaGroup.add(beamRear);
+
+    // Left and Right transverse rafter beams
+    const rafterLen = deckDepth - 0.18 * 2 + beamW;
+    const rafterLeft = new THREE.Mesh(new THREE.BoxGeometry(beamW, beamH, rafterLen), aluminumBeamMat);
+    rafterLeft.position.set(-deckWidth / 2 + 0.18, beamY, deckCenterZ);
+    const rafterRight = new THREE.Mesh(new THREE.BoxGeometry(beamW, beamH, rafterLen), aluminumBeamMat);
+    rafterRight.position.set(deckWidth / 2 - 0.18, beamY, deckCenterZ);
+    pergolaGroup.add(rafterLeft, rafterRight);
+
+    // Intermediate divider rafters for multi-bay structures
+    const dividerXList: number[] = [];
+    if (is20ft || is30ft) {
+      dividerXList.push(0);
+    } else if (is40ft) {
+      dividerXList.push(-deckWidth / 6, deckWidth / 6);
+    }
+    dividerXList.forEach((dx) => {
+      const midRafter = new THREE.Mesh(new THREE.BoxGeometry(beamW, beamH, rafterLen), aluminumBeamMat);
+      midRafter.position.set(dx, beamY, deckCenterZ);
+      midRafter.castShadow = true;
+      pergolaGroup.add(midRafter);
+    });
+
+    // Concealed Perimeter Warm LED Ambient Glow
+    const ledH = 0.015;
+    const ledFront = new THREE.Mesh(new THREE.BoxGeometry(deckWidth - 0.4, ledH, 0.02), ledMat);
+    ledFront.position.set(0, beamY - beamH / 2 + 0.01, deckCenterZ + deckDepth / 2 - 0.18 - beamW / 2);
+    const ledRear = new THREE.Mesh(new THREE.BoxGeometry(deckWidth - 0.4, ledH, 0.02), ledMat);
+    ledRear.position.set(0, beamY - beamH / 2 + 0.01, frontZ + 0.18 + beamW / 2);
+    pergolaGroup.add(ledFront, ledRear);
+
+    // -----------------------------------------------------------------------
+    // G. Aerodynamic Sun-Shading Louvers with Pivot Linkage Rods
+    // -----------------------------------------------------------------------
+    const louverBladeW = 0.085;
+    const louverBladeH = 0.018;
+    const louverBladeLen = rafterLen - beamW;
+    const louverSpacing = is10ft ? 0.24 : is20ft ? 0.22 : 0.23;
+    const louverTilt = 0.62; // ~35.5° sun shading angle
+    const louverY = beamY + beamH / 2 + 0.02;
+
+    // Louver bays based on divider rafters
+    const bayBoundaries = [-deckWidth / 2 + 0.18, ...dividerXList, deckWidth / 2 - 0.18];
+    for (let b = 0; b < bayBoundaries.length - 1; b++) {
+      const bayLeft = bayBoundaries[b] + beamW / 2 + 0.08;
+      const bayRight = bayBoundaries[b + 1] - beamW / 2 - 0.08;
+      const baySpan = bayRight - bayLeft;
+      const numBayLouvers = Math.floor(baySpan / louverSpacing);
+
+      for (let l = 0; l <= numBayLouvers; l++) {
+        const lx = bayLeft + (l / numBayLouvers) * baySpan;
+        const louver = new THREE.Mesh(
+          new THREE.BoxGeometry(louverBladeW, louverBladeH, louverBladeLen),
+          aluminumBeamMat
+        );
+        louver.position.set(lx, louverY, deckCenterZ);
+        louver.rotation.z = louverTilt;
+        louver.castShadow = true;
+        louver.receiveShadow = true;
+        pergolaGroup.add(louver);
+      }
+
+      // Motorized tilt linkage rod running across the louvers
+      const linkageRod = new THREE.Mesh(new THREE.BoxGeometry(baySpan, 0.015, 0.015), hardwareMat);
+      linkageRod.position.set((bayLeft + bayRight) / 2, louverY + 0.035, deckCenterZ);
+      pergolaGroup.add(linkageRod);
+    }
+
+    // -----------------------------------------------------------------------
+    // H. Architectural Safety Glass Balustrade with Open Entryway
+    // -----------------------------------------------------------------------
+    const railH = 0.95;
+    const railThick = 0.016;
+    const glassCenterY = deckSurfaceY + railH / 2;
+    const sideGlassLen = deckDepth - 0.36;
+
+    // Left and Right side glass balustrades
+    const leftGlass = new THREE.Mesh(new THREE.BoxGeometry(railThick, railH, sideGlassLen), glassRailMat);
+    leftGlass.position.set(-deckWidth / 2 + 0.10, glassCenterY, deckCenterZ);
+    const rightGlass = new THREE.Mesh(new THREE.BoxGeometry(railThick, railH, sideGlassLen), glassRailMat);
+    rightGlass.position.set(deckWidth / 2 - 0.10, glassCenterY, deckCenterZ);
+    pergolaGroup.add(leftGlass, rightGlass);
+
+    // Slim top capping handrails for side glass
+    const capGeo = new THREE.BoxGeometry(0.03, 0.02, sideGlassLen);
+    const leftCap = new THREE.Mesh(capGeo, darkFasciaMat);
+    leftCap.position.set(-deckWidth / 2 + 0.10, deckSurfaceY + railH + 0.01, deckCenterZ);
+    const rightCap = new THREE.Mesh(capGeo, darkFasciaMat);
+    rightCap.position.set(deckWidth / 2 - 0.10, deckSurfaceY + railH + 0.01, deckCenterZ);
+    pergolaGroup.add(leftCap, rightCap);
+
+    // Front glass balustrade split with OPEN central entry corridor
+    const entryGap = is10ft ? 1.8 : is20ft ? 2.0 : is30ft ? 2.4 : 2.6;
+    const frontGlassSegW = (deckWidth - entryGap - 0.20) / 2;
+    const frontGlassZ = deckCenterZ + deckDepth / 2 - 0.10;
+
+    if (frontGlassSegW > 0.4) {
+      // Left front glass panel
+      const leftFrontX = -deckWidth / 2 + 0.10 + frontGlassSegW / 2;
+      const leftFrontGlass = new THREE.Mesh(new THREE.BoxGeometry(frontGlassSegW, railH, railThick), glassRailMat);
+      leftFrontGlass.position.set(leftFrontX, glassCenterY, frontGlassZ);
+      const leftFrontCap = new THREE.Mesh(new THREE.BoxGeometry(frontGlassSegW, 0.02, 0.03), darkFasciaMat);
+      leftFrontCap.position.set(leftFrontX, deckSurfaceY + railH + 0.01, frontGlassZ);
+      pergolaGroup.add(leftFrontGlass, leftFrontCap);
+
+      // Right front glass panel
+      const rightFrontX = deckWidth / 2 - 0.10 - frontGlassSegW / 2;
+      const rightFrontGlass = new THREE.Mesh(new THREE.BoxGeometry(frontGlassSegW, railH, railThick), glassRailMat);
+      rightFrontGlass.position.set(rightFrontX, glassCenterY, frontGlassZ);
+      const rightFrontCap = new THREE.Mesh(new THREE.BoxGeometry(frontGlassSegW, 0.02, 0.03), darkFasciaMat);
+      rightFrontCap.position.set(rightFrontX, deckSurfaceY + railH + 0.01, frontGlassZ);
+      pergolaGroup.add(rightFrontGlass, rightFrontCap);
+    }
+
+    // Floor mounting spigots (clamping brackets)
+    const spigotGeo = new THREE.BoxGeometry(0.04, 0.12, 0.04);
+    [-deckWidth / 2 + 0.10, deckWidth / 2 - 0.10].forEach((sx) => {
+      [deckCenterZ - sideGlassLen / 3, deckCenterZ + sideGlassLen / 3].forEach((sz) => {
+        const spigot = new THREE.Mesh(spigotGeo, darkFasciaMat);
+        spigot.position.set(sx, deckSurfaceY + 0.06, sz);
+        pergolaGroup.add(spigot);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    // I. Luxury Outdoor Living Furnishings Tailored to Footprint
+    // -----------------------------------------------------------------------
+    const loungeSideX = (deckWidth / 4);
+
+    // Helper: Modern Low-Slung Outdoor Armchair
+    const createOutdoorChair = (cx: number, cz: number, rotY: number) => {
+      const chairGroup = new THREE.Group();
+      // Aluminum leg frame
+      const legGeo = new THREE.BoxGeometry(0.03, 0.28, 0.03);
+      [-0.32, 0.32].forEach((lx) => {
+        [-0.32, 0.32].forEach((lz) => {
+          const leg = new THREE.Mesh(legGeo, darkFasciaMat);
+          leg.position.set(lx, 0.14, lz);
+          chairGroup.add(leg);
+        });
+      });
+      // Seat cushion
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(0.70, 0.12, 0.70), outdoorFabricMat);
+      seat.position.set(0, 0.32, 0);
+      chairGroup.add(seat);
+      // Backrest cushion
+      const back = new THREE.Mesh(new THREE.BoxGeometry(0.70, 0.38, 0.10), outdoorFabricMat);
+      back.position.set(0, 0.52, -0.30);
+      chairGroup.add(back);
+      // Armrests
+      [-0.35, 0.35].forEach((ax) => {
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.03, 0.65), darkFasciaMat);
+        arm.position.set(ax, 0.44, 0);
+        chairGroup.add(arm);
+      });
+      chairGroup.position.set(cx, deckSurfaceY, cz);
+      chairGroup.rotation.y = rotY;
+      return chairGroup;
+    };
+
+    // Coffee Table
+    const tableW = is10ft ? 0.65 : 0.90;
+    const tableD = is10ft ? 0.45 : 0.55;
+    const table = new THREE.Mesh(new THREE.BoxGeometry(tableW, 0.03, tableD), tableTopMat);
+    table.position.set(loungeSideX, deckSurfaceY + 0.32, deckCenterZ);
+    const tableLegs = new THREE.Mesh(new THREE.BoxGeometry(tableW - 0.1, 0.30, tableD - 0.1), darkFasciaMat);
+    tableLegs.position.set(loungeSideX, deckSurfaceY + 0.15, deckCenterZ);
+    // Ceramic coffee mugs on table
+    const mugGeo = new THREE.CylinderGeometry(0.04, 0.035, 0.08, 12);
+    const mugMat = new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.2 });
+    const mug1 = new THREE.Mesh(mugGeo, mugMat);
+    mug1.position.set(loungeSideX - 0.12, deckSurfaceY + 0.38, deckCenterZ);
+    const mug2 = new THREE.Mesh(mugGeo, mugMat);
+    mug2.position.set(loungeSideX + 0.10, deckSurfaceY + 0.38, deckCenterZ + 0.05);
+    pergolaGroup.add(table, tableLegs, mug1, mug2);
+
+    // Arrange chairs depending on model size
+    if (is10ft) {
+      // 1 compact cozy club chair for 10ft micro
+      pergolaGroup.add(createOutdoorChair(loungeSideX, deckCenterZ - 0.50, 0));
+    } else if (is20ft) {
+      // Twin club chairs flanking table
+      pergolaGroup.add(createOutdoorChair(loungeSideX, deckCenterZ - 0.65, 0));
+      pergolaGroup.add(createOutdoorChair(loungeSideX, deckCenterZ + 0.65, Math.PI));
+    } else {
+      // 30ft & 40ft: Twin club chairs + 2-seater outdoor sofa bench
+      pergolaGroup.add(createOutdoorChair(loungeSideX - 0.50, deckCenterZ - 0.70, 0.3));
+      pergolaGroup.add(createOutdoorChair(loungeSideX + 0.50, deckCenterZ - 0.70, -0.3));
+      // 2-Seater outdoor sofa on opposite side
+      const sofaGroup = new THREE.Group();
+      const sSeat = new THREE.Mesh(new THREE.BoxGeometry(1.40, 0.12, 0.65), outdoorFabricMat);
+      sSeat.position.set(0, 0.32, 0);
+      const sBack = new THREE.Mesh(new THREE.BoxGeometry(1.40, 0.38, 0.10), outdoorFabricMat);
+      sBack.position.set(0, 0.52, 0.28);
+      sofaGroup.add(sSeat, sBack);
+      sofaGroup.position.set(loungeSideX, deckSurfaceY, deckCenterZ + 0.80);
+      sofaGroup.rotation.y = Math.PI;
+      pergolaGroup.add(sofaGroup);
+    }
+
+    // Architectural Fluted Planter with Lush Green Foliage
+    const planterX = -deckWidth / 2 + 0.55;
+    const planterZ = deckCenterZ + deckDepth / 4;
+    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.16, 0.45, 16), planterMat);
+    pot.position.set(planterX, deckSurfaceY + 0.225, planterZ);
+    pergolaGroup.add(pot);
+    // Multi-tier foliage fronds
+    const frond1 = new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 8), foliageMat);
+    frond1.scale.set(1.2, 0.7, 1.2);
+    frond1.position.set(planterX, deckSurfaceY + 0.55, planterZ);
+    const frond2 = new THREE.Mesh(new THREE.SphereGeometry(0.20, 8, 8), foliageMat);
+    frond2.scale.set(1.1, 0.6, 1.1);
+    frond2.position.set(planterX + 0.05, deckSurfaceY + 0.70, planterZ - 0.04);
+    pergolaGroup.add(frond1, frond2);
+
+    if (is30ft || is40ft) {
+      // Second planter on opposite side for luxury symmetry
+      const p2X = deckWidth / 2 - 0.55;
+      const p2Z = frontZ + 0.45;
+      const pot2 = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.16, 0.45, 16), planterMat);
+      pot2.position.set(p2X, deckSurfaceY + 0.225, p2Z);
+      const f1 = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 8), foliageMat);
+      f1.scale.set(1.2, 0.7, 1.2);
+      f1.position.set(p2X, deckSurfaceY + 0.55, p2Z);
+      pergolaGroup.add(pot2, f1);
+    }
 
     rootGroup.add(pergolaGroup);
   }
