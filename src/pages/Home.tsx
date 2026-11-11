@@ -362,65 +362,52 @@ export default function Home() {
           }}
         />
 
-        {/* Flat Architectural Vector Trees Background Layer */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-          <ArchitecturalTrees slideIndex={heroSlideIndex} />
-        </div>
-
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-          {/* 1. TEXTS & CTAS: POSITIONED ABOVE THE HOUSE */}
-          {/* Architectural Badge */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-orange-50 border border-orange-200/80 text-orange-800 text-xs font-extrabold tracking-wide uppercase mx-auto mb-4">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center flex flex-col items-center">
+          {/* 1. Architectural Badge */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-orange-50 border border-orange-200/80 text-orange-800 text-[11px] sm:text-xs font-extrabold tracking-wide uppercase mx-auto mb-3 sm:mb-4">
             <span className="w-2 h-2 rounded-full bg-orange-600 animate-pulse" />
             <span>10Apples Modular Architecture · Expandable Series</span>
           </div>
 
-          {/* Main Headline */}
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-gray-950 tracking-tight leading-[1.08] max-w-4xl mx-auto">
+          {/* 2. Main Headline */}
+          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-gray-950 tracking-tight leading-[1.1] max-w-4xl mx-auto mb-3 sm:mb-4">
             A Home That Fits Your Life.{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-600">
               And Your Future.
             </span>
           </h1>
 
-          {/* Description */}
-          <p className="text-base sm:text-lg text-gray-600 leading-relaxed max-w-2xl mx-auto mt-4">
+          {/* 3. Description Subtitle */}
+          <p className="text-sm sm:text-base lg:text-lg text-gray-600 leading-relaxed max-w-2xl mx-auto mb-2 sm:mb-3 px-2">
             Whether you want to live, host, rent or invest, 10Apples makes it easier to create a beautiful modern space without the complexity of traditional construction.
           </p>
 
-          {/* Value Steps */}
-          <p className="text-sm sm:text-base font-bold text-gray-900 tracking-wide mt-3 max-w-2xl mx-auto">
+          {/* 4. Value Steps */}
+          <p className="text-xs sm:text-sm lg:text-base font-bold text-gray-900 tracking-wide max-w-2xl mx-auto mb-4 sm:mb-6 px-2">
             Choose your home. Customize it. Get your price. Explore flexible ways to own it.
           </p>
 
-          {/* Primary CTA Cluster */}
-          <div className="flex items-center justify-center mt-7 mb-8 sm:mb-10">
-            {/* Primary CTA button saying Starting at GHC22,800 */}
-            <Link
-              to="/configurator?model=expandable-20ft"
-              className="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-full text-base font-black text-white bg-orange-600 hover:bg-orange-700 transition-all shadow-xl hover:shadow-orange-500/25 active:scale-95 cursor-pointer uppercase tracking-wider text-center group"
-            >
-              <span>Starting at GHC22,800</span>
-              <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
-            </Link>
-          </div>
-
-          {/* 2. THE HOUSE: SLIDING HERO IMAGES (NO BORDER OR BOX) */}
+          {/* 5. THE HOUSE SLIDER: CENTERPIECE OF THE HERO */}
           <div
-            className="relative w-full max-w-4xl mx-auto mb-8 sm:mb-10 select-none group"
+            className="relative w-full max-w-4xl mx-auto my-2 sm:my-4 select-none group"
             onMouseEnter={() => setIsHeroSliderHovered(true)}
             onMouseLeave={() => setIsHeroSliderHovered(false)}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
           >
             {/* Sliding Viewport */}
-            <div className="relative w-full h-[280px] sm:h-[420px] md:h-[480px] flex items-center justify-center overflow-hidden">
+            <div className="relative w-full h-[250px] xs:h-[280px] sm:h-[400px] md:h-[460px] flex items-center justify-center overflow-hidden">
+              {/* Architectural Vector Trees: Positioned directly behind the house model */}
+              <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+                <ArchitecturalTrees slideIndex={heroSlideIndex} />
+              </div>
+
               {HERO_SLIDER_IMAGES.map((img, idx) => {
                 const isActive = idx === heroSlideIndex;
                 return (
                   <div
                     key={img.url}
-                    className={`absolute inset-0 flex items-center justify-center transition-all duration-700 ease-in-out ${
+                    className={`absolute inset-0 flex items-center justify-center transition-all duration-700 ease-in-out z-10 ${
                       isActive
                         ? 'opacity-100 scale-100 translate-x-0 pointer-events-auto'
                         : idx < heroSlideIndex
@@ -431,7 +418,7 @@ export default function Home() {
                     <img
                       src={img.url}
                       alt={img.alt}
-                      className="w-full h-full max-h-[460px] sm:max-h-[500px] object-contain drop-shadow-xl"
+                      className="w-full h-full max-h-[250px] xs:max-h-[270px] sm:max-h-[380px] md:max-h-[440px] object-contain drop-shadow-xl relative z-10"
                       draggable={false}
                     />
                   </div>
@@ -443,23 +430,23 @@ export default function Home() {
                 type="button"
                 onClick={handlePrevSlide}
                 aria-label="Previous slide"
-                className="absolute left-1 sm:left-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-white/80 hover:bg-white text-gray-800 hover:text-black shadow-md hover:shadow-lg backdrop-blur-xs flex items-center justify-center transition-all opacity-80 hover:opacity-100 hover:scale-105 cursor-pointer z-20"
+                className="absolute left-1 sm:left-3 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-11 sm:h-11 rounded-full bg-white/85 hover:bg-white text-gray-800 hover:text-black shadow-md hover:shadow-lg backdrop-blur-xs flex items-center justify-center transition-all opacity-80 hover:opacity-100 hover:scale-105 cursor-pointer z-20"
               >
-                <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
+                <ChevronLeft className="w-4 h-4 sm:w-6 sm:h-6" />
               </button>
 
               <button
                 type="button"
                 onClick={handleNextSlide}
                 aria-label="Next slide"
-                className="absolute right-1 sm:right-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-white/80 hover:bg-white text-gray-800 hover:text-black shadow-md hover:shadow-lg backdrop-blur-xs flex items-center justify-center transition-all opacity-80 hover:opacity-100 hover:scale-105 cursor-pointer z-20"
+                className="absolute right-1 sm:right-3 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-11 sm:h-11 rounded-full bg-white/85 hover:bg-white text-gray-800 hover:text-black shadow-md hover:shadow-lg backdrop-blur-xs flex items-center justify-center transition-all opacity-80 hover:opacity-100 hover:scale-105 cursor-pointer z-20"
               >
-                <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
+                <ChevronRight className="w-4 h-4 sm:w-6 sm:h-6" />
               </button>
             </div>
 
             {/* Slider Dots / Indicators */}
-            <div className="flex items-center justify-center gap-2 mt-3">
+            <div className="flex items-center justify-center gap-2 mt-3 sm:mt-4">
               {HERO_SLIDER_IMAGES.map((img, idx) => {
                 const isActive = idx === heroSlideIndex;
                 return (
@@ -479,27 +466,45 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Key Architectural Metric Badges */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-4xl mx-auto mt-10">
-            <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200/80">
+          {/* 6. Primary CTA Cluster */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-4 sm:mt-6 mb-8 sm:mb-10 w-full">
+            <Link
+              to="/configurator?model=expandable-20ft"
+              className="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-full text-sm sm:text-base font-black text-white bg-orange-600 hover:bg-orange-700 transition-all shadow-xl hover:shadow-orange-500/25 active:scale-95 cursor-pointer uppercase tracking-wider text-center group"
+            >
+              <span>Starting at GHC22,800</span>
+              <ArrowRight className="w-4.5 h-4.5 sm:w-5 sm:h-5 transition-transform group-hover:translate-x-1" />
+            </Link>
+            <a
+              href="#models"
+              className="inline-flex items-center gap-1.5 px-5 py-3 rounded-full text-xs sm:text-sm font-bold text-gray-600 hover:text-gray-950 hover:bg-gray-100 transition-colors cursor-pointer"
+            >
+              <span>Browse All Models</span>
+              <ArrowRight className="w-3.5 h-3.5 text-orange-600" />
+            </a>
+          </div>
+
+          {/* 7. Key Architectural Metric Badges */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-4xl mx-auto w-full">
+            <div className="p-3.5 sm:p-4 bg-gray-50/80 rounded-2xl border border-gray-200/80 text-center flex flex-col items-center justify-center">
               <div className="text-xl sm:text-2xl font-black text-gray-950 font-mono">409 sq ft</div>
               <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">
                 Expanded Footprint
               </div>
             </div>
-            <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200/80">
+            <div className="p-3.5 sm:p-4 bg-gray-50/80 rounded-2xl border border-gray-200/80 text-center flex flex-col items-center justify-center">
               <div className="text-xl sm:text-2xl font-black text-gray-950 font-mono">3-6 Wks</div>
               <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">
                 Factory Delivery
               </div>
             </div>
-            <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200/80">
+            <div className="p-3.5 sm:p-4 bg-gray-50/80 rounded-2xl border border-gray-200/80 text-center flex flex-col items-center justify-center">
               <div className="text-xl sm:text-2xl font-black text-orange-600 font-mono">100%</div>
               <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">
                 Plug &amp; Play Utilities
               </div>
             </div>
-            <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-200/80">
+            <div className="p-3.5 sm:p-4 bg-gray-50/80 rounded-2xl border border-gray-200/80 text-center flex flex-col items-center justify-center">
               <div className="text-xl sm:text-2xl font-black text-gray-950 font-mono">Q235</div>
               <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">
                 Galvanized Steel
@@ -565,7 +570,7 @@ export default function Home() {
                     <div className="flex items-start justify-between">
                       <div>
                         <span className="text-[10px] font-mono uppercase font-black tracking-wider text-orange-600 bg-orange-50 px-2 py-0.5 rounded-md">
-                          {model.leadTime || '3-4 Weeks'} Lead
+                          {model.leadTime || '10-12 Weeks'} Lead
                         </span>
                         <h3 className="text-xl font-black text-gray-950 tracking-tight mt-2">
                           {model.name}

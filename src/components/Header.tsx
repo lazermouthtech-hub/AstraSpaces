@@ -86,30 +86,30 @@ export const Header: React.FC<HeaderProps> = ({
   }, [isModelDropdownOpen]);
 
   return (
-    <nav className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-2 sm:px-6 lg:px-8 shrink-0 z-30 shadow-xs">
+    <nav className="h-16 landscape:h-11 sm:landscape:h-11 bg-white border-b border-gray-200 flex items-center justify-between px-2.5 sm:px-4 md:px-5 lg:px-8 landscape:px-2.5 shrink-0 z-30 shadow-xs relative">
       {/* Brand Logo & Name */}
-      <Link to="/" className="flex items-center gap-2.5 hover:opacity-85 transition-opacity shrink-0" title="Return to Homepage">
+      <Link to="/" className="flex items-center gap-2 hover:opacity-85 transition-opacity shrink-0" title="Return to Homepage">
         <img
           src="https://res.cloudinary.com/ddaxljfgp/image/upload/v1791201844/10apples_logo_main_eqm9wf.png"
           alt="10Apples Logo"
-          className="h-7 sm:h-8 w-auto object-contain"
+          className="h-6 sm:h-7 md:h-8 landscape:h-5 w-auto object-contain shrink-0"
         />
       </Link>
 
-      {/* Center Model Selector (Desktop & Mobile) - CSS selector 1 */}
+      {/* Center Model Selector (Desktop, Tablet & Mobile) - CSS selector 1 */}
       <div
         ref={modelDropdownRef}
-        className="relative min-w-0 mx-1 sm:mx-2"
+        className="relative min-w-0 mx-1 sm:mx-1.5 md:mx-2"
       >
         {/* Accessible Model Trigger Button */}
         <button
           type="button"
           onClick={() => setIsModelDropdownOpen((prev) => !prev)}
-          className={`flex items-center min-w-0 overflow-hidden gap-1.5 sm:gap-2.5 bg-white hover:bg-orange-50/50 border ${
+          className={`flex items-center min-w-0 overflow-hidden gap-1.5 sm:gap-2 bg-white hover:bg-orange-50/50 border ${
             isModelDropdownOpen
               ? 'border-orange-500 ring-2 ring-orange-500/30 bg-orange-50/40 shadow-xs'
               : 'border-gray-200/90 hover:border-orange-400 shadow-2xs'
-          } px-2 sm:px-3 py-1.5 rounded-xl cursor-pointer ring-1 ring-black/5 transition-all text-left max-w-[130px] xs:max-w-[180px] sm:max-w-[340px] md:max-w-[420px] select-none group active:scale-[0.98]`}
+          } px-2 sm:px-2.5 md:px-3 py-1.5 rounded-xl cursor-pointer ring-1 ring-black/5 transition-all text-left max-w-[125px] xs:max-w-[160px] sm:max-w-[180px] md:max-w-[220px] lg:max-w-[320px] xl:max-w-[420px] select-none group active:scale-[0.98] shrink-0`}
           aria-expanded={isModelDropdownOpen}
           aria-haspopup="dialog"
           title="Switch House Model & Size (10FT, 20FT, 30FT, 40FT)"
@@ -137,7 +137,7 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="text-xs font-black text-gray-950 truncate block leading-tight">
               {currentModel.name}
             </span>
-            <span className="text-[10px] text-gray-500 font-mono truncate hidden sm:block">
+            <span className="text-[10px] text-gray-500 font-mono truncate hidden lg:block">
               {currentModel.sqft} sq ft · {currentModel.bedrooms || 2} Bed · {formatCurrency(currentModel.basePrice, config.currency, { ratesMap: config.exchangeRates })}
             </span>
           </div>
@@ -158,7 +158,7 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => setIsModelDropdownOpen(false)}
             />
 
-            <div className="fixed inset-x-2.5 top-17 sm:absolute sm:inset-auto sm:top-full sm:mt-2 sm:left-0 sm:translate-x-0 w-auto sm:w-[420px] max-w-md bg-white rounded-2xl border border-gray-200/90 shadow-2xl p-3 sm:p-3.5 z-50 ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[calc(100dvh-80px)] sm:max-h-[600px] overflow-hidden">
+            <div className="fixed inset-x-2.5 top-17 sm:absolute sm:inset-auto sm:top-full sm:mt-2 sm:left-0 sm:translate-x-0 w-auto sm:w-[420px] max-w-md bg-white rounded-2xl border border-gray-200/90 shadow-2xl p-3 sm:p-3.5 z-50 ring-1 ring-black/5 animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[calc(100dvh-160px)] sm:max-h-[500px] overflow-hidden">
               {/* Header */}
               <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-100 shrink-0">
                 <div className="flex items-center gap-1.5">
@@ -328,46 +328,49 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Right Navigation Controls */}
-      <div className="flex items-center gap-1 sm:gap-3 shrink-0">
-        {/* Back to Home Link */}
+      <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 lg:gap-3 shrink-0">
+        {/* Back to Home Link - Desktop Only */}
         <Link
           to="/"
-          className="hidden md:flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-900 transition-colors uppercase tracking-wider"
+          className="hidden xl:flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-900 transition-colors uppercase tracking-wider"
           title="Return to Homepage"
         >
           <Home className="w-3.5 h-3.5 text-gray-400" />
           <span>Home</span>
         </Link>
 
+        {/* Specs Modal Trigger - Large Desktop Only */}
         <button
           onClick={onOpenSpecSheet}
-          className="hidden sm:flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-900 transition-colors uppercase tracking-wider cursor-pointer"
+          className="hidden lg:flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-900 transition-colors uppercase tracking-wider cursor-pointer"
           title="View technical specification"
         >
           <FileText className="w-3.5 h-3.5 text-gray-400" />
           <span>Specs</span>
         </button>
 
+        {/* Share Button - Large Desktop Only */}
         <button
           onClick={handleShare}
-          className="hidden sm:flex p-1.5 text-gray-400 hover:text-gray-700 rounded-lg transition-colors cursor-pointer"
+          className="hidden xl:flex p-1.5 text-gray-400 hover:text-gray-700 rounded-lg transition-colors cursor-pointer"
           title="Share Configuration"
         >
           <Share2 className="w-4 h-4" />
         </button>
 
+        {/* Reset Button - Large Desktop Only */}
         <button
           onClick={onReset}
-          className="hidden sm:flex p-1.5 text-gray-400 hover:text-gray-700 rounded-lg transition-colors cursor-pointer"
+          className="hidden xl:flex p-1.5 text-gray-400 hover:text-gray-700 rounded-lg transition-colors cursor-pointer"
           title="Reset to Defaults"
         >
           <RotateCcw className="w-4 h-4" />
         </button>
 
-        {/* Currency Switcher / Denomination Changer - Dropdown on Mobile, Segmented on Desktop */}
-        <div className="flex items-center shrink-0 border-l border-gray-200/90 pl-1 sm:pl-3">
-          {/* Mobile View: Compact Dropdown Pill (does not crowd or affect the view) */}
-          <div className="relative sm:hidden inline-flex items-center">
+        {/* Currency Switcher / Denomination Changer */}
+        <div className="flex items-center shrink-0 border-l border-gray-200/90 pl-1 sm:pl-1.5 md:pl-2">
+          {/* Mobile & Tablet View: Compact Dropdown Pill */}
+          <div className="relative lg:hidden inline-flex items-center">
             {(() => {
               const activeCode = normalizeCurrency(config.currency);
               const items = [
@@ -381,12 +384,12 @@ export const Header: React.FC<HeaderProps> = ({
 
               return (
                 <div className="relative inline-flex items-center">
-                  <div className={`px-2 py-1 text-[11px] font-black rounded-lg transition-all flex items-center gap-1 shadow-2xs border ${
+                  <div className={`px-1.5 sm:px-2 py-1 text-[10px] sm:text-[11px] font-black rounded-lg transition-all flex items-center gap-1 shadow-2xs border ${
                     activeCode === 'USD'
                       ? 'bg-black text-white border-black'
                       : 'bg-orange-600 text-white border-orange-600'
                   }`}>
-                    <span className="font-mono text-[10px]">{currentActive.symbol}</span>
+                    <span className="font-mono text-[9px] sm:text-[10px]">{currentActive.symbol}</span>
                     <span>{currentActive.code}</span>
                     <ChevronDown className="w-3 h-3 ml-0.5 opacity-90 shrink-0" />
                   </div>
@@ -415,8 +418,8 @@ export const Header: React.FC<HeaderProps> = ({
             })()}
           </div>
 
-          {/* Desktop View: Full Segmented Controls */}
-          <div className="hidden sm:inline-flex p-0.5 bg-gray-100 rounded-lg border border-gray-200 shadow-2xs shrink-0">
+          {/* Large Desktop View: Full Segmented Controls */}
+          <div className="hidden lg:inline-flex p-0.5 bg-gray-100 rounded-lg border border-gray-200 shadow-2xs shrink-0">
             {(() => {
               const activeCode = normalizeCurrency(config.currency);
               const items = [
@@ -473,42 +476,42 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={onToggleInvestmentBreakdown}
-            className="pl-2.5 pr-2 py-1 border-l border-gray-200 hidden sm:flex flex-col text-left hover:bg-gray-50 rounded-lg transition-colors cursor-pointer group"
+            className="pl-2 sm:pl-2.5 pr-1.5 sm:pr-2 py-0.5 sm:py-1 border-l border-gray-200 hidden sm:flex flex-col text-left hover:bg-gray-50 rounded-lg transition-colors cursor-pointer group shrink-0"
             title={showInvestmentBreakdown ? 'Hide Investment Breakdown' : 'Show Investment Breakdown'}
           >
-            <div className="flex items-center gap-1.5 text-[9px] uppercase font-bold text-gray-400 group-hover:text-orange-600 transition-colors tracking-wider">
+            <div className="flex items-center gap-1.5 text-[8px] sm:text-[9px] uppercase font-bold text-gray-400 group-hover:text-orange-600 transition-colors tracking-wider whitespace-nowrap">
               <span>Total Price</span>
-              <span className="text-[8px] px-1.5 py-0.5 rounded bg-gray-100 group-hover:bg-orange-100 group-hover:text-orange-700 font-extrabold">
+              <span className="text-[8px] px-1.5 py-0.2 rounded bg-gray-100 group-hover:bg-orange-100 group-hover:text-orange-700 font-extrabold hidden lg:inline-block">
                 {showInvestmentBreakdown ? 'Hide Breakdown' : 'Show Breakdown'}
               </span>
             </div>
-            <div className="text-base font-extrabold text-gray-900 font-mono leading-none mt-0.5">
+            <div className="text-xs sm:text-sm font-extrabold text-gray-900 font-mono leading-none mt-0.5 whitespace-nowrap">
               {formatCurrency(totalPrice, config.currency, { ratesMap: config.exchangeRates })}
             </div>
           </button>
         ) : (
-          <div className="pl-2 border-l border-gray-200 hidden sm:block">
-            <div className="text-[9px] uppercase font-bold text-gray-400 tracking-wider">
+          <div className="pl-2 sm:pl-2.5 border-l border-gray-200 hidden sm:block shrink-0">
+            <div className="text-[8px] sm:text-[9px] uppercase font-bold text-gray-400 tracking-wider whitespace-nowrap">
               Total Price
             </div>
-            <div className="text-base font-extrabold text-gray-900 font-mono leading-none">
+            <div className="text-xs sm:text-sm font-extrabold text-gray-900 font-mono leading-none whitespace-nowrap">
               {formatCurrency(totalPrice, config.currency, { ratesMap: config.exchangeRates })}
             </div>
           </div>
         )}
 
-        {/* User Account / Dashboard Navigation Button (button:nth-of-type(5)) */}
+        {/* User Account / Dashboard Navigation Button */}
         {currentUser ? (
           <button
             type="button"
             onClick={() => navigate('/user-dashboard')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-950 border border-orange-200 text-xs font-bold transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-95"
+            className="flex items-center gap-1.5 px-2 sm:px-2.5 md:px-3 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-950 border border-orange-200 text-xs font-bold transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-95 shrink-0 whitespace-nowrap"
             title={`Signed in as ${currentUser.fullName} (${currentUser.email}). Click to open User Dashboard.`}
           >
             <div className="w-5 h-5 rounded-full bg-orange-600 text-white flex items-center justify-center text-[10px] font-black shrink-0 shadow-2xs">
               {currentUser.fullName.charAt(0).toUpperCase()}
             </div>
-            <span className="hidden sm:inline font-bold">Dashboard</span>
+            <span className="hidden md:inline font-bold">Dashboard</span>
             <span className="text-[10px] bg-orange-200/90 text-orange-900 px-1.5 py-0.2 rounded font-mono font-bold">
               {currentUser.savedProjects?.length || 0}
             </span>
@@ -517,14 +520,14 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={() => navigate('/user-dashboard')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-800 border border-gray-200 text-xs font-bold transition-all cursor-pointer shadow-2xs group hover:border-orange-300 hover:text-orange-950 active:scale-95"
+            className="flex items-center gap-1.5 px-2 sm:px-2.5 md:px-3 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-800 border border-gray-200 text-xs font-bold transition-all cursor-pointer shadow-2xs group hover:border-orange-300 hover:text-orange-950 active:scale-95 shrink-0 whitespace-nowrap"
             title="Open User Dashboard to manage your modular projects & activities"
           >
             <User className="w-3.5 h-3.5 text-gray-500 group-hover:text-orange-600 transition-colors" />
-            <span className="hidden sm:inline font-bold">Dashboard</span>
+            <span className="hidden md:inline font-bold">Dashboard</span>
             {timerSecondsRemaining !== undefined && timerSecondsRemaining > 0 && timerSecondsRemaining <= 240 && (
               <span
-                className="inline-flex items-center gap-1 text-[10px] font-mono text-orange-600 font-extrabold bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200/80"
+                className="hidden lg:inline-flex items-center gap-1 text-[10px] font-mono text-orange-600 font-extrabold bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200/80"
                 title="Auto-save timer active (prompts at 4 minutes). Click to save to dashboard."
               >
                 <Clock className="w-2.5 h-2.5 animate-pulse text-orange-500" />
@@ -537,19 +540,19 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Admin Dashboard Navigation - Desktop Only */}
         <Link
           to="/dashboard"
-          className="hidden md:flex p-2 text-gray-500 hover:text-gray-950 hover:bg-gray-100 rounded-full transition-colors items-center gap-1.5 text-xs font-bold"
+          className="hidden xl:flex p-2 text-gray-500 hover:text-gray-950 hover:bg-gray-100 rounded-full transition-colors items-center gap-1.5 text-xs font-bold shrink-0"
           title="Admin Orders & Queue"
         >
           <LayoutDashboard className="w-4 h-4 text-orange-600" />
-          <span className="hidden lg:inline text-[11px] text-gray-600">Admin</span>
+          <span className="text-[11px] text-gray-600">Admin</span>
         </Link>
 
-        {/* Finalize Build Button */}
+        {/* Finalize Build CTA Button */}
         {onOpenReserve && (
           <button
             onClick={onOpenReserve}
             style={{ backgroundColor: config.branding.primaryColor }}
-            className="hover:opacity-90 text-white px-4 sm:px-5 py-2 rounded-full text-xs font-bold tracking-widest transition-all shadow-sm cursor-pointer whitespace-nowrap uppercase"
+            className="hover:opacity-90 text-white px-3 sm:px-3.5 md:px-4 lg:px-5 py-2 rounded-full text-[11px] sm:text-xs font-bold tracking-wider transition-all shadow-sm cursor-pointer whitespace-nowrap uppercase shrink-0"
           >
             {config.branding.ctaText}
           </button>

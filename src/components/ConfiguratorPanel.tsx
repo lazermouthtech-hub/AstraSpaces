@@ -14,6 +14,7 @@ import {
 import { BASE_MODELS } from '../data/models';
 import { INTERIOR_WALL_OPTIONS, FLOOR_PLAN_OPTIONS } from '../data/options';
 import { FloorPlanDiagram } from './FloorPlanDiagram';
+import { SpecialModelRequestModal } from './SpecialModelRequestModal';
 import { useAppConfig } from '../context/AppConfigContext';
 import { formatCurrency } from '../utils/currency';
 import { getItemPriceForModel, getItemUnitSpec } from '../utils/pricingCalculator';
@@ -46,6 +47,7 @@ import {
   ExternalLink,
   ChevronLeft,
   ChevronRight,
+  ArrowRight,
   X,
 } from 'lucide-react';
 
@@ -267,6 +269,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
   const [glazingSubFilter, setGlazingSubFilter] = useState<'all' | 'Windows' | 'Entrance Doors'>('all');
   const [flooringSubFilter, setFlooringSubFilter] = useState<string>('all');
   const [addonSubFilter, setAddonSubFilter] = useState<'all' | 'living' | 'climate' | 'smart'>('all');
+  const [isSpecialRequestModalOpen, setIsSpecialRequestModalOpen] = useState<boolean>(false);
   
   const [internalMenuRevealed, setInternalMenuRevealed] = useState<boolean>(true);
   const isMenuRevealed = isMenuRevealedProp !== undefined ? isMenuRevealedProp : internalMenuRevealed;
@@ -713,41 +716,41 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
             )}
 
             {/* Options Body Container */}
-            <div className="flex-1 overflow-y-auto p-3 sm:p-3.5 space-y-4 overscroll-contain scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent hover:scrollbar-thumb-gray-300">
+            <div className="flex-1 overflow-y-auto p-2.5 sm:p-3 space-y-3.5 overscroll-contain scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent hover:scrollbar-thumb-gray-300">
               {/* Dedicated Tools & Workspace View */}
               {activeCategory === 'Tools' && (
                 <div className="space-y-4">
-                  <div className="p-3.5 rounded-2xl bg-gradient-to-br from-orange-50/80 via-white to-amber-50/60 border border-orange-200 space-y-3">
+                  <div className="p-3 rounded-2xl bg-gradient-to-br from-orange-50/80 via-white to-amber-50/60 border border-orange-200 space-y-2.5">
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-xl bg-orange-600 text-white flex items-center justify-center font-bold">
-                        <Sliders className="w-4 h-4" />
+                      <div className="w-7 h-7 rounded-lg bg-orange-600 text-white flex items-center justify-center font-bold shrink-0">
+                        <Sliders className="w-3.5 h-3.5" />
                       </div>
-                      <div>
-                        <h4 className="text-xs font-black text-gray-950">Platform Workspace Tools</h4>
-                        <p className="text-[10px] text-gray-500">Choose between clean basic essentials or full architectural pro tools</p>
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-black text-gray-950 truncate">Workspace & Studio Tools</h4>
+                        <p className="text-[10px] text-gray-500 truncate">Choose between clean basic view or full architectural pro tools</p>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-2.5 pt-1">
+                    <div className="grid grid-cols-1 gap-2 pt-0.5">
                       <button
                         type="button"
                         onClick={() => {
                           if (isAdvancedMode && onToggleAdvancedMode) onToggleAdvancedMode();
                         }}
-                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                           !isAdvancedMode
                             ? 'bg-white border-orange-500 ring-2 ring-orange-500/30 shadow-xs'
                             : 'bg-white/80 border-gray-200 hover:border-gray-300'
                         }`}
                       >
-                        <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center justify-between mb-0.5">
                           <span className="text-xs font-black text-gray-950 flex items-center gap-1.5">
                             <Sparkles className="w-3.5 h-3.5 text-orange-500" />
                             Basic Tools
                           </span>
                           {!isAdvancedMode && <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold">ACTIVE</span>}
                         </div>
-                        <p className="text-[10px] text-gray-500">Clean, uncluttered default workspace for swift modular home configuration.</p>
+                        <p className="text-[10px] text-gray-500 line-clamp-1">Streamlined default view for swift modular home configuration.</p>
                       </button>
 
                       <button
@@ -755,20 +758,20 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                         onClick={() => {
                           if (!isAdvancedMode && onToggleAdvancedMode) onToggleAdvancedMode();
                         }}
-                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                           isAdvancedMode
                             ? 'bg-black text-white border-black ring-2 ring-orange-500/40 shadow-xs'
                             : 'bg-white/80 border-gray-200 hover:border-gray-300'
                         }`}
                       >
-                        <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center justify-between mb-0.5">
                           <span className={`text-xs font-black flex items-center gap-1.5 ${isAdvancedMode ? 'text-white' : 'text-gray-950'}`}>
                             <Sliders className="w-3.5 h-3.5 text-orange-400" />
-                            Advanced Tools Pro
+                            Advanced Pro Tools
                           </span>
                           {isAdvancedMode && <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-orange-600 text-white font-bold">ACTIVE</span>}
                         </div>
-                        <p className={`text-[10px] ${isAdvancedMode ? 'text-gray-300' : 'text-gray-500'}`}>Full access to all 8 architectural suites, 3D cutaways, roof lift slider, 24 SPC swatches, and smart IoT.</p>
+                        <p className={`text-[10px] line-clamp-1 ${isAdvancedMode ? 'text-gray-300' : 'text-gray-500'}`}>Unlocks 8 camera suites, 3D cutaway slicing, and continuous roof lift.</p>
                       </button>
                     </div>
                   </div>
@@ -779,19 +782,19 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
             0. BASE HOUSE SELECTION (SHOP FROM BASE HOUSE)
            ========================================================================= */}
         {activeCategory === 'Base House' && (
-          <div className="space-y-4">
+          <div className="space-y-3.5">
             <div>
-              <div className="flex items-center justify-between">
-                <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">
+              <div className="flex items-center justify-between gap-1.5">
+                <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em] truncate">
                   1. Shop Base House Model
                 </h3>
-                <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wider bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200 flex items-center gap-1">
+                <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wider bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200 flex items-center gap-1 shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  {availableModels.length} Public Footprints
+                  {availableModels.length} Footprints
                 </span>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Select your foundational architectural footprint. Each base home includes a structural steel chassis, insulated wall panels, and pre-wired factory utilities.
+              <p className="text-[11px] text-gray-500 mt-0.5 leading-snug">
+                Select your foundational prefab footprint with structural steel frame and utilities.
               </p>
             </div>
 
@@ -810,7 +813,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                     key={filter.id}
                     type="button"
                     onClick={() => setModelSeriesFilter(filter.id as any)}
-                    className={`px-3 py-1.5 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap cursor-pointer shadow-2xs ${
+                    className={`px-2.5 py-1 text-[11px] font-bold rounded-xl transition-all whitespace-nowrap cursor-pointer shadow-2xs ${
                       isSelected
                         ? 'bg-gray-900 text-white shadow-xs'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900'
@@ -822,21 +825,51 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
               })}
             </div>
 
-            {/* Empty state if all models in series are hidden */}
+            {/* Customer-facing state for requesting a model in this series - CSS selector 1 */}
             {filteredModels.length === 0 && (
-              <div className="p-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-300">
-                <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center mx-auto mb-2 font-bold text-sm">
-                  !
+              <div className="p-5 sm:p-6 text-center bg-gradient-to-br from-orange-50/70 via-white to-amber-50/50 rounded-2xl border border-orange-200/90 shadow-xs space-y-3">
+                <div className="w-11 h-11 rounded-2xl bg-orange-600 text-white flex items-center justify-center mx-auto shadow-md ring-4 ring-orange-100">
+                  <Sparkles className="w-5 h-5 text-amber-200" />
                 </div>
-                <h4 className="text-xs font-bold text-gray-900">No Models Currently Available</h4>
-                <p className="text-[11px] text-gray-500 mt-1 max-w-xs mx-auto">
-                  Models in this series are currently not set to public. You can enable them in the Admin Dashboard.
-                </p>
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-100 text-orange-900 text-[10px] font-black uppercase tracking-wider border border-orange-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-600 animate-pulse" />
+                    Special Factory Order
+                  </div>
+                  <h4 className="text-sm font-black text-gray-950">
+                    Request a Model in {modelSeriesFilter === 'all' ? 'Modular' : modelSeriesFilter === 'apple-cabin' ? 'Apple Cabin' : modelSeriesFilter === 'space-capsule' ? 'Space Capsule' : modelSeriesFilter === 'folding' ? 'Folding / Fast Pack' : 'Expandable'} Series
+                  </h4>
+                  <p className="text-xs text-gray-600 max-w-sm mx-auto leading-relaxed">
+                    Standard catalog units for this series are currently customized to order or factory-reserved. Click below to submit a <strong>Special Request to 10Apples</strong> for custom dimensions, tailored room partitions, or bespoke finishes.
+                  </p>
+                </div>
+
+                <div className="pt-1 flex flex-col sm:flex-row items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsSpecialRequestModalOpen(true)}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 group"
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-300 group-hover:rotate-12 transition-transform" />
+                    <span>Request Model from 10Apples</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-white/80 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+
+                  {modelSeriesFilter !== 'all' && (
+                    <button
+                      type="button"
+                      onClick={() => setModelSeriesFilter('all')}
+                      className="w-full sm:w-auto px-3.5 py-2.5 rounded-xl bg-white hover:bg-gray-50 text-gray-700 text-xs font-bold border border-gray-200 transition-all cursor-pointer"
+                    >
+                      View All Models
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
             {/* Models Cards Grid */}
-            <div className="grid grid-cols-1 gap-3.5">
+            <div className="grid grid-cols-1 gap-2.5">
               {filteredModels.map((model: any) => {
                 const isSelected = state.modelId === model.id;
                 return (
@@ -852,7 +885,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                         modelId: model.id as HomeModelId,
                       }));
                     }}
-                    className={`text-left p-4 sm:p-4.5 rounded-2xl border transition-all relative flex flex-col gap-2.5 cursor-pointer active:scale-[0.99] ${
+                    className={`text-left p-3.5 rounded-2xl border transition-all relative flex flex-col gap-2 cursor-pointer active:scale-[0.99] ${
                       isSelected
                         ? 'border-orange-500 bg-orange-50/40 shadow-sm ring-2 ring-orange-500/25'
                         : 'border-gray-200/90 hover:border-gray-300 hover:bg-gray-50/80 bg-white shadow-2xs'
@@ -860,7 +893,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                   >
                     {/* Top Row: Series Tag & Base Price */}
                     <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-[9px] font-mono uppercase font-black tracking-wider text-orange-800 bg-orange-100 px-1.5 py-0.2 rounded shrink-0">
                             {model.series ? model.series.toUpperCase() : 'PREFAB'}
@@ -891,42 +924,50 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                       </div>
                     </div>
 
-                    {/* Tagline */}
-                    <p className="text-[11px] font-medium text-gray-600">
+                    {/* Tagline - Compact single line */}
+                    <p className="text-[11px] font-medium text-gray-600 truncate leading-tight">
                       {model.tagline}
                     </p>
 
                     {/* Dimensions & Specs Badge Row */}
-                    <div className="grid grid-cols-3 gap-1.5 bg-gray-50/90 p-2 rounded-xl border border-gray-100 text-[10px]">
+                    <div className="grid grid-cols-3 gap-1 bg-gray-50/90 p-1.5 rounded-xl border border-gray-100 text-[10px]">
                       <div className="min-w-0">
-                        <span className="text-[9px] text-gray-400 uppercase font-bold block truncate">Floor Area</span>
+                        <span className="text-[8px] text-gray-400 uppercase font-bold block truncate">Floor Area</span>
                         <span className="font-mono font-bold text-gray-900 block truncate">{model.sqft} sq ft</span>
-                        {model.areaM2 && <span className="text-[9px] text-gray-500 block truncate">({model.areaM2}m²)</span>}
+                        {model.areaM2 && <span className="text-[8px] text-gray-500 block truncate">({model.areaM2}m²)</span>}
                       </div>
                       <div className="min-w-0">
-                        <span className="text-[9px] text-gray-400 uppercase font-bold block truncate">Rooms</span>
+                        <span className="text-[8px] text-gray-400 uppercase font-bold block truncate">Rooms</span>
                         <span className="font-bold text-gray-900 block truncate">{model.bedrooms}B · {model.bathrooms}Ba</span>
                       </div>
                       <div className="min-w-0">
-                        <span className="text-[9px] text-gray-400 uppercase font-bold block truncate">Lead Time</span>
-                        <span className="font-mono text-orange-700 font-semibold block truncate">{model.leadTime}</span>
+                        <span className="text-[8px] text-gray-400 uppercase font-bold block truncate">Lead Time</span>
+                        <span className="font-mono text-orange-700 font-semibold block truncate">{model.leadTime || '10-12 Weeks'}</span>
                       </div>
                     </div>
 
-                    {/* Metric Dimension & Loading note */}
-                    <div className="text-[10px] text-gray-500 font-mono flex items-center justify-between">
-                      <span className="truncate">Span: {model.dimensions?.metricStr || `${model.dimensions?.lengthFt}ft × ${model.dimensions?.widthFt}ft`}</span>
-                      {model.weightKg && <span className="shrink-0">{model.weightKg.toLocaleString()} kg</span>}
+                    {/* Compact Dimension Span & Weight */}
+                    <div className="text-[10px] text-gray-500 font-mono flex items-center justify-between gap-1.5 pt-0.5">
+                      <span className="truncate min-w-0">
+                        Span: {model.dimensions?.lengthFt && model.dimensions?.widthFt
+                          ? `${model.dimensions.lengthFt}' × ${model.dimensions.widthFt}' (${model.dimensions.heightFt || 8.2}'H)`
+                          : (model.dimensions?.metricStr ? model.dimensions.metricStr.split('(')[0].trim() : 'Modular')}
+                      </span>
+                      {model.weightKg && (
+                        <span className="shrink-0 font-medium text-gray-600">
+                          {model.weightKg.toLocaleString()} kg
+                        </span>
+                      )}
                     </div>
 
-                    {/* Inclusions summary */}
+                    {/* Inclusions summary: Clean aligned 2-row list */}
                     {model.includedFeatures && (
-                      <div className="pt-2 border-t border-gray-100 flex flex-wrap gap-1.5">
-                        {model.includedFeatures.slice(0, 3).map((feat: string, idx: number) => (
-                          <span key={idx} className="text-[10px] bg-white border border-gray-200 px-2 py-0.5 rounded text-gray-600 flex items-center gap-1 shadow-2xs">
+                      <div className="pt-1.5 border-t border-gray-100 grid grid-cols-1 gap-1 text-[10px] text-gray-600">
+                        {model.includedFeatures.slice(0, 2).map((feat: string, idx: number) => (
+                          <div key={idx} className="flex items-center gap-1.5 min-w-0">
                             <Check className="w-3 h-3 text-emerald-600 shrink-0" />
-                            <span className="truncate max-w-[170px]">{feat}</span>
-                          </span>
+                            <span className="truncate">{feat}</span>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -934,6 +975,29 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                 );
               })}
             </div>
+
+            {/* Special Model Request Banner for Any Customer Seeking Custom Dimensions */}
+            {filteredModels.length > 0 && (
+              <div className="p-3 rounded-2xl bg-gradient-to-r from-gray-50 via-orange-50/40 to-white border border-gray-200/90 flex items-center justify-between gap-3 shadow-2xs mt-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-gray-900">Need a Custom Size or Model?</span>
+                    <span className="text-[9px] font-bold uppercase px-1.5 py-0.2 rounded bg-orange-100 text-orange-800">Special Order</span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 truncate">
+                    Can't find your exact footprint? Send a special request to the Admin.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSpecialRequestModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-black hover:bg-zinc-800 text-white text-[11px] font-bold shrink-0 transition-all cursor-pointer active:scale-95 flex items-center gap-1 shadow-xs"
+                >
+                  <Sparkles className="w-3 h-3 text-orange-400" />
+                  <span>Request Model</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -1001,24 +1065,24 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                       {currentModel.name?.split(' ')[0] || '20FT'} Selected
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Customize your interior living layout. Engineered specifically for 20ft, 30ft, and 40ft double-wing expandable homes with factory-integrated utility risers, partition walls, and pre-fitted suites.
+                  <p className="text-[11px] text-gray-500 mt-0.5 leading-snug">
+                    Configure room partitions, baths, and living zones for expandable footprints.
                   </p>
                 </div>
 
                 {/* Quick 3D Viewpoint Mode Bar */}
-                <div className="bg-gradient-to-r from-blue-950 via-indigo-950 to-slate-900 p-3 rounded-2xl text-white shadow-sm flex flex-col gap-2.5">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
-                      <LayoutGrid className="w-4 h-4 text-blue-300" />
+                <div className="bg-gradient-to-r from-blue-950 via-indigo-950 to-slate-900 p-2.5 rounded-2xl text-white shadow-sm flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
+                      <LayoutGrid className="w-3.5 h-3.5 text-blue-300" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <div className="text-xs font-bold leading-tight flex items-center gap-1.5">
-                        <span>3D Interior Inspection Mode</span>
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="truncate">3D Interior Inspection</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                       </div>
-                      <div className="text-[10px] text-blue-200/80">
-                        Real-time top-down blueprint &amp; cutaway room viewer
+                      <div className="text-[10px] text-blue-200/80 truncate">
+                        Top-down blueprint &amp; cutaway room viewer
                       </div>
                     </div>
                   </div>
@@ -1084,32 +1148,32 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                      Strictly 1-Bedroom (Users cannot configure multi-bedroom like 20/30/40ft).
                      Kitchenette is "L"-shaped and optional. Bathroom is optional.
                      ----------------------------------------------------------- */
-                  <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-3.5">
                     {/* Architectural Fixed Floor Plan Card */}
-                    <div className="p-4 rounded-2xl border-2 border-blue-500/40 bg-gradient-to-br from-blue-50/90 via-white to-indigo-50/60 shadow-xs flex flex-col gap-3 text-left">
+                    <div className="p-3.5 rounded-2xl border-2 border-blue-500/40 bg-gradient-to-br from-blue-50/90 via-white to-indigo-50/60 shadow-xs flex flex-col gap-2.5 text-left">
                       <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="text-base font-extrabold text-gray-950 leading-tight">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h4 className="text-sm font-extrabold text-gray-950 leading-tight truncate">
                               10FT Dedicated 1-Bedroom Layout
                             </h4>
-                            <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-blue-600 text-white shadow-2xs">
-                              Fixed 1-Bedroom Architecture
+                            <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.2 rounded-full bg-blue-600 text-white shadow-2xs shrink-0">
+                              Fixed 1-Bed
                             </span>
                           </div>
-                          <p className="text-xs text-blue-900/80 font-semibold mt-1">
-                            Ultra-compact dual-wing footprint (18 m² / 195 sq ft) · Non-configurable bedroom count
+                          <p className="text-[11px] text-blue-900/80 font-medium mt-0.5 truncate">
+                            Dual-wing footprint (18 m² / 195 sq ft) · Open-concept living
                           </p>
                         </div>
                         <div className="text-right shrink-0">
-                          <span className="text-xs font-bold font-mono text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                            Standard Included
+                          <span className="text-[11px] font-bold font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+                            Included
                           </span>
                         </div>
                       </div>
 
-                      <p className="text-xs text-gray-600 leading-relaxed">
-                        To maximize usable space and spatial flow within the 10ft micro footprint, this model is built exclusively as an open-concept <strong>1-Bedroom Suite</strong> with no interior dividing wall or door to the room. The room flows seamlessly into the central living space. The "L"-shaped kitchenette and central bathroom pod can be toggled on or off below.
+                      <p className="text-[11px] text-gray-600 leading-snug">
+                        Open-concept 1-bedroom suite maximizing usable space and flow. Kitchenette and central bath pod can be toggled below.
                       </p>
 
                       {/* 10FT Architectural Floor Plan Diagram */}
@@ -1124,7 +1188,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                           hasTvConsole={Boolean(state.hasTvConsole)}
                           hasHvacMiniSplit={Boolean(state.hasHvacMiniSplit)}
                           showLabels={true}
-                          className="w-full h-52 rounded-xl border border-amber-200/80 shadow-2xs"
+                          className="w-full h-44 rounded-xl border border-amber-200/80 shadow-2xs"
                         />
                         {/* Interactive 3D Inspect Trigger */}
                         <button
@@ -1134,46 +1198,46 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                             if (onPerspectiveChange) onPerspectiveChange('top-down-floorplan');
                             if (!cutawayMode && onCutawayToggle) onCutawayToggle();
                           }}
-                          className="absolute bottom-2.5 right-2.5 px-3 py-1.5 rounded-lg bg-gray-900/90 hover:bg-gray-900 text-white text-[11px] font-bold backdrop-blur-xs flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+                          className="absolute bottom-2.5 right-2.5 px-2.5 py-1 rounded-lg bg-gray-900/90 hover:bg-gray-900 text-white text-[10px] font-bold backdrop-blur-xs flex items-center gap-1 transition-all shadow-md cursor-pointer"
                         >
-                          <Eye className="w-3.5 h-3.5 text-amber-300" />
-                          <span>Inspect 10FT in 3D</span>
+                          <Eye className="w-3 h-3 text-amber-300" />
+                          <span>Inspect in 3D</span>
                         </button>
                       </div>
 
                       {/* Room Metrics & Specs */}
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="flex items-center gap-2 p-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold min-w-0">
-                          <Bed className="w-4 h-4 text-blue-600 shrink-0" />
+                      <div className="grid grid-cols-2 gap-1.5 text-xs">
+                        <div className="flex items-center gap-1.5 p-1.5 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold min-w-0">
+                          <Bed className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                           <span className="truncate">1 Bed (Fixed)</span>
                         </div>
-                        <div className="flex items-center gap-2 p-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold min-w-0">
-                          <Bath className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <div className="flex items-center gap-1.5 p-1.5 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold min-w-0">
+                          <Bath className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                           <span className="truncate">
                             {state.hasLuxuryBathPod ? '1 Restroom' : 'No Restroom'}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 p-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold min-w-0">
-                          <Utensils className="w-4 h-4 text-amber-600 shrink-0" />
+                        <div className="flex items-center gap-1.5 p-1.5 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold min-w-0">
+                          <Utensils className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                           <span className="truncate">
                             {state.hasKitchenetteModule ? '"L"-Kitchen' : 'No Kitchen'}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 p-2 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold min-w-0">
-                          <Maximize2 className="w-4 h-4 text-indigo-600 shrink-0" />
+                        <div className="flex items-center gap-1.5 p-1.5 rounded-xl bg-white border border-gray-200 text-gray-800 font-bold min-w-0">
+                          <Maximize2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
                           <span className="truncate">18 m² / 195 sq ft</span>
                         </div>
                       </div>
                     </div>
 
                     {/* Optional Modules Configuration (Kitchenette & Bathroom) */}
-                    <div className="bg-gray-50/90 rounded-2xl border border-gray-200/90 p-4 flex flex-col gap-3 text-left">
+                    <div className="bg-gray-50/90 rounded-2xl border border-gray-200/90 p-3.5 flex flex-col gap-2.5 text-left">
                       <div className="flex items-center justify-between">
                         <h4 className="text-xs font-black text-gray-900 uppercase tracking-wider flex items-center gap-1.5">
-                          <Sparkles className="w-4 h-4 text-amber-600" />
-                          <span>Optional Modules for 10FT Double-Wing</span>
+                          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Optional Modules for 10FT</span>
                         </h4>
-                        <span className="text-[10px] text-gray-500 font-medium">Click to include or remove</span>
+                        <span className="text-[10px] text-gray-500 font-medium">Click to toggle</span>
                       </div>
 
                       {/* 1. Optional L-Shaped Kitchenette */}
@@ -1181,34 +1245,27 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                         const kitchenAddon = availableAddons.find((a: any) => a.id === 'hasKitchenetteModule');
                         const kitchenPrice = (kitchenAddon ? getItemPriceForModel(kitchenAddon, state.modelId, config.models) : 4800) * markupFactor;
                         return (
-                          <div className={`p-3.5 rounded-xl border transition-all ${
+                          <div className={`p-3 rounded-xl border transition-all ${
                             state.hasKitchenetteModule
                               ? 'bg-white border-amber-300 ring-1 ring-amber-400/30 shadow-xs'
                               : 'bg-white/60 border-gray-200 opacity-80'
                           }`}>
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex items-start gap-2.5">
-                                <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center text-lg shrink-0 mt-0.5">
+                            <div className="flex items-start justify-between gap-2.5">
+                              <div className="flex items-start gap-2 min-w-0">
+                                <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center text-sm shrink-0 mt-0.5">
                                   🍳
                                 </div>
-                                <div>
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <h5 className="text-xs font-extrabold text-gray-950">
-                                      "L"-Shaped Gourmet Kitchenette
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <h5 className="text-xs font-extrabold text-gray-950 truncate">
+                                      "L"-Shaped Kitchenette
                                     </h5>
-                                    <span className="text-[10px] font-mono font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                                    <span className="text-[9px] font-mono font-bold text-amber-900 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 shrink-0">
                                       +{formatCurrency(kitchenPrice, config.currency, { ratesMap: config.exchangeRates })}
                                     </span>
-                                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                                      state.hasKitchenetteModule
-                                        ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                                        : 'bg-gray-100 text-gray-600'
-                                    }`}>
-                                      {state.hasKitchenetteModule ? 'Included (Optional)' : 'Removed (Open Space)'}
-                                    </span>
                                   </div>
-                                  <p className="text-[11px] text-gray-600 mt-1 leading-snug">
-                                    Continuous "L"-shaped quartz countertop along the rear and left wall with undermount stainless steel sink, gooseneck faucet, and 2-burner ceramic induction cooktop.
+                                  <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-1 leading-snug">
+                                    Quartz countertop with undermount sink, gooseneck faucet, and induction cooktop.
                                   </p>
                                 </div>
                               </div>
@@ -1220,13 +1277,13 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                                     hasKitchenetteModule: !prev.hasKitchenetteModule,
                                   }))
                                 }
-                                className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0 ${
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all shrink-0 ${
                                   state.hasKitchenetteModule
                                     ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs'
                                     : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
                                 }`}
                               >
-                                {state.hasKitchenetteModule ? '✓ Included (Remove)' : '+ Add Kitchenette'}
+                                {state.hasKitchenetteModule ? '✓ Remove' : '+ Add'}
                               </button>
                             </div>
                           </div>
@@ -1238,34 +1295,27 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                         const bathAddon = availableAddons.find((a: any) => a.id === 'hasLuxuryBathPod');
                         const bathPrice = (bathAddon ? getItemPriceForModel(bathAddon, state.modelId, config.models) : 5800) * markupFactor;
                         return (
-                          <div className={`p-3.5 rounded-xl border transition-all ${
+                          <div className={`p-3 rounded-xl border transition-all ${
                             state.hasLuxuryBathPod
                               ? 'bg-white border-emerald-300 ring-1 ring-emerald-400/30 shadow-xs'
                               : 'bg-white/60 border-gray-200 opacity-80'
                           }`}>
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex items-start gap-2.5">
-                                <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center text-lg shrink-0 mt-0.5">
+                            <div className="flex items-start justify-between gap-2.5">
+                              <div className="flex items-start gap-2 min-w-0">
+                                <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center text-sm shrink-0 mt-0.5">
                                   🛁
                                 </div>
-                                <div>
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <h5 className="text-xs font-extrabold text-gray-950">
-                                      Integrated Central Bathroom Pod
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <h5 className="text-xs font-extrabold text-gray-950 truncate">
+                                      Central Bathroom Pod
                                     </h5>
-                                    <span className="text-[10px] font-mono font-bold text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                    <span className="text-[9px] font-mono font-bold text-emerald-900 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 shrink-0">
                                       +{formatCurrency(bathPrice, config.currency, { ratesMap: config.exchangeRates })}
                                     </span>
-                                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                                      state.hasLuxuryBathPod
-                                        ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                                        : 'bg-gray-100 text-gray-600'
-                                    }`}>
-                                      {state.hasLuxuryBathPod ? 'Included (Optional)' : 'Removed (Open Foyer)'}
-                                    </span>
                                   </div>
-                                  <p className="text-[11px] text-gray-600 mt-1 leading-snug">
-                                    Factory pre-plumbed central sanitation module with modern ceramic toilet, vanity sink, backlit mirror, and rainfall shower. Can be omitted for office/studio use.
+                                  <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-1 leading-snug">
+                                    Ceramic toilet, vanity sink, backlit mirror, and rainfall shower module.
                                   </p>
                                 </div>
                               </div>
@@ -1277,13 +1327,13 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                                     hasLuxuryBathPod: !prev.hasLuxuryBathPod,
                                   }))
                                 }
-                                className={`px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0 ${
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-all shrink-0 ${
                                   state.hasLuxuryBathPod
                                     ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
                                     : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
                                 }`}
                               >
-                                {state.hasLuxuryBathPod ? '✓ Included (Remove)' : '+ Add Bath Pod'}
+                                {state.hasLuxuryBathPod ? '✓ Remove' : '+ Add'}
                               </button>
                             </div>
                           </div>
@@ -1308,7 +1358,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                         key={filter.id}
                         type="button"
                         onClick={() => setFloorPlanFilter(filter.id as any)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                        className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                           isActive
                             ? 'bg-blue-600 text-white shadow-xs'
                             : 'bg-gray-100 hover:bg-gray-200/80 text-gray-600'
@@ -1321,7 +1371,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                 </div>
 
                 {/* List of Floor Plans matching the attached factory blueprint catalog */}
-                <div className="grid grid-cols-1 gap-4">
+                <div className="grid grid-cols-1 gap-3.5">
                   {filteredFloorPlans.map((plan) => {
                     const isSelected = (state.floorPlan || '2-bed-1-bath') === plan.id;
                     const bedroomMapping: Record<FloorPlanId, '1-bedroom' | '2-bedroom' | '3-bedroom' | '4-bedroom'> = {
@@ -1337,7 +1387,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                     return (
                       <div
                         key={plan.id}
-                        className={`p-3.5 sm:p-4 rounded-2xl border transition-all text-left relative flex flex-col gap-3 ${
+                        className={`p-3 sm:p-3.5 rounded-2xl border transition-all text-left relative flex flex-col gap-2.5 ${
                           isSelected
                             ? 'border-blue-600 bg-blue-50/25 shadow-md ring-2 ring-blue-500/20'
                             : 'border-gray-200/90 bg-white hover:border-blue-300 hover:shadow-xs'
@@ -1345,13 +1395,13 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                       >
                         {/* Top Row: Plan Name & Badge */}
                         <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h4 className="text-sm font-extrabold text-gray-900 leading-tight">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h4 className="text-xs sm:text-sm font-extrabold text-gray-900 leading-tight truncate">
                                 {plan.name}
                               </h4>
                               <span
-                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full border shrink-0 ${
                                   isSelected
                                     ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
                                     : 'bg-blue-50 text-blue-800 border-blue-200'
@@ -1360,7 +1410,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                                 {plan.badge}
                               </span>
                             </div>
-                            <p className="text-xs text-blue-950/70 font-medium mt-0.5">
+                            <p className="text-[11px] text-blue-950/70 font-medium mt-0.5 truncate">
                               {plan.tagline}
                             </p>
                           </div>
@@ -1368,11 +1418,11 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                           <div className="text-right shrink-0">
                             <div className="text-xs font-bold font-mono text-gray-900">
                               {plan.price === 0
-                                ? 'Standard Included'
+                                ? 'Included'
                                 : `+${formatCurrency(plan.price * markupFactor, config.currency, { ratesMap: config.exchangeRates })}`}
                             </div>
-                            <div className="text-[10px] text-gray-400">
-                              {plan.price === 0 ? 'No upgrade fee' : 'Factory partition setup'}
+                            <div className="text-[9px] text-gray-400">
+                              {plan.price === 0 ? 'Standard setup' : 'Partition setup'}
                             </div>
                           </div>
                         </div>
@@ -1389,7 +1439,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                             hasKitchenette={Boolean(state.hasKitchenetteModule)}
                             hasBathPod={Boolean(state.hasLuxuryBathPod)}
                             showLabels={true}
-                            className="w-full h-48 rounded-xl border border-amber-200/60"
+                            className="w-full h-44 rounded-xl border border-amber-200/60"
                           />
                           {/* Interactive 3D Inspect Trigger */}
                           <button
@@ -1414,20 +1464,20 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                         </div>
 
                         {/* Room Metrics & Icons */}
-                        <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-                          <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-gray-50 border border-gray-100 text-gray-700 font-semibold min-w-0">
+                        <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                          <div className="flex items-center gap-1.5 p-1 rounded-lg bg-gray-50 border border-gray-100 text-gray-700 font-semibold min-w-0">
                             <Bed className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                             <span className="truncate">{plan.bedrooms} Bed{plan.bedrooms > 1 ? 's' : ''}</span>
                           </div>
-                          <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-gray-50 border border-gray-100 text-gray-700 font-semibold min-w-0">
+                          <div className="flex items-center gap-1.5 p-1 rounded-lg bg-gray-50 border border-gray-100 text-gray-700 font-semibold min-w-0">
                             <Bath className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                             <span className="truncate">1 Restroom</span>
                           </div>
-                          <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-gray-50 border border-gray-100 text-gray-700 font-semibold min-w-0">
+                          <div className="flex items-center gap-1.5 p-1 rounded-lg bg-gray-50 border border-gray-100 text-gray-700 font-semibold min-w-0">
                             <Tv className="w-3.5 h-3.5 text-purple-600 shrink-0" />
                             <span className="truncate">{plan.livingRooms > 0 ? `${plan.livingRooms} Living` : 'Quad Enclosed'}</span>
                           </div>
-                          <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-gray-50 border border-gray-100 text-gray-700 font-semibold min-w-0">
+                          <div className="flex items-center gap-1.5 p-1 rounded-lg bg-gray-50 border border-gray-100 text-gray-700 font-semibold min-w-0">
                             <Utensils className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                             <span className="truncate">
                               {plan.id === '4-bed-quad-suite'
@@ -1441,19 +1491,19 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                           </div>
                         </div>
 
-                        {/* Description & Recommended For */}
-                        <div className="space-y-1.5 text-xs text-gray-600">
-                          <p className="leading-relaxed">{plan.description}</p>
-                          <div className="text-[11px] bg-blue-50/60 p-2 rounded-xl border border-blue-100/80 text-blue-950 flex items-start gap-1.5">
-                            <Info className="w-3.5 h-3.5 text-blue-600 shrink-0 mt-0.5" />
-                            <span><strong>Recommended:</strong> {plan.recommendedFor}</span>
+                        {/* Description & Recommended For - Compact layout */}
+                        <div className="space-y-1 text-xs text-gray-600">
+                          <p className="text-[11px] leading-snug line-clamp-2 text-gray-500">{plan.description}</p>
+                          <div className="text-[10px] bg-blue-50/60 px-2 py-1 rounded-lg border border-blue-100/80 text-blue-950 flex items-center gap-1.5 truncate">
+                            <Info className="w-3 h-3 text-blue-600 shrink-0" />
+                            <span className="truncate"><strong>Best For:</strong> {plan.recommendedFor}</span>
                           </div>
                         </div>
 
                         {/* Architectural Feature Bullets */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 pt-1 border-t border-gray-100">
-                          {plan.features.map((feat, fIdx) => (
-                            <div key={fIdx} className="flex items-center gap-1.5 text-[11px] text-gray-600">
+                          {plan.features.slice(0, 4).map((feat, fIdx) => (
+                            <div key={fIdx} className="flex items-center gap-1.5 text-[10px] text-gray-600 min-w-0">
                               <Check className="w-3 h-3 text-emerald-600 shrink-0" />
                               <span className="truncate">{feat}</span>
                             </div>
@@ -1857,12 +1907,12 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                           </div>
                         </div>
 
-                        <p className="text-[11px] text-gray-500 leading-relaxed pl-10.5">
+                        <p className="text-[11px] text-gray-500 leading-snug line-clamp-2 mt-1">
                           {opt.description}
                         </p>
 
                         {opt.specDetail && (
-                          <div className="ml-10.5 mt-0.5 text-[10px] text-gray-600 font-mono bg-orange-50/80 border border-orange-200/60 px-2 py-0.5 rounded-md inline-block w-fit">
+                          <div className="mt-0.5 text-[10px] text-gray-600 font-mono bg-orange-50/80 border border-orange-200/60 px-2 py-0.5 rounded-md truncate max-w-full">
                             Spec: {opt.specDetail}
                           </div>
                         )}
@@ -2108,12 +2158,12 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                           </div>
                         </div>
 
-                        <p className="text-[11px] text-gray-500 leading-relaxed pl-10">
+                        <p className="text-[11px] text-gray-500 leading-snug line-clamp-2 mt-1">
                           {opt.description}
                         </p>
 
                         {opt.specDetail && (
-                          <div className="ml-10 mt-0.5 text-[10px] text-gray-600 font-mono bg-amber-50/80 border border-amber-200/60 px-2 py-0.5 rounded-md inline-block w-fit">
+                          <div className="mt-0.5 text-[10px] text-gray-600 font-mono bg-amber-50/80 border border-amber-200/60 px-2 py-0.5 rounded-md truncate max-w-full">
                             Spec: {opt.specDetail}
                           </div>
                         )}
@@ -2575,12 +2625,12 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                       </div>
                     </div>
 
-                    <p className="text-[11px] text-gray-500 leading-relaxed pl-8">
+                    <p className="text-[11px] text-gray-500 leading-snug line-clamp-2 mt-1">
                       {opt.description}
                     </p>
 
                     {opt.specDetail && (
-                      <div className="ml-8 mt-0.5 text-[10px] text-gray-500 font-mono bg-gray-100/90 px-2 py-0.5 rounded-md inline-block w-fit">
+                      <div className="mt-0.5 text-[10px] text-gray-500 font-mono bg-gray-100/90 px-2 py-0.5 rounded-md truncate max-w-full">
                         Tech Spec: {opt.specDetail}
                       </div>
                     )}
@@ -2602,11 +2652,11 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                   5. Roof Architecture &amp; Terraces
                 </h3>
                 <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wider bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">
-                  Page 29 Outdoor Living
+                  Outdoor Living
                 </span>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Customize between flat parapet, pitched gable roof (fast runoff), or a full walkable rooftop observation terrace with external staircase.
+              <p className="text-[11px] text-gray-500 mt-0.5 leading-snug">
+                Parapet flat roof, pitched gable (fast runoff), or walkable rooftop observation terrace.
               </p>
             </div>
 
@@ -2652,12 +2702,12 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                       </div>
                     </div>
 
-                    <p className="text-[11px] text-gray-500 leading-relaxed">
+                    <p className="text-[11px] text-gray-500 leading-snug line-clamp-2 mt-0.5">
                       {opt.description}
                     </p>
 
                     {opt.specDetail && (
-                      <div className="mt-0.5 text-[10px] text-gray-500 font-mono bg-gray-100/90 px-2 py-0.5 rounded-md inline-block w-fit">
+                      <div className="mt-0.5 text-[10px] text-gray-500 font-mono bg-gray-100/90 px-2 py-0.5 rounded-md truncate max-w-full">
                         Tech Spec: {opt.specDetail}
                       </div>
                     )}
@@ -3125,7 +3175,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                                 </span>
                               )}
                             </div>
-                            <p className="text-[11px] text-gray-500 leading-relaxed">
+                            <p className="text-[11px] text-gray-500 leading-snug line-clamp-2 mt-0.5">
                               {unitSpec.description || addon.description}
                             </p>
                           </div>
@@ -3194,6 +3244,13 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
         </div>
       </div>
     )}
+
+    {/* Special Model Request Modal (Customer to 10Apples) */}
+    <SpecialModelRequestModal
+      isOpen={isSpecialRequestModalOpen}
+      onClose={() => setIsSpecialRequestModalOpen(false)}
+      initialSeries={modelSeriesFilter}
+    />
   </div>
 );
 };

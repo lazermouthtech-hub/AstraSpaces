@@ -24,12 +24,14 @@ import {
   LayoutGrid,
   Lock,
   Grid,
+  Ship,
+  Wrench,
 } from 'lucide-react';
 
 interface CostBuildupPanelProps {
   state: CustomizationState;
   onStateChange: (updater: (prev: CustomizationState) => CustomizationState) => void;
-  onOpenReserve: () => void;
+  onOpenReserve: (plan?: 'full' | 'milestone') => void;
   onOpenSpecSheet: () => void;
   onToggleCollapse?: () => void;
   isReserved?: boolean;
@@ -50,6 +52,8 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
   onSelectCategory,
 }) => {
   const [isCollapsedMobile, setIsCollapsedMobile] = useState(false);
+  const [paymentOption, setPaymentOption] = useState<'full' | 'milestone'>('milestone');
+  const [isPaymentRevealed, setIsPaymentRevealed] = useState(false);
 
   const [showDoorFeaturesModal, setShowDoorFeaturesModal] = useState(false);
   const [doorModalSubFilter, setDoorModalSubFilter] = useState<'all' | 'Entrance Doors' | 'Windows'>('all');
@@ -122,14 +126,12 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
   
   const grandTotal = homeTotalWithMarkup + (taxRate > 0 ? taxAmount : 0);
 
-  // Monthly financing calculation: 30 yr @ 6.25% APR with 15% down
-  const principal = grandTotal * 0.85;
-  const monthlyRate = 0.0625 / 12;
-  const nMonths = 360;
-  const monthlyPayment = Math.round(
-    (principal * (monthlyRate * Math.pow(1 + monthlyRate, nMonths))) /
-      (Math.pow(1 + monthlyRate, nMonths) - 1)
-  );
+  // Milestone Logistics & Installation breakdown
+  const freightCost = config.logistics?.freightCost || 4500;
+  const sitePrepCost = config.logistics?.sitePrepCost || 5500;
+  const clearingTransportCost = Math.round(sitePrepCost * 0.51); // Port clearing & local site transport
+  const installationCost = sitePrepCost - clearingTransportCost; // Certified on-site installation & hookup
+  const turnkeyTotal = grandTotal + freightCost + sitePrepCost;
 
   const formatCurrency = (val: number, opts?: { showPlus?: boolean }) => {
     return formatCurrencyUtil(val, config.currency, {
@@ -145,21 +147,21 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
       style={{ '--primary': config.branding.primaryColor } as React.CSSProperties}
     >
       {/* Panel Header */}
-      <div className="p-4 border-b border-gray-100 bg-[#FAFAFC] flex items-center justify-between shrink-0">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[var(--primary)]" />
-            <h2 className="text-[11px] font-black text-gray-900 uppercase tracking-[0.2em]">
+      <div className="p-3.5 sm:p-4 border-b border-gray-100 bg-[#FAFAFC] flex items-center justify-between gap-2 shrink-0">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-orange-600 shrink-0" />
+            <h2 className="text-[11px] font-black text-gray-900 uppercase tracking-wider truncate">
               Investment Breakdown
             </h2>
           </div>
-          <p className="text-[11px] text-gray-500 mt-0.5">Transparent factory direct pricing</p>
+          <p className="text-[10px] text-gray-500 mt-0.5 truncate">Transparent factory direct pricing</p>
         </div>
 
         {/* Mobile Toggle */}
         <button
           onClick={() => setIsCollapsedMobile(!isCollapsedMobile)}
-          className="lg:hidden p-1.5 text-gray-500 hover:text-gray-900 rounded-lg hover:bg-gray-100 cursor-pointer"
+          className="lg:hidden p-1.5 text-gray-500 hover:text-gray-900 rounded-lg hover:bg-gray-100 cursor-pointer shrink-0"
         >
           {isCollapsedMobile ? (
             <ChevronDown className="w-4 h-4" />
@@ -173,7 +175,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
           <button
             type="button"
             onClick={onToggleCollapse}
-            className="hidden lg:flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-gray-500 hover:text-gray-950 hover:bg-gray-200/70 transition-colors cursor-pointer group"
+            className="hidden lg:flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-gray-500 hover:text-gray-950 hover:bg-gray-200/70 transition-colors cursor-pointer group shrink-0"
             title="Hide Investment Breakdown (expands 3D viewer)"
           >
             <span>Hide</span>
@@ -184,57 +186,57 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
 
       {/* Main Content Area */}
       <div
-        className={`flex-1 overflow-y-auto p-4 sm:p-5 space-y-5 ${
+        className={`flex-1 overflow-y-auto p-3 sm:p-3.5 space-y-4 overscroll-contain scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent hover:scrollbar-thumb-gray-300 ${
           isCollapsedMobile ? 'hidden lg:block' : 'block'
         }`}
       >
         {/* 10Apples Brand & Direct Production Header */}
-        <div className="flex items-center justify-between p-3 rounded-2xl bg-orange-50/70 border border-orange-200/80 shadow-2xs">
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-orange-600 animate-pulse shrink-0" />
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-black text-gray-950 uppercase tracking-wider">
+        <div className="flex items-center justify-between gap-2 p-2.5 rounded-2xl bg-orange-50/70 border border-orange-200/80 shadow-2xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-2 h-2 rounded-full bg-orange-600 animate-pulse shrink-0" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] font-black text-gray-950 uppercase tracking-wider truncate">
                   {config.branding?.brandName || '10Apples'} Configurator
                 </span>
-                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-orange-200/70 text-orange-900 border border-orange-300">
+                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded-md bg-orange-200/70 text-orange-900 border border-orange-300 shrink-0">
                   Direct
                 </span>
               </div>
-              <p className="text-[10px] text-gray-600 font-medium leading-none mt-0.5">
+              <p className="text-[10px] text-gray-600 font-medium leading-none mt-0.5 truncate">
                 Precision modular architecture &amp; turnkey factory build
               </p>
             </div>
           </div>
-          <span className="text-[10px] font-mono font-bold text-orange-950 bg-white px-2 py-1 rounded-xl border border-orange-200 shadow-2xs shrink-0">
+          <span className="text-[10px] font-mono font-bold text-orange-950 bg-white px-2 py-0.5 rounded-xl border border-orange-200 shadow-2xs shrink-0">
             Series 2026
           </span>
         </div>
 
         {/* Total Price Bento Card */}
-        <div className="bg-[#F8F9FB] rounded-2xl p-4 sm:p-5 border border-gray-200 relative overflow-hidden">
-          <div className="flex items-center justify-between text-xs text-gray-500">
-            <span className="text-[10px] font-black uppercase tracking-wider text-gray-400">Total Configured Cost</span>
-            <span className="font-mono text-[var(--primary)] font-bold text-[11px] flex items-center gap-1 bg-[var(--primary)/10] px-2 py-0.5 rounded-full border border-[var(--primary)/20]">
-              <Clock className="w-3 h-3" /> {currentModel.leadTime}
+        <div className="bg-[#F8F9FB] rounded-2xl p-3.5 sm:p-4 border border-gray-200 relative overflow-hidden">
+          <div className="flex items-center justify-between gap-2 text-xs text-gray-500">
+            <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 truncate">Total Configured Cost</span>
+            <span className="font-mono text-orange-700 font-bold text-[10px] flex items-center gap-1 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200 shrink-0">
+              <Clock className="w-3 h-3" /> {currentModel.leadTime || '10-12 Weeks'}
             </span>
           </div>
 
-          <div className="mt-2 text-3xl sm:text-4xl font-extrabold font-mono tracking-tight text-gray-950">
+          <div className="mt-1.5 text-2xl sm:text-3xl font-extrabold font-mono tracking-tight text-gray-950 truncate">
             {formatCurrency(grandTotal)}
           </div>
-          <div className="text-[10px] text-gray-500 font-medium mt-1">
-            {config.branding?.brandName || '10Apples'} factory build cost · Freight &amp; foundation fees are excluded and only calculated at checkout
+          <div className="text-[10px] text-gray-500 font-medium mt-1 leading-snug">
+            {config.branding?.brandName || '10Apples'} factory build cost · Freight &amp; foundation fees calculated at checkout
           </div>
 
-          <div className="mt-3 pt-3 border-t border-gray-200 flex items-center justify-between text-xs">
-            <span className="text-gray-500 font-medium">Estimated Financing</span>
-            <span className="font-bold text-gray-900 font-mono">
-              {formatCurrency(monthlyPayment)}/mo*
+          <div className="mt-2.5 pt-2.5 border-t border-gray-200 flex items-center justify-between gap-2 text-xs">
+            <span className="text-gray-500 font-medium truncate">Financing Options</span>
+            <span className="font-bold text-orange-800 text-[11px] bg-orange-50 px-2 py-0.5 rounded-md border border-orange-200 shrink-0">
+              Supporting Banks
             </span>
           </div>
-          <div className="text-[10px] text-gray-400 mt-1">
-            *Est. 30-year fixed @ 6.25% APR with 15% down.
+          <div className="text-[10px] text-gray-500 mt-1 leading-snug">
+            Financing options are managed entirely by our supporting banks. We do not provide monthly financing on our platform.
           </div>
         </div>
 
@@ -247,33 +249,33 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
 
           <div className="space-y-2 text-xs">
             {/* Base Home Model */}
-            <div className="flex items-center justify-between p-3 rounded-2xl bg-[#F8F9FB] border border-gray-200/80">
-              <div>
-                <div className="font-bold text-gray-900">{currentModel.name}</div>
-                <div className="text-[11px] text-gray-500">
+            <div className="flex items-center justify-between gap-2 p-2.5 sm:p-3 rounded-2xl bg-[#F8F9FB] border border-gray-200/80">
+              <div className="min-w-0">
+                <div className="font-bold text-gray-900 truncate">{currentModel.name}</div>
+                <div className="text-[11px] text-gray-500 truncate">
                   {currentModel.sqft} sq ft • {currentModel.dimensions.metricStr}
                 </div>
               </div>
-              <span className="font-mono font-bold text-gray-900">
+              <span className="font-mono font-bold text-gray-900 shrink-0">
                 {formatCurrency(currentModel.basePrice * markupFactor)}
               </span>
             </div>
 
             {/* Double-Wing Floor Plan Layout */}
             {isExpandableHouse && floorPlanOpt && (
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-blue-50/50 border border-blue-200/80">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-blue-50/50 border border-blue-200/80">
+                <div className="flex items-center gap-2 min-w-0">
                   <div className="w-5 h-5 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
                     <LayoutGrid className="w-3 h-3 text-blue-700" />
                   </div>
-                  <div>
-                    <div className="font-semibold text-gray-900 leading-tight">{floorPlanOpt.name}</div>
-                    <div className="text-[10px] text-blue-900/70 font-medium">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-900 leading-tight truncate">{floorPlanOpt.name}</div>
+                    <div className="text-[10px] text-blue-900/70 font-medium truncate">
                       Floor plan · {floorPlanOpt.bedrooms} Bed, {floorPlanOpt.bathrooms} Bath
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <span className="font-mono font-bold text-gray-900">
                     {floorPlanPrice === 0
                       ? 'Included'
@@ -288,7 +290,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                           bedroomLayout: '2-bedroom',
                         }))
                       }
-                      className="text-gray-400 hover:text-red-500 p-0.5 cursor-pointer"
+                      className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors cursor-pointer shrink-0"
                       title="Revert to standard 2-Bed layout"
                     >
                       <X className="w-3.5 h-3.5" />
@@ -300,18 +302,18 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
 
             {/* Custom Wall Cladding */}
             {getItemPriceForModel(wallOpt, state.modelId, config.models) > 0 && (
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200">
-                <div className="flex items-center gap-2.5">
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-gray-200">
+                <div className="flex items-center gap-2 min-w-0">
                   <span
-                    className="w-3.5 h-3.5 rounded-full border border-gray-300"
+                    className="w-3.5 h-3.5 rounded-full border border-gray-300 shrink-0"
                     style={{ backgroundColor: wallOpt.color }}
                   />
-                  <div>
-                    <div className="font-semibold text-gray-900">{wallOpt.name}</div>
-                    <div className="text-[10px] text-gray-400">Wall Panels</div>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-900 truncate">{wallOpt.name}</div>
+                    <div className="text-[10px] text-gray-400 truncate">Wall Panels</div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <span className="font-mono font-bold text-gray-900">
                     +{formatCurrency(getItemPriceForModel(wallOpt, state.modelId, config.models) * markupFactor)}
                   </span>
@@ -322,7 +324,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                         wallCladding: 'fluoro-white',
                       }))
                     }
-                    className="text-gray-400 hover:text-red-500 p-0.5 cursor-pointer"
+                    className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors cursor-pointer shrink-0"
                     title="Revert to standard"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -333,12 +335,12 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
 
             {/* Interior Wall Panels */}
             {intWallOpt && getItemPriceForModel(intWallOpt, state.modelId, config.models) > 0 && (
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200">
-                <div>
-                  <div className="font-semibold text-gray-900">{intWallOpt.name}</div>
-                  <div className="text-[10px] text-gray-400">Indoor Wall Panels & Acoustic Slats</div>
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-gray-200">
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-900 truncate">{intWallOpt.name}</div>
+                  <div className="text-[10px] text-gray-400 truncate">Indoor Wall Panels</div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <span className="font-mono font-bold text-gray-900">
                     +{formatCurrency(getItemPriceForModel(intWallOpt, state.modelId, config.models) * markupFactor)}
                   </span>
@@ -349,7 +351,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                         interiorWall: 'bamboo-charcoal-offwhite',
                       }))
                     }
-                    className="text-gray-400 hover:text-red-500 p-0.5 cursor-pointer"
+                    className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors cursor-pointer shrink-0"
                     title="Revert to standard"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -364,52 +366,25 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                 setShowDoorFeaturesModal(true);
                 if (onSelectCategory) onSelectCategory('Glazing & Windows');
               }}
-              className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200 hover:border-orange-300 hover:bg-orange-50/40 transition-all cursor-pointer group"
-              title="Click to view door or window features and select style at no additional cost ($0)"
+              className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-gray-200 hover:border-orange-300 hover:bg-orange-50/40 transition-all cursor-pointer group"
+              title="Click to view door or window features and select style"
             >
-              <div className="flex items-center gap-2.5">
-                <div className="w-5 h-5 rounded-lg bg-orange-100 flex items-center justify-center shrink-0 text-xs group-hover:scale-105 transition-transform">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-6 h-6 rounded-lg bg-orange-100 flex items-center justify-center shrink-0 text-xs group-hover:scale-105 transition-transform">
                   🚪
                 </div>
-                <div>
-                  <div className="font-semibold text-gray-900 leading-tight flex items-center gap-1.5 flex-wrap">
-                    <span>{glassOpt?.name || 'Standard Entrance Door & Windows'}</span>
-                    <span className="text-[9px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded">
-                      Included ($0)
-                    </span>
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-900 leading-tight truncate">
+                    {glassOpt?.name || 'Entrance Door & Windows'}
                   </div>
-                  <div className="text-[10px] text-emerald-700 font-medium flex items-center gap-1.5 mt-0.5 flex-wrap">
-                    <span>Door &amp; Window System · Included at $0</span>
-                    {onSelectCategory && (
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowDoorFeaturesModal(true);
-                          if (onSelectCategory) {
-                            onSelectCategory('Glazing & Windows');
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.stopPropagation();
-                            setShowDoorFeaturesModal(true);
-                            if (onSelectCategory) onSelectCategory('Glazing & Windows');
-                          }
-                        }}
-                        className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-zinc-900 hover:bg-orange-600 text-white font-bold text-[10px] shadow-2xs hover:shadow-xs transition-all active:scale-95 cursor-pointer ml-1 select-none"
-                        title="Click to view and choose from all entrance doors and window features"
-                      >
-                        <span>View Features</span>
-                        <ChevronRight className="w-3 h-3 text-white/80" />
-                      </span>
-                    )}
+                  <div className="text-[10px] text-gray-500 font-medium truncate flex items-center gap-1 mt-0.5">
+                    <span>Door &amp; Window System</span>
+                    <span className="text-orange-600 font-semibold group-hover:underline">· View Options</span>
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 text-[11px]">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 text-[10px]">
                   Included ($0)
                 </span>
                 {onSelectCategory && (
@@ -420,12 +395,12 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
 
             {/* Lighting */}
             {getItemPriceForModel(lightOpt, state.modelId, config.models) > 0 && (
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200">
-                <div>
-                  <div className="font-semibold text-gray-900">{lightOpt.name}</div>
-                  <div className="text-[10px] text-gray-400">Lighting Architecture</div>
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-gray-200">
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-900 truncate">{lightOpt.name}</div>
+                  <div className="text-[10px] text-gray-400 truncate">Lighting Architecture</div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <span className="font-mono font-bold text-gray-900">
                     +{formatCurrency(getItemPriceForModel(lightOpt, state.modelId, config.models) * markupFactor)}
                   </span>
@@ -436,7 +411,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                         lightingPackage: 'standard-recessed',
                       }))
                     }
-                    className="text-gray-400 hover:text-red-500 p-0.5 cursor-pointer"
+                    className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors cursor-pointer shrink-0"
                     title="Revert to standard"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -447,12 +422,12 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
 
             {/* Electrical */}
             {getItemPriceForModel(elecOpt, state.modelId, config.models) > 0 && (
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200">
-                <div>
-                  <div className="font-semibold text-gray-900">{elecOpt.name}</div>
-                  <div className="text-[10px] text-gray-400">Electrical Load Center</div>
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-gray-200">
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-900 truncate">{elecOpt.name}</div>
+                  <div className="text-[10px] text-gray-400 truncate">Electrical Load Center</div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <span className="font-mono font-bold text-gray-900">
                     +{formatCurrency(getItemPriceForModel(elecOpt, state.modelId, config.models) * markupFactor)}
                   </span>
@@ -463,7 +438,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                         electricalTier: 'standard-100a',
                       }))
                     }
-                    className="text-gray-400 hover:text-red-500 p-0.5 cursor-pointer"
+                    className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors cursor-pointer shrink-0"
                     title="Revert to standard"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -474,12 +449,12 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
 
             {/* Flooring */}
             {getItemPriceForModel(floorOpt, state.modelId, config.models) > 0 && (
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200">
-                <div>
-                  <div className="font-semibold text-gray-900">{floorOpt.name}</div>
-                  <div className="text-[10px] text-gray-400">Flooring Upgrade</div>
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-gray-200">
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-900 truncate">{floorOpt.name}</div>
+                  <div className="text-[10px] text-gray-400 truncate">Flooring Upgrade</div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <span className="font-mono font-bold text-gray-900">
                     +{formatCurrency(getItemPriceForModel(floorOpt, state.modelId, config.models) * markupFactor)}
                   </span>
@@ -490,7 +465,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                         flooring: 'spc-nordic-oak',
                       }))
                     }
-                    className="text-gray-400 hover:text-red-500 p-0.5 cursor-pointer"
+                    className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors cursor-pointer shrink-0"
                     title="Revert to standard"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -501,12 +476,12 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
 
             {/* Roof Option */}
             {getItemPriceForModel(roofOpt, state.modelId, config.models) > 0 && (
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200">
-                <div>
-                  <div className="font-semibold text-gray-900">{roofOpt.name}</div>
-                  <div className="text-[10px] text-gray-400">Roof & Energy</div>
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-gray-200">
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-900 truncate">{roofOpt.name}</div>
+                  <div className="text-[10px] text-gray-400 truncate">Roof &amp; Energy</div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <span className="font-mono font-bold text-gray-900">
                     +{formatCurrency(getItemPriceForModel(roofOpt, state.modelId, config.models) * markupFactor)}
                   </span>
@@ -517,7 +492,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                         roofOption: 'standard-parapet',
                       }))
                     }
-                    className="text-gray-400 hover:text-red-500 p-0.5 cursor-pointer"
+                    className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors cursor-pointer shrink-0"
                     title="Revert to standard"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -528,12 +503,12 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
 
             {/* Cabinetry Option */}
             {getItemPriceForModel(cabOpt, state.modelId, config.models) > 0 && (
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200">
-                <div>
-                  <div className="font-semibold text-gray-900">{cabOpt.name}</div>
-                  <div className="text-[10px] text-gray-400">Cabinetry Finish</div>
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-gray-200">
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-900 truncate">{cabOpt.name}</div>
+                  <div className="text-[10px] text-gray-400 truncate">Cabinetry Finish</div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <span className="font-mono font-bold text-gray-900">
                     +{formatCurrency(getItemPriceForModel(cabOpt, state.modelId, config.models) * markupFactor)}
                   </span>
@@ -544,7 +519,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                         cabinetry: 'matte-black',
                       }))
                     }
-                    className="text-gray-400 hover:text-red-500 p-0.5 cursor-pointer"
+                    className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors cursor-pointer shrink-0"
                     title="Revert to standard"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -562,25 +537,25 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
               return (
                 <div
                   key={addon.id}
-                  className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-gray-200"
+                  className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-gray-200"
                 >
-                  <div className="min-w-0 pr-2">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-semibold text-gray-900">{addon.name}</span>
+                      <span className="font-semibold text-gray-900 truncate">{addon.name}</span>
                       {unitSpec.sizeLabel && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-orange-100 text-orange-800">
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-orange-100 text-orange-800 shrink-0">
                           {unitSpec.sizeLabel}
                         </span>
                       )}
                       {isDefaultModule && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-blue-50 text-blue-800 border border-blue-200">
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-blue-50 text-blue-800 border border-blue-200 shrink-0">
                           Standard
                         </span>
                       )}
                     </div>
-                    <div className="text-[10px] text-gray-400">{addon.category}</div>
+                    <div className="text-[10px] text-gray-400 truncate">{addon.category}</div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <span className="font-mono font-bold text-gray-900">
                       +{formatCurrency(unitPrice * markupFactor)}
                     </span>
@@ -592,11 +567,10 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                           [addon.id]: false,
                         }))
                       }
-                      className="flex items-center gap-1 text-[10px] font-bold text-gray-500 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded-lg border border-gray-200 hover:border-red-200 cursor-pointer transition-colors"
+                      className="p-1 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer shrink-0"
                       title={`Remove ${addon.name} from house`}
                     >
-                      <X className="w-3 h-3 text-red-500" />
-                      <span>Remove</span>
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -606,11 +580,11 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
             {/* Notification & Quick Re-add if Bath Pod or Kitchenette was removed */}
             {isExpandableHouse && (!state.hasLuxuryBathPod || !state.hasKitchenetteModule) && (
               <div className="p-2.5 rounded-xl bg-amber-50/80 border border-amber-200/90 text-xs flex flex-col gap-1.5">
-                <div className="flex items-center justify-between text-amber-900">
-                  <span className="text-[10px] font-black uppercase tracking-wider">
+                <div className="flex items-center justify-between gap-2 text-amber-900">
+                  <span className="text-[10px] font-black uppercase tracking-wider truncate">
                     Removed Standard Modules
                   </span>
-                  <span className="text-[10px] text-amber-700 font-medium">Shell layout</span>
+                  <span className="text-[10px] text-amber-700 font-medium shrink-0">Shell layout</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {!state.hasLuxuryBathPod && (
@@ -650,27 +624,39 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
         {/* Estimated Taxes if applicable */}
         {config.logistics?.taxRate > 0 && (
           <div className="pt-2 border-t border-gray-100 text-xs">
-            <div className="flex items-center justify-between p-3 rounded-2xl border border-gray-200 bg-white">
-              <div className="font-semibold text-gray-900">Estimated Taxes ({config.logistics.taxRate}%)</div>
-              <span className="font-mono font-bold text-gray-900">+{formatCurrency(taxAmount)}</span>
+            <div className="flex items-center justify-between gap-2 p-2.5 sm:p-3 rounded-2xl border border-gray-200 bg-white">
+              <div className="font-semibold text-gray-900 truncate">Estimated Taxes ({config.logistics.taxRate}%)</div>
+              <span className="font-mono font-bold text-gray-900 shrink-0">+{formatCurrency(taxAmount)}</span>
             </div>
           </div>
         )}
 
         {/* Guarantees Bento Card */}
-        <div className="p-3.5 bg-[#F8F9FB] rounded-2xl border border-gray-200 space-y-2 text-[11px] text-gray-600">
+        <div className="p-3.5 bg-[#F8F9FB] rounded-2xl border border-gray-200 space-y-2.5 text-[11px] text-gray-600">
           <div className="flex items-center gap-2 font-bold text-gray-900">
             <ShieldCheck className="w-4 h-4 shrink-0 text-orange-600" />
-            <span>{config.branding?.brandName || '10Apples'} Commitment</span>
+            <span className="truncate">{config.branding?.brandName || '10Apples'} Commitment</span>
           </div>
-          <ul className="space-y-1 text-[10px] text-gray-500 pl-6 list-disc">
-            <li>50-Year Structural Steel Frame Warranty</li>
-            <li>Class-A Fire Prevention &amp; 40dB Sound Isolation</li>
-            <li>Category 5 Hurricane / Level 12 Typhoon Resistance</li>
-            <li>{formatCurrency(config.branding.reservationFee || 250)} Fully Refundable 10Apples Queue Slot</li>
-          </ul>
+          <div className="space-y-1.5 text-[10px] text-gray-600">
+            <div className="flex items-start gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+              <span>50-Year Structural Steel Frame Warranty</span>
+            </div>
+            <div className="flex items-start gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+              <span>Class-A Fire Prevention &amp; 40dB Sound Isolation</span>
+            </div>
+            <div className="flex items-start gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+              <span>Category 5 Hurricane / Level 12 Typhoon Resistance</span>
+            </div>
+            <div className="flex items-start gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+              <span>{formatCurrency(config.branding.reservationFee || 250)} Fully Refundable Queue Slot</span>
+            </div>
+          </div>
           {config.branding.supportEmail && (
-            <div className="mt-2 pt-2 border-t border-gray-200 text-[10px]">
+            <div className="mt-2 pt-2 border-t border-gray-200 text-[10px] truncate">
               Questions? Contact <a href={`mailto:${config.branding.supportEmail}`} className="font-bold hover:underline text-orange-600">{config.branding.supportEmail}</a>
             </div>
           )}
@@ -678,22 +664,184 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
       </div>
 
       {/* Persistent Bottom Action Drawer */}
-      <div className="p-4 border-t border-gray-100 bg-white space-y-2.5 shrink-0">
-        <div className="flex items-center justify-between text-xs px-1">
-          <span className="text-gray-500 font-medium">Build Subtotal (Excl. Freight &amp; Site)</span>
-          <span className="font-mono font-bold text-gray-900 text-sm">{formatCurrency(grandTotal)}</span>
+      <div className="p-3 sm:p-3.5 border-t border-gray-100 bg-white space-y-2 shrink-0 transition-all">
+        {/* Toggle / Header Bar */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <CreditCard className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-gray-900 truncate">
+              Payment &amp; Turnkey Plan
+            </span>
+            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-orange-100 text-orange-800 border border-orange-200 shrink-0">
+              {paymentOption === 'milestone' ? '4 Milestones' : 'Full Invoice'}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsPaymentRevealed(!isPaymentRevealed)}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold transition-all border cursor-pointer shrink-0 ${
+              isPaymentRevealed
+                ? 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200'
+                : 'bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200 shadow-2xs'
+            }`}
+            title={isPaymentRevealed ? 'Hide payment schedule and options' : 'Reveal payment schedule and options'}
+          >
+            <span>{isPaymentRevealed ? 'Hide' : 'Reveal'}</span>
+            {isPaymentRevealed ? (
+              <ChevronDown className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronUp className="w-3.5 h-3.5" />
+            )}
+          </button>
         </div>
+
+        {/* REVEALED CONTENT: Detailed payment selector and milestone schedule */}
+        {isPaymentRevealed && (
+          <div className="space-y-2 pt-1 animate-in fade-in duration-200">
+            {/* Payment Plan Selector Tabs */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                <span>Select Plan</span>
+                <span className="text-orange-700 normal-case font-semibold">
+                  {paymentOption === 'milestone' ? 'Pay stage by stage' : 'Single lump-sum invoice'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-1 p-1 bg-gray-100 rounded-xl border border-gray-200/80 text-xs font-bold">
+                <div
+                  onClick={() => setPaymentOption('milestone')}
+                  className={`py-1.5 px-2 rounded-lg transition-all cursor-pointer text-center truncate ${
+                    paymentOption === 'milestone'
+                      ? 'bg-white text-gray-900 shadow-xs font-black'
+                      : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <span>Milestone Plan</span>
+                </div>
+                <div
+                  onClick={() => setPaymentOption('full')}
+                  className={`py-1.5 px-2 rounded-lg transition-all cursor-pointer text-center truncate ${
+                    paymentOption === 'full'
+                      ? 'bg-white text-gray-900 shadow-xs font-black'
+                      : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <span>Full Payment</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Milestone Schedule or Full Payment Summary */}
+            {paymentOption === 'milestone' ? (
+              <div className="space-y-1.5 p-2.5 rounded-xl bg-orange-50/40 border border-orange-200/80 text-xs">
+                <div className="flex items-center justify-between text-[11px] font-black text-orange-950 uppercase tracking-wider">
+                  <span>Milestone Schedule</span>
+                  <span className="font-mono text-[9px] bg-white px-1.5 py-0.2 rounded font-bold border border-orange-200 text-orange-800">
+                    Stage-by-Stage
+                  </span>
+                </div>
+
+                <div className="space-y-1 text-[11px]">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-gray-700 font-semibold truncate">1. 🏠 House Build (Separate):</span>
+                    <span className="font-mono font-bold text-gray-950 shrink-0">{formatCurrency(grandTotal)}</span>
+                  </div>
+                  <div className="text-[10px] text-gray-400 pl-4 pb-0.5">
+                    ↳ Paid separately upfront to start manufacturing
+                  </div>
+
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-gray-700 font-semibold truncate">2. 🚢 Int'l Freight:</span>
+                    <span className="font-mono font-bold text-gray-950 shrink-0">{formatCurrency(freightCost)}</span>
+                  </div>
+                  <div className="text-[10px] text-gray-400 pl-4 pb-0.5">
+                    ↳ Paid after factory finishes manufacturing
+                  </div>
+
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-gray-700 font-semibold truncate">3. 🚚 Port Clearing &amp; Transport:</span>
+                    <span className="font-mono font-bold text-gray-950 shrink-0">{formatCurrency(clearingTransportCost)}</span>
+                  </div>
+                  <div className="text-[10px] text-gray-400 pl-4 pb-0.5">
+                    ↳ Paid when container arrives at destination port
+                  </div>
+
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-gray-700 font-semibold truncate">4. 🏗️ On-Site Installation:</span>
+                    <span className="font-mono font-bold text-gray-950 shrink-0">{formatCurrency(installationCost)}</span>
+                  </div>
+                  <div className="text-[10px] text-gray-400 pl-4 pb-0.5">
+                    ↳ Paid upon arrival on site for installation
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1.5 border-t border-orange-200/80 font-bold text-xs text-orange-950">
+                  <span>Total Turnkey Package:</span>
+                  <span className="font-mono text-orange-900 font-black">{formatCurrency(turnkeyTotal)}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1.5 p-2.5 rounded-xl bg-gray-50 border border-gray-200 text-xs">
+                <div className="flex items-center justify-between text-[11px] font-black text-gray-900 uppercase tracking-wider">
+                  <span>Full Turnkey Payment</span>
+                  <span className="font-mono text-[9px] bg-white px-1.5 py-0.2 rounded font-bold border border-gray-200 text-gray-700">
+                    Single Invoice
+                  </span>
+                </div>
+                <div className="space-y-1 text-[11px]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">House Build Subtotal:</span>
+                    <span className="font-mono font-bold text-gray-950">{formatCurrency(grandTotal)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600">Freight, Clearing &amp; Installation:</span>
+                    <span className="font-mono font-bold text-gray-950">{formatCurrency(freightCost + sitePrepCost)}</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-1.5 border-t border-gray-200 font-bold text-xs text-gray-950">
+                  <span>Total Turnkey Investment:</span>
+                  <span className="font-mono text-orange-700 font-black">{formatCurrency(turnkeyTotal)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* When HIDDEN: Compact summary row */}
+        {!isPaymentRevealed && (
+          <div className="flex items-center justify-between text-xs py-0.5 px-1 bg-gray-50/70 rounded-xl border border-gray-100">
+            <span className="text-gray-500 font-medium">Turnkey Package:</span>
+            <span className="font-mono font-black text-gray-950">
+              {formatCurrency(turnkeyTotal)}
+            </span>
+          </div>
+        )}
+
+        {/* Primary Action Button */}
         <button
-          onClick={onOpenReserve}
+          onClick={() => onOpenReserve(paymentOption)}
           style={{ backgroundColor: config.branding.primaryColor }}
-          className="w-full py-3.5 px-4 hover:opacity-95 active:scale-[0.99] text-white rounded-2xl font-bold text-xs uppercase tracking-wider transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+          className="w-full py-3 px-4 hover:opacity-95 active:scale-[0.99] text-white rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer"
         >
           <CreditCard className="w-4 h-4" />
-          <span>{config.branding.ctaText} ({formatCurrency(config.branding.reservationFee || 250)} Deposit)</span>
+          <span>
+            {paymentOption === 'milestone'
+              ? `Proceed with Milestone Plan (${formatCurrency(config.branding.reservationFee || 250)} Deposit)`
+              : `Proceed with Full Payment (${formatCurrency(config.branding.reservationFee || 250)} Deposit)`}
+          </span>
         </button>
-        <p className="text-[10px] text-center text-gray-400 font-medium leading-tight">
-          Freight transport and foundation fees are excluded here and only configured at checkout.
-        </p>
+
+        {isPaymentRevealed && (
+          <p className="text-[10px] text-center text-gray-400 font-medium leading-tight">
+            {paymentOption === 'milestone'
+              ? 'Milestone: Pay for the house separately. Pay international freight when manufacturing finishes. Pay clearing, transport & installation when your container arrives.'
+              : 'Full Payment: Comprehensive turnkey invoice for the house, shipping, customs clearance, and certified on-site installation.'}
+          </p>
+        )}
       </div>
       {/* Interactive Door & Window Features Modal */}
       {showDoorFeaturesModal && (

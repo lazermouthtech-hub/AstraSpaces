@@ -141,20 +141,37 @@ const FLAT_BACKGROUND_TREES: FlatTree[] = [
 
 interface ArchitecturalTreesProps {
   slideIndex: number;
+  className?: string;
+  isMobileCompact?: boolean;
 }
 
-export const ArchitecturalTrees: React.FC<ArchitecturalTreesProps> = ({ slideIndex }) => {
+export const ArchitecturalTrees: React.FC<ArchitecturalTreesProps> = ({
+  slideIndex,
+  className = '',
+  isMobileCompact = false,
+}) => {
   return (
     <div
       aria-hidden="true"
-      className="absolute inset-0 pointer-events-none overflow-hidden select-none"
+      className={`absolute inset-0 pointer-events-none overflow-hidden select-none ${className}`}
     >
       {/* Subtle architectural horizon ground line */}
-      <div className="absolute left-0 right-0 bottom-[24%] h-px bg-gradient-to-r from-transparent via-gray-200/60 to-transparent" />
+      <div
+        className={`absolute left-0 right-0 h-px bg-gradient-to-r from-transparent via-gray-300/70 to-transparent ${
+          isMobileCompact ? 'bottom-[12%]' : 'bottom-[14%]'
+        }`}
+      />
 
       {FLAT_BACKGROUND_TREES.map((tree) => {
         const posIndex = slideIndex % tree.positions.length;
         const currentPos = tree.positions[posIndex];
+
+        // Scale and offset trees so they peek out right behind the house
+        const bottomVal = isMobileCompact
+          ? `${Math.max(8, parseFloat(currentPos.bottom) * 0.45 + 2)}%`
+          : `${Math.max(10, parseFloat(currentPos.bottom) * 0.5 + 2)}%`;
+        const scaleVal = isMobileCompact ? currentPos.scale * 0.88 : currentPos.scale;
+        const opacityVal = isMobileCompact ? Math.min(0.55, currentPos.opacity * 1.4) : Math.min(0.5, currentPos.opacity * 1.2);
 
         return (
           <div
@@ -162,9 +179,9 @@ export const ArchitecturalTrees: React.FC<ArchitecturalTreesProps> = ({ slideInd
             className="absolute transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)]"
             style={{
               left: currentPos.left,
-              bottom: currentPos.bottom,
-              opacity: currentPos.opacity,
-              transform: `translateX(-50%) scale(${currentPos.scale})`,
+              bottom: bottomVal,
+              opacity: opacityVal,
+              transform: `translateX(-50%) scale(${scaleVal})`,
               transformOrigin: 'bottom center',
             }}
           >

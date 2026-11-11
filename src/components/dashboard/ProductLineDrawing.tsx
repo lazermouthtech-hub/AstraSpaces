@@ -25,6 +25,9 @@ export interface ProductLineDrawingProps {
   };
   initialView?: 'plan' | 'elevation' | 'foundation' | 'all';
   compact?: boolean;
+  hideControls?: boolean;
+  hideHeader?: boolean;
+  hideFooter?: boolean;
 }
 
 export const ProductLineDrawing: React.FC<ProductLineDrawingProps> = ({
@@ -34,9 +37,16 @@ export const ProductLineDrawing: React.FC<ProductLineDrawingProps> = ({
   customization,
   initialView = 'all',
   compact = false,
+  hideControls = false,
+  hideHeader = false,
+  hideFooter = false,
 }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'plan' | 'elevation' | 'foundation'>(initialView);
   const [drawingStyle, setDrawingStyle] = useState<'cad-white' | 'blueprint-blue'>('cad-white');
+
+  React.useEffect(() => {
+    setActiveTab(initialView);
+  }, [initialView]);
 
   // Determine model category and size accurately without substring overlap
   const mId = (modelId || '').toLowerCase();
@@ -1460,61 +1470,65 @@ export const ProductLineDrawing: React.FC<ProductLineDrawingProps> = ({
   return (
     <div className={`rounded-2xl border ${isBlueprint ? 'border-sky-900 shadow-md' : 'border-gray-200 shadow-xs'} overflow-hidden`}>
       {/* Top Drawing Control Bar */}
-      <div className={`p-3.5 flex flex-wrap items-center justify-between gap-3 border-b ${isBlueprint ? 'bg-[#071526] border-sky-950 text-white' : 'bg-gray-50 border-gray-200'}`}>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse" />
-          <span className="font-mono text-xs font-black tracking-wider uppercase">
-            ARCHITECTURAL LINE DRAWING &amp; CAD BLUEPRINT
-          </span>
-          <span className="text-[10px] px-2 py-0.5 rounded-md font-mono font-bold bg-orange-100 text-orange-800 border border-orange-200">
-            {modelName}
-          </span>
-          {isExpandable && (
-            <span className="text-[10px] px-2 py-0.5 rounded-md font-mono font-bold bg-blue-100 text-blue-900 border border-blue-200">
-              Active Plan: {activePlanId}
+      {!hideHeader && (
+        <div className={`${compact ? 'p-2.5' : 'p-3.5'} flex flex-wrap items-center justify-between gap-3 border-b ${isBlueprint ? 'bg-[#071526] border-sky-950 text-white' : 'bg-gray-50 border-gray-200'}`}>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse" />
+            <span className="font-mono text-xs font-black tracking-wider uppercase">
+              ARCHITECTURAL LINE DRAWING &amp; CAD BLUEPRINT
             </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* View Mode Selector */}
-          <div className="inline-flex p-0.5 bg-black/10 rounded-xl">
-            {(['all', 'plan', 'elevation', 'foundation'] as const).map((view) => (
-              <button
-                key={view}
-                type="button"
-                onClick={() => setActiveTab(view)}
-                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all capitalize cursor-pointer ${
-                  activeTab === view
-                    ? isBlueprint
-                      ? 'bg-sky-500 text-black shadow-xs'
-                      : 'bg-white text-gray-900 shadow-xs'
-                    : 'text-gray-500 hover:text-gray-900'
-                }`}
-              >
-                {view === 'all' ? 'All Views' : view}
-              </button>
-            ))}
+            <span className="text-[10px] px-2 py-0.5 rounded-md font-mono font-bold bg-orange-100 text-orange-800 border border-orange-200">
+              {modelName}
+            </span>
+            {isExpandable && (
+              <span className="text-[10px] px-2 py-0.5 rounded-md font-mono font-bold bg-blue-100 text-blue-900 border border-blue-200">
+                Active Plan: {activePlanId}
+              </span>
+            )}
           </div>
 
-          {/* Blueprint Theme Toggle */}
-          <button
-            type="button"
-            onClick={() => setDrawingStyle(isBlueprint ? 'cad-white' : 'blueprint-blue')}
-            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-colors cursor-pointer ${
-              isBlueprint
-                ? 'bg-sky-950/80 text-sky-300 border-sky-800 hover:bg-sky-900'
-                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
-            }`}
-            title="Toggle between Crisp CAD White and Engineering Blueprint Blue"
-          >
-            {isBlueprint ? '📘 Blueprint Blue' : '📄 CAD White'}
-          </button>
+          {!hideControls && (
+            <div className="flex items-center gap-2 flex-wrap no-print">
+              {/* View Mode Selector */}
+              <div className="inline-flex p-0.5 bg-black/10 rounded-xl">
+                {(['all', 'plan', 'elevation', 'foundation'] as const).map((view) => (
+                  <button
+                    key={view}
+                    type="button"
+                    onClick={() => setActiveTab(view)}
+                    className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all capitalize cursor-pointer ${
+                      activeTab === view
+                        ? isBlueprint
+                          ? 'bg-sky-500 text-black shadow-xs'
+                          : 'bg-white text-gray-900 shadow-xs'
+                        : 'text-gray-500 hover:text-gray-900'
+                    }`}
+                  >
+                    {view === 'all' ? 'All Views' : view}
+                  </button>
+                ))}
+              </div>
+
+              {/* Blueprint Theme Toggle */}
+              <button
+                type="button"
+                onClick={() => setDrawingStyle(isBlueprint ? 'cad-white' : 'blueprint-blue')}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-colors cursor-pointer ${
+                  isBlueprint
+                    ? 'bg-sky-950/80 text-sky-300 border-sky-800 hover:bg-sky-900'
+                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
+                }`}
+                title="Toggle between Crisp CAD White and Engineering Blueprint Blue"
+              >
+                {isBlueprint ? '📘 Blueprint Blue' : '📄 CAD White'}
+              </button>
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* SVG Canvas Area */}
-      <div className={`p-4 sm:p-6 transition-colors duration-200 ${containerBg}`}>
+      <div className={`${compact ? 'p-3 sm:p-4' : 'p-4 sm:p-6'} transition-colors duration-200 ${containerBg}`}>
         {activeTab === 'all' && (
           <div className="space-y-6">
             <div>
@@ -1572,28 +1586,30 @@ export const ProductLineDrawing: React.FC<ProductLineDrawingProps> = ({
       </div>
 
       {/* Drawing Metadata Footer */}
-      <div
-        className={`p-3 text-[11px] font-mono flex flex-wrap items-center justify-between gap-2 border-t ${
-          isBlueprint ? 'bg-[#071526] border-sky-950 text-sky-300' : 'bg-gray-50 border-gray-200 text-gray-600'
-        }`}
-      >
-        <div className="flex items-center gap-3 flex-wrap">
-          <span>
-            APPROVED FOR PRODUCTION: <strong className="text-orange-500">YES</strong>
-          </span>
-          <span>•</span>
-          <span>
-            AUTOCAD REV: <strong>2026.4</strong>
-          </span>
-          <span>•</span>
-          <span>IBC &amp; HUD CODE COMPLIANT</span>
-          <span>•</span>
-          <span>TOLERANCE: <strong>±1/8&quot; [3.2mm]</strong></span>
+      {!hideFooter && (
+        <div
+          className={`p-3 text-[11px] font-mono flex flex-wrap items-center justify-between gap-2 border-t ${
+            isBlueprint ? 'bg-[#071526] border-sky-950 text-sky-300' : 'bg-gray-50 border-gray-200 text-gray-600'
+          }`}
+        >
+          <div className="flex items-center gap-3 flex-wrap">
+            <span>
+              APPROVED FOR PRODUCTION: <strong className="text-orange-500">YES</strong>
+            </span>
+            <span>•</span>
+            <span>
+              AUTOCAD REV: <strong>2026.4</strong>
+            </span>
+            <span>•</span>
+            <span>IBC &amp; HUD CODE COMPLIANT</span>
+            <span>•</span>
+            <span>TOLERANCE: <strong>±1/8&quot; [3.2mm]</strong></span>
+          </div>
+          <div className="text-[10px]">
+            Engineering dimensions factory verified. All rights reserved.
+          </div>
         </div>
-        <div className="text-[10px]">
-          Engineering dimensions factory verified. All rights reserved.
-        </div>
-      </div>
+      )}
     </div>
   );
 };

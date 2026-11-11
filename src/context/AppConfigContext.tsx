@@ -96,6 +96,7 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
               isActive: p.isActive !== undefined ? Boolean(p.isActive) : (defOpt?.isActive !== undefined ? Boolean(defOpt.isActive) : true),
               dimensions: p.dimensions || defOpt?.dimensions,
               series: p.series || defOpt?.series,
+              leadTime: p.leadTime || defOpt?.leadTime || '10-12 Weeks',
             });
           });
 

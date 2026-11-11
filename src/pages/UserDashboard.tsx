@@ -34,6 +34,10 @@ import {
   Activity,
   Award,
   Download,
+  CreditCard,
+  Ship,
+  Wrench,
+  ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAppConfig } from '../context/AppConfigContext';
@@ -60,12 +64,29 @@ export default function UserDashboard() {
     registerWithEmail,
   } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'projects' | 'progress' | 'orders' | 'account'>('projects');
+  const [activeTab, setActiveTab] = useState<'models' | 'orders' | 'progress' | 'projects' | 'account'>('orders');
   const [selectedProgressOrderId, setSelectedProgressOrderId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [modelFilter, setModelFilter] = useState<string>('all');
+  const [houseSeriesFilter, setHouseSeriesFilter] = useState<'all' | 'expandable' | 'apple-cabin' | 'space-capsule' | 'folding'>('all');
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [activeSpecSheetData, setActiveSpecSheetData] = useState<{ state: CustomizationState; totalPrice: number } | null>(null);
+
+  const availableHouseModels = React.useMemo(() => {
+    const list = config.models && config.models.length > 0 ? config.models : BASE_MODELS;
+    return list.filter((m: any) => m.isAvailable !== false && m.isActive !== false);
+  }, [config.models]);
+
+  const filteredHouseModels = React.useMemo(() => {
+    if (houseSeriesFilter === 'all') return availableHouseModels;
+    return availableHouseModels.filter((m: any) => {
+      if (houseSeriesFilter === 'expandable') return m.series === 'expandable' || m.id.includes('expandable');
+      if (houseSeriesFilter === 'apple-cabin') return m.series === 'apple-cabin' || m.id.includes('apple');
+      if (houseSeriesFilter === 'space-capsule') return m.series === 'space-capsule' || m.id.includes('capsule');
+      if (houseSeriesFilter === 'folding') return m.series === 'folding' || m.id.includes('folding') || m.id.includes('fast');
+      return true;
+    });
+  }, [availableHouseModels, houseSeriesFilter]);
 
   // Rename modal / inline state
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -180,6 +201,32 @@ export default function UserDashboard() {
     setActiveSpecSheetData({
       state: fallbackState,
       totalPrice: order.pricing.totalPrice,
+    });
+  };
+
+  const handleOpenSpecSheetForModel = (model: any) => {
+    const defaultState: CustomizationState = {
+      modelId: model.id,
+      wallCladding: 'wood-grain-embossed',
+      glazing: 'broken-bridge-sliding-door',
+      lightingPackage: 'standard-recessed',
+      electricalTier: 'smart-iot-200a',
+      flooring: 'wood-nordic-pale-oak',
+      roofOption: 'factory-standard-roof',
+      cabinetry: 'melamine-flat-panel',
+      hasKitchenetteModule: true,
+      hasLuxuryBathPod: true,
+      hasLuxuryBedSuite: false,
+      hasLivingSofa: false,
+      hasHvacMiniSplit: false,
+      hasExteriorPergolaDeck: false,
+      hasBioDigester: false,
+      hasSmartDoorLock: false,
+      hasElectricBlinds: false,
+    };
+    setActiveSpecSheetData({
+      state: defaultState,
+      totalPrice: model.basePrice,
     });
   };
 
@@ -321,7 +368,7 @@ export default function UserDashboard() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <main className="flex-1 w-full max-w-[1600px] mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-6">
         {!currentUser ? (
           /* =========================================================================
              GUEST / UNREGISTERED USER SIGN-IN PROMPT
@@ -462,204 +509,532 @@ export default function UserDashboard() {
           /* =========================================================================
              AUTHENTICATED USER DASHBOARD
              ========================================================================= */
-          <div className="space-y-6">
-            {/* Top User Profile Header Banner */}
-            <div className="bg-white rounded-3xl border border-gray-200 shadow-xs p-6 sm:p-8">
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                <div className="flex items-center gap-4 sm:gap-5">
-                  <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-2xl bg-gradient-to-tr from-orange-600 to-amber-500 text-white font-black text-2xl flex items-center justify-center shadow-md shrink-0">
-                    {currentUser.fullName.charAt(0).toUpperCase()}
+          <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
+            {/* =========================================================================
+                ADMIN-STYLE SIDEBAR NAVIGATION PANEL (CLIENT PORTAL OS)
+               ========================================================================= */}
+            <aside className="w-full lg:w-72 bg-white rounded-3xl border border-gray-200 shadow-xs flex flex-col shrink-0 overflow-hidden lg:sticky lg:top-20 z-10">
+              {/* Header / Brand identity */}
+              <div className="p-4 sm:p-5 border-b border-gray-100 bg-gradient-to-br from-orange-50/50 via-white to-gray-50/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-orange-600 animate-pulse" />
+                    <span className="font-extrabold text-gray-900 tracking-tight text-sm">10Apples Client OS</span>
                   </div>
-
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h1 className="text-xl sm:text-2xl font-black text-gray-950 tracking-tight">
-                        {currentUser.fullName}
-                      </h1>
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        Verified Client
-                      </span>
-                      {firebaseUser && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-orange-50 text-orange-700 border border-orange-200">
-                          <ShieldCheck className="w-3 h-3 text-orange-600" />
-                          Firebase Synced
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-y-1 gap-x-4 mt-1.5 text-xs text-gray-500">
-                      <span className="flex items-center gap-1">
-                        <Mail className="w-3.5 h-3.5 text-gray-400" />
-                        {currentUser.email}
-                      </span>
-                      {currentUser.phone && (
-                        <span className="flex items-center gap-1">
-                          <Phone className="w-3.5 h-3.5 text-gray-400" />
-                          {currentUser.phone}
-                        </span>
-                      )}
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                        Joined {new Date(currentUser.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
+                  <div className="flex items-center gap-1.5">
+                    <Link
+                      to="/"
+                      className="p-1 rounded-lg border border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-colors"
+                      title="Return to Homepage"
+                    >
+                      <Home className="w-3.5 h-3.5" />
+                    </Link>
+                    <Link
+                      to="/configurator"
+                      className="p-1 rounded-lg border border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-colors"
+                      title="Open 3D Configurator"
+                    >
+                      <Box className="w-3.5 h-3.5 text-orange-600" />
+                    </Link>
                   </div>
                 </div>
 
-                {/* Quick Action Buttons */}
-                <div className="flex items-center gap-2.5 w-full md:w-auto flex-wrap">
+                {/* User quick profile summary */}
+                <div className="mt-3.5 flex items-center gap-3 p-2.5 bg-white rounded-2xl border border-gray-200/80 shadow-2xs">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-600 to-amber-500 text-white font-black text-base flex items-center justify-center shadow-xs shrink-0">
+                    {currentUser.fullName.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-extrabold text-xs text-gray-950 truncate flex items-center gap-1">
+                      <span className="truncate">{currentUser.fullName}</span>
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                    </div>
+                    <div className="text-[11px] text-gray-500 truncate">{currentUser.email}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Navigation Items (Categorized groups mirroring Admin Dashboard) */}
+              <div className="p-3 space-y-4 flex-1">
+                {/* Group 1: Orders & Factory Pipeline */}
+                <div>
+                  <div className="px-3 py-1 text-[10px] font-black uppercase tracking-wider text-orange-600 flex items-center justify-between">
+                    <span>Orders &amp; Pipeline</span>
+                    <span className="text-[9px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full font-bold">
+                      Live
+                    </span>
+                  </div>
+                  <div className="space-y-0.5 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('orders')}
+                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                        activeTab === 'orders'
+                          ? 'bg-orange-50 text-orange-700 font-bold border border-orange-200/80 shadow-xs'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <ClipboardList className={`w-4 h-4 ${activeTab === 'orders' ? 'text-orange-600' : 'text-gray-400'}`} />
+                        <span>Orders &amp; Payments</span>
+                      </div>
+                      <span
+                        className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold transition-colors ${
+                          activeTab === 'orders'
+                            ? 'bg-orange-600 text-white'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        {orders.length}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('progress')}
+                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                        activeTab === 'progress'
+                          ? 'bg-orange-50 text-orange-700 font-bold border border-orange-200/80 shadow-xs'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Activity className={`w-4 h-4 ${activeTab === 'progress' ? 'text-orange-600 animate-pulse' : 'text-gray-400'}`} />
+                        <span>Build Progress</span>
+                      </div>
+                      <span
+                        className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold transition-colors ${
+                          activeTab === 'progress'
+                            ? 'bg-orange-600 text-white'
+                            : 'bg-orange-100 text-orange-800'
+                        }`}
+                      >
+                        {orders.length > 0 ? `${orders[0].progress?.progressPercent ?? 25}%` : 'Ready'}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Group 2: Core Architecture & Models */}
+                <div>
+                  <div className="px-3 py-1 text-[10px] font-black uppercase tracking-wider text-gray-400 flex items-center justify-between">
+                    <span>Catalog &amp; Designs</span>
+                  </div>
+                  <div className="space-y-0.5 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('models')}
+                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                        activeTab === 'models'
+                          ? 'bg-orange-50 text-orange-700 font-bold border border-orange-200/80 shadow-xs'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Home className={`w-4 h-4 ${activeTab === 'models' ? 'text-orange-600' : 'text-gray-400'}`} />
+                        <span>House Types We Sell</span>
+                      </div>
+                      <span
+                        className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold transition-colors ${
+                          activeTab === 'models'
+                            ? 'bg-orange-600 text-white'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        {availableHouseModels.length}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('projects')}
+                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                        activeTab === 'projects'
+                          ? 'bg-orange-50 text-orange-700 font-bold border border-orange-200/80 shadow-xs'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Layers className={`w-4 h-4 ${activeTab === 'projects' ? 'text-orange-600' : 'text-gray-400'}`} />
+                        <span>Saved 3D Designs</span>
+                      </div>
+                      <span
+                        className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold transition-colors ${
+                          activeTab === 'projects'
+                            ? 'bg-orange-600 text-white'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        {projects.length}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Group 3: Account & Client Profile */}
+                <div>
+                  <div className="px-3 py-1 text-[10px] font-black uppercase tracking-wider text-gray-400">
+                    Client Settings
+                  </div>
+                  <div className="space-y-0.5 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('account')}
+                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                        activeTab === 'account'
+                          ? 'bg-orange-50 text-orange-700 font-bold border border-orange-200/80 shadow-xs'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <User className={`w-4 h-4 ${activeTab === 'account' ? 'text-orange-600' : 'text-gray-400'}`} />
+                        <span>Profile &amp; Settings</span>
+                      </div>
+                      {firebaseUser && (
+                        <ShieldCheck className="w-3.5 h-3.5 text-orange-600" title="Firebase Authenticated" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Group 4: Quick 3D Actions */}
+                <div className="pt-2 border-t border-gray-100 space-y-2">
+                  <Link
+                    to="/configurator"
+                    className="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold transition-all shadow-xs hover:shadow-md cursor-pointer"
+                  >
+                    <Box className="w-4 h-4" />
+                    <span>Launch 3D Configurator</span>
+                  </Link>
+
                   {orders.length > 0 && (
                     <button
                       type="button"
                       onClick={() => handleDownloadOrderBlueprint(orders[0])}
-                      className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs transition-all shadow-xs hover:shadow-md cursor-pointer active:scale-95 border border-emerald-500/30"
-                      title="Download official architectural CAD blueprint and engineering specification sheet PDF for your active reserved project"
+                      className="w-full flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-colors cursor-pointer"
+                      title="Download engineering CAD blueprint and spec sheet PDF"
                     >
-                      <Download className="w-4 h-4 text-emerald-200" />
+                      <Download className="w-3.5 h-3.5 text-emerald-600" />
                       <span>Download Blueprint (PDF)</span>
                     </button>
                   )}
+                </div>
+              </div>
 
-                  <button
-                    type="button"
+              {/* Sidebar Footer */}
+              <div className="p-3 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5 text-gray-500 text-[11px]">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span>Cloud Synced</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Sign out"
+                >
+                  <LogOut className="w-3 h-3" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            </aside>
+
+            {/* =========================================================================
+                RIGHT MAIN CONTENT AREA
+               ========================================================================= */}
+            <div className="flex-1 min-w-0 w-full space-y-6">
+              {/* Top Overview Banner with Stats Bar */}
+              <div className="bg-white rounded-3xl border border-gray-200 shadow-xs p-5 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-gray-100">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-orange-100 text-orange-900 border border-orange-200">
+                        {activeTab === 'orders' ? 'Active Orders & Payments' : activeTab === 'progress' ? 'Production Pipeline Tracker' : activeTab === 'models' ? 'Housing Catalog' : activeTab === 'projects' ? '3D Design Portfolio' : 'Client Profile'}
+                      </span>
+                      <span className="text-[11px] text-gray-400 font-semibold hidden sm:inline">
+                        • 10Apples Client Portal
+                      </span>
+                    </div>
+                    <h1 className="text-xl sm:text-2xl font-black text-gray-950 tracking-tight mt-1">
+                      {activeTab === 'orders' && 'Orders & Payment Milestone Plans'}
+                      {activeTab === 'progress' && 'Order Activities & Build Progress'}
+                      {activeTab === 'models' && 'Certified Prefab House Models'}
+                      {activeTab === 'projects' && 'Your Saved 3D Custom Builds'}
+                      {activeTab === 'account' && 'Account & Security Preferences'}
+                    </h1>
+                    <p className="text-xs text-gray-500 mt-0.5 max-w-2xl">
+                      {activeTab === 'orders' && 'Monitor verified orders, track down payment escrow, and review turnkey milestone funding options.'}
+                      {activeTab === 'progress' && 'Live factory milestones from chassis welding to international port shipping and site assembly.'}
+                      {activeTab === 'models' && 'Certified modular homes with thermal insulation, steel frame, and turnkey MEP systems.'}
+                      {activeTab === 'projects' && 'Re-open custom layouts in real-time 3D, duplicate configs, or unlock official CAD blueprints.'}
+                      {activeTab === 'account' && 'Manage your personal delivery information, verified Firebase session, and contact details.'}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+                    <Link
+                      to="/configurator"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs transition-all shadow-xs cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>New 3D Project</span>
+                    </Link>
+                  </div>
+                </div>
+
+                {/* 4 Stats Cards */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-5">
+                  <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                      Saved Custom Builds
+                    </div>
+                    <div className="text-xl sm:text-2xl font-black text-gray-900 mt-0.5">
+                      {projects.length}
+                    </div>
+                  </div>
+
+                  <div
                     onClick={() => setActiveTab('progress')}
-                    className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-950 hover:bg-gray-900 text-white font-bold text-xs transition-all shadow-xs hover:shadow-md cursor-pointer border border-gray-800"
-                    title="Track Build Development Progress"
+                    className="p-3.5 bg-gray-50 hover:bg-orange-50/60 rounded-2xl border border-gray-100 hover:border-orange-200 transition-all cursor-pointer group"
                   >
-                    <Activity className="w-4 h-4 text-orange-400 animate-pulse" />
-                    <span>Track Development Progress</span>
-                  </button>
+                    <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 group-hover:text-orange-600 uppercase tracking-wider">
+                      <span>Build Progress</span>
+                      <Activity className="w-3.5 h-3.5 text-orange-600" />
+                    </div>
+                    <div className="text-xl sm:text-2xl font-black text-orange-600 mt-0.5 flex items-center gap-1.5">
+                      <span>{orders.length > 0 ? `${orders[0].progress?.progressPercent ?? 25}%` : 'Queue'}</span>
+                      <span className="text-[10px] font-bold text-gray-500 font-sans">
+                        {orders.length > 0 ? 'Active' : 'Ready'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                      Portfolio Value
+                    </div>
+                    <div className="text-xl sm:text-2xl font-black text-gray-900 font-mono mt-0.5">
+                      {formatCurrency(portfolioValue, config.currency)}
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                      Preferred Currency
+                    </div>
+                    <div className="text-xl sm:text-2xl font-black text-emerald-600 mt-0.5 font-mono">
+                      {normalizeCurrency(config.currency)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            {/* TAB: HOUSE TYPES WE SELL */}
+            {activeTab === 'models' && (
+              <div className="space-y-6">
+                {/* Header & Filter Bar */}
+                <div className="bg-white rounded-3xl border border-gray-200 p-5 sm:p-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider bg-orange-100 text-orange-800 border border-orange-200">
+                        Modular Housing Catalogue
+                      </span>
+                      <span className="text-xs text-gray-500 font-semibold">
+                        {availableHouseModels.length} Certified Types Available
+                      </span>
+                    </div>
+                    <h2 className="text-xl sm:text-2xl font-black text-gray-950 mt-1">
+                      Current Types of Houses We Sell
+                    </h2>
+                    <p className="text-xs sm:text-sm text-gray-500 max-w-2xl mt-1">
+                      Explore our precision-engineered modular homes built with heavy-duty Q235 galvanized steel frames, bamboo-fiber fireproof insulation, and turnkey MEP. Customize any model in real-time 3D or inspect official specifications.
+                    </p>
+                  </div>
 
                   <Link
                     to="/configurator"
-                    className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs transition-all shadow-xs hover:shadow-md cursor-pointer"
+                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs sm:text-sm transition-all shadow-xs cursor-pointer shrink-0"
                   >
-                    <Plus className="w-4 h-4" />
-                    <span>Create New 3D Project</span>
+                    <Box className="w-4 h-4" />
+                    <span>Launch 3D Configurator</span>
                   </Link>
+                </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('account')}
-                    className="p-2.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-700 transition-colors cursor-pointer"
-                    title="Account Settings"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
+                {/* Series Category Filter Tabs */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {[
+                    { id: 'all', label: 'All House Types', count: availableHouseModels.length },
+                    { id: 'expandable', label: 'Double-Wing Expandable', count: availableHouseModels.filter((m: any) => m.series === 'expandable' || m.id.includes('expandable')).length },
+                    { id: 'apple-cabin', label: 'Apple Cabin Luxury', count: availableHouseModels.filter((m: any) => m.series === 'apple-cabin' || m.id.includes('apple')).length },
+                    { id: 'space-capsule', label: 'Space Capsule Smart Living', count: availableHouseModels.filter((m: any) => m.series === 'space-capsule' || m.id.includes('capsule')).length },
+                    { id: 'folding', label: 'Folding & Fast Assembly', count: availableHouseModels.filter((m: any) => m.series === 'folding' || m.id.includes('folding') || m.id.includes('fast')).length },
+                  ].map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setHouseSeriesFilter(cat.id as any)}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                        houseSeriesFilter === cat.id
+                          ? 'bg-gray-950 text-white shadow-2xs'
+                          : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      }`}
+                    >
+                      <span>{cat.label}</span>
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                        houseSeriesFilter === cat.id ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {cat.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Models Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredHouseModels.map((model: any) => {
+                    const seriesColorMap: Record<string, { bg: string; text: string; label: string }> = {
+                      expandable: { bg: 'bg-orange-50 border-orange-200', text: 'text-orange-700', label: 'Double-Wing Expandable' },
+                      'apple-cabin': { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', label: 'Apple Cabin Luxury' },
+                      'space-capsule': { bg: 'bg-purple-50 border-purple-200', text: 'text-purple-700', label: 'Space Capsule Series' },
+                      folding: { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', label: 'Folding Fast Assembly' },
+                    };
+                    const sInfo = seriesColorMap[model.series] || {
+                      bg: 'bg-gray-100 border-gray-200',
+                      text: 'text-gray-700',
+                      label: model.series?.toUpperCase() || 'MODULAR HOUSE',
+                    };
+
+                    return (
+                      <div
+                        key={model.id}
+                        className="bg-white rounded-3xl border border-gray-200 hover:border-orange-300 shadow-xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group"
+                      >
+                        <div>
+                          {/* Image Preview Container */}
+                          <div className="relative aspect-16/10 bg-gray-100 overflow-hidden border-b border-gray-100">
+                            {model.image ? (
+                              <img
+                                src={model.image}
+                                alt={model.name}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                onError={(e) => {
+                                  (e.target as HTMLElement).style.display = 'none';
+                                }}
+                              />
+                            ) : null}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/10 pointer-events-none" />
+
+                            {/* Badges on top */}
+                            <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 items-center">
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase border shadow-2xs backdrop-blur-md ${sInfo.bg} ${sInfo.text}`}>
+                                {sInfo.label}
+                              </span>
+                            </div>
+
+                            <div className="absolute top-3 right-3">
+                              <span className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-black/70 text-white backdrop-blur-md border border-white/20">
+                                {model.leadTime || '10-12 Weeks'}
+                              </span>
+                            </div>
+
+                            <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white">
+                              <div className="flex items-center gap-2 text-xs font-bold font-mono drop-shadow-sm">
+                                <span>{model.sqft} sq ft</span>
+                                <span>•</span>
+                                <span>{model.areaM2} m²</span>
+                              </div>
+                              <div className="text-[11px] font-semibold bg-white/20 backdrop-blur-md px-2 py-0.5 rounded-md border border-white/20">
+                                {model.bedrooms} Bed • {model.bathrooms} Bath
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Content Body */}
+                          <div className="p-5 space-y-3">
+                            <div>
+                              <h3 className="text-base font-black text-gray-950 group-hover:text-orange-600 transition-colors">
+                                {model.name}
+                              </h3>
+                              <p className="text-xs text-gray-500 line-clamp-1 mt-0.5 font-medium">
+                                {model.tagline || model.description}
+                              </p>
+                            </div>
+
+                            {/* Dimension details */}
+                            <div className="p-2.5 bg-gray-50 rounded-xl border border-gray-100 text-[11px] text-gray-600 space-y-1 font-mono">
+                              <div className="flex items-center justify-between">
+                                <span className="text-gray-400 font-sans font-bold">Dimensions:</span>
+                                <span className="font-semibold text-gray-800">
+                                  {model.dimensions?.lengthFt}' × {model.dimensions?.widthFt}' × {model.dimensions?.heightFt}'
+                                </span>
+                              </div>
+                              {model.dimensions?.metricStr && (
+                                <div className="text-[10px] text-gray-500 truncate">
+                                  {model.dimensions.metricStr}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Highlights Chips */}
+                            {model.includedFeatures && model.includedFeatures.length > 0 && (
+                              <div className="space-y-1">
+                                <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">
+                                  Standard Factory Inclusions
+                                </span>
+                                <div className="flex flex-wrap gap-1">
+                                  {model.includedFeatures.slice(0, 2).map((feat: string, idx: number) => (
+                                    <span
+                                      key={idx}
+                                      className="inline-flex items-center gap-1 text-[10px] font-medium bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md truncate max-w-full"
+                                    >
+                                      <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                                      <span className="truncate">{feat}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Card Footer: Price & Actions */}
+                        <div className="p-5 pt-0 mt-2">
+                          <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-3">
+                            <div>
+                              <div className="text-[10px] uppercase font-bold text-gray-400">
+                                Factory Base Price
+                              </div>
+                              <div className="text-lg font-black text-gray-950 font-mono">
+                                {formatCurrency(model.basePrice, config.currency)}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSpecSheetForModel(model)}
+                                className="p-2 rounded-xl border border-gray-200 hover:bg-gray-100 text-gray-700 transition-colors cursor-pointer"
+                                title="View technical spec sheet and CAD layout"
+                              >
+                                <FileText className="w-4 h-4 text-gray-600" />
+                              </button>
+                              <Link
+                                to={`/configurator?model=${model.id}`}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs transition-colors shadow-2xs cursor-pointer"
+                              >
+                                <Box className="w-3.5 h-3.5" />
+                                <span>Customize 3D</span>
+                              </Link>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-
-              {/* Stats Bar */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-6 pt-6 border-t border-gray-100">
-                <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-100">
-                  <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                    Saved Custom Builds
-                  </div>
-                  <div className="text-xl sm:text-2xl font-black text-gray-900 mt-0.5">
-                    {projects.length}
-                  </div>
-                </div>
-
-                <div
-                  onClick={() => setActiveTab('progress')}
-                  className="p-3.5 bg-gray-50 hover:bg-orange-50/60 rounded-2xl border border-gray-100 hover:border-orange-200 transition-all cursor-pointer group"
-                >
-                  <div className="flex items-center justify-between text-[11px] font-bold text-gray-400 group-hover:text-orange-600 uppercase tracking-wider">
-                    <span>Build Progress</span>
-                    <Activity className="w-3.5 h-3.5 text-orange-600" />
-                  </div>
-                  <div className="text-xl sm:text-2xl font-black text-orange-600 mt-0.5 flex items-center gap-1.5">
-                    <span>{orders.length > 0 ? `${orders[0].progress?.progressPercent ?? 25}%` : 'Queue'}</span>
-                    <span className="text-[10px] font-bold text-gray-500 font-sans">
-                      {orders.length > 0 ? 'Active' : 'Ready'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-100">
-                  <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                    Portfolio Value
-                  </div>
-                  <div className="text-xl sm:text-2xl font-black text-gray-900 font-mono mt-0.5">
-                    {formatCurrency(portfolioValue, config.currency)}
-                  </div>
-                </div>
-
-                <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-100">
-                  <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                    Preferred Currency
-                  </div>
-                  <div className="text-xl sm:text-2xl font-black text-emerald-600 mt-0.5 font-mono">
-                    {normalizeCurrency(config.currency)}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Navigation Tabs Bar */}
-            <div className="flex items-center gap-2 border-b border-gray-200 pb-px overflow-x-auto">
-              <button
-                type="button"
-                onClick={() => setActiveTab('projects')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border-b-2 shrink-0 ${
-                  activeTab === 'projects'
-                    ? 'border-orange-600 text-orange-600 bg-white shadow-2xs'
-                    : 'border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <Layers className="w-4 h-4" />
-                <span>My Saved Projects</span>
-                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-orange-100 text-orange-800 font-mono">
-                  {projects.length}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('progress')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border-b-2 shrink-0 ${
-                  activeTab === 'progress'
-                    ? 'border-orange-600 text-orange-600 bg-white shadow-2xs'
-                    : 'border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <Activity className="w-4 h-4 text-orange-600" />
-                <span>Build &amp; Development Progress</span>
-                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-orange-500 text-white font-mono font-bold">
-                  {orders.length > 0 ? `${orders[0].progress?.progressPercent ?? 25}%` : 'Live'}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('orders')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border-b-2 shrink-0 ${
-                  activeTab === 'orders'
-                    ? 'border-orange-600 text-orange-600 bg-white shadow-2xs'
-                    : 'border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <Truck className="w-4 h-4" />
-                <span>Reservations &amp; Orders</span>
-                <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-gray-200 text-gray-700 font-mono">
-                  {orders.length}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('account')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border-b-2 ${
-                  activeTab === 'account'
-                    ? 'border-orange-600 text-orange-600 bg-white shadow-2xs'
-                    : 'border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <User className="w-4 h-4" />
-                <span>Account & Activities</span>
-              </button>
-            </div>
+            )}
 
             {/* TAB 1: SAVED PROJECTS */}
             {activeTab === 'projects' && (
@@ -1001,14 +1376,19 @@ export default function UserDashboard() {
                         >
                           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-100">
                             <div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-mono font-bold text-xs bg-gray-100 text-gray-800 px-2 py-0.5 rounded border border-gray-200">
                                   {order.id}
                                 </span>
+                                {(order.isSpecialRequest || order.id.startsWith('SR-')) && (
+                                  <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
+                                    ⭐ Special Request
+                                  </span>
+                                )}
                                 <span
                                   className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${currentStatus.bg} ${currentStatus.text}`}
                                 >
-                                  {currentStatus.label}
+                                  {order.isSpecialRequest ? 'Pending Admin Review' : currentStatus.label}
                                 </span>
                               </div>
                               <h3 className="text-lg font-black text-gray-950 mt-1">
@@ -1017,6 +1397,16 @@ export default function UserDashboard() {
                               <p className="text-xs text-gray-500">
                                 Placed on {new Date(order.createdAt).toLocaleDateString()} • Target Delivery: {order.estimatedDeliveryDate || 'Q2 2026'}
                               </p>
+                              {order.specialRequestDetails && (
+                                <div className="mt-2 p-2.5 bg-amber-50/70 border border-amber-200 rounded-2xl text-xs space-y-1">
+                                  <div className="font-bold text-amber-900">
+                                    Special Specifications: {order.specialRequestDetails.requestedSeries} ({order.specialRequestDetails.desiredDimensions})
+                                  </div>
+                                  {order.specialRequestDetails.customRequirements && (
+                                    <p className="text-gray-600 italic text-[11px]">"{order.specialRequestDetails.customRequirements}"</p>
+                                  )}
+                                </div>
+                              )}
                             </div>
 
                             <div className="text-left md:text-right">
@@ -1033,7 +1423,7 @@ export default function UserDashboard() {
                           </div>
 
                           {/* Order Details & Logistics */}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 text-xs">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-4 text-xs border-b border-gray-100">
                             <div className="space-y-1">
                               <span className="font-bold text-gray-400 uppercase text-[10px]">Delivery Destination</span>
                               <p className="text-gray-800 font-medium">
@@ -1077,6 +1467,283 @@ export default function UserDashboard() {
                                 <Box className="w-3.5 h-3.5 text-orange-600" />
                                 <span>Inspect Model in 3D</span>
                               </Link>
+                            </div>
+                          </div>
+
+                          {/* PAYMENT OPTION SELECTED BY CUSTOMER */}
+                          <div className="mt-4 pt-4 border-t border-gray-100">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                              <div className="flex items-center gap-2">
+                                <CreditCard className="w-4 h-4 text-orange-600" />
+                                <span className="font-extrabold text-xs text-gray-950 uppercase tracking-wider">
+                                  Selected Payment Option
+                                </span>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                                  order.pricing.paymentOption === 'full'
+                                    ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                    : order.pricing.paymentOption === 'bank_mortgage'
+                                    ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                                    : order.pricing.paymentOption === 'gov_scheme'
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                    : 'bg-orange-100 text-orange-800 border border-orange-200'
+                                }`}>
+                                  {order.pricing.paymentOption === 'full'
+                                    ? 'Full Turnkey Payment'
+                                    : order.pricing.paymentOption === 'bank_mortgage'
+                                    ? `Bank Mortgage (${order.pricing.financingDetails?.providerName || 'Partner Bank'})`
+                                    : order.pricing.paymentOption === 'gov_scheme'
+                                    ? 'Government Housing Scheme (NHF)'
+                                    : 'Milestone Payment Plan (4 Stages)'}
+                                </span>
+                              </div>
+
+                              <span className="text-[11px] text-gray-500 font-medium">
+                                {order.pricing.paymentOption === 'full'
+                                  ? 'Single turnkey invoice covering house, freight, port clearing, and assembly'
+                                  : order.pricing.paymentOption === 'bank_mortgage'
+                                  ? 'Structured commercial mortgage pre-qualification with partner banking institution'
+                                  : order.pricing.paymentOption === 'gov_scheme'
+                                  ? 'Concessional subsidized interest rate facility via National Housing and Mortgage Fund'
+                                  : 'Pay progressively: House first, then ocean freight, local clearance/transport, and installation'}
+                              </span>
+                            </div>
+
+                            {order.pricing.paymentOption === 'full' ? (
+                              <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                <div className="space-y-1">
+                                  <div className="text-xs font-bold text-gray-900">
+                                    Consolidated Turnkey Settlement
+                                  </div>
+                                  <p className="text-[11px] text-gray-500 max-w-lg">
+                                    All factory manufacturing costs, international freight shipping, destination port clearance, and certified on-site assembly are combined into one streamlined contract.
+                                  </p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <div className="text-xs font-bold text-gray-400 uppercase">Total Contract</div>
+                                  <div className="text-lg font-black text-gray-950 font-mono">
+                                    {formatCurrency(order.pricing.totalPrice, config.currency)}
+                                  </div>
+                                  <div className="text-[11px] font-semibold text-emerald-600">
+                                    {formatCurrency(order.pricing.depositDue, config.currency)} Deposit Paid
+                                  </div>
+                                </div>
+                              </div>
+                            ) : order.pricing.paymentOption === 'bank_mortgage' ? (
+                              <div className="p-4 bg-blue-50/70 rounded-2xl border border-blue-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                <div className="space-y-1">
+                                  <div className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
+                                    <span>Bank Mortgage Pre-Qualification Facility</span>
+                                    <span className="text-[10px] font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-bold">
+                                      {order.pricing.financingDetails?.providerName || 'Partner Bank'}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-gray-600 max-w-lg leading-relaxed">
+                                    Dossier staged for mortgage underwriting. Down Payment: {order.pricing.financingDetails?.downPaymentPercent || 20}% ({formatCurrency(order.pricing.financingDetails?.downPaymentAmount || order.pricing.totalPrice * 0.2, config.currency)}) with loan term of {order.pricing.financingDetails?.tenureYears || 15} years.
+                                  </p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <div className="text-xs font-bold text-blue-700 uppercase">Est. Monthly Installment</div>
+                                  <div className="text-lg font-black text-blue-950 font-mono">
+                                    ~{formatCurrency(order.pricing.financingDetails?.estimatedMonthlyPayment || Math.round(order.pricing.totalPrice * 0.015), config.currency)}/mo
+                                  </div>
+                                  <div className="text-[11px] font-semibold text-emerald-600">
+                                    {formatCurrency(order.pricing.depositDue, config.currency)} Priority Slot Secured
+                                  </div>
+                                </div>
+                              </div>
+                            ) : order.pricing.paymentOption === 'gov_scheme' ? (
+                              <div className="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                <div className="space-y-1">
+                                  <div className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                                    <span>National Housing and Mortgage Fund (NHF) Intake</span>
+                                    <span className="text-[10px] font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">
+                                      11.5% Subsidized
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-gray-600 max-w-lg leading-relaxed">
+                                    Public sector and affordable housing concession. Down Payment: 15% ({formatCurrency(order.pricing.financingDetails?.downPaymentAmount || order.pricing.totalPrice * 0.15, config.currency)}) over 20-year concessional term.
+                                  </p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <div className="text-xs font-bold text-emerald-700 uppercase">Concessional Monthly</div>
+                                  <div className="text-lg font-black text-emerald-950 font-mono">
+                                    ~{formatCurrency(order.pricing.financingDetails?.estimatedMonthlyPayment || Math.round(order.pricing.totalPrice * 0.011), config.currency)}/mo
+                                  </div>
+                                  <div className="text-[11px] font-semibold text-emerald-600">
+                                    {formatCurrency(order.pricing.depositDue, config.currency)} Priority Slot Secured
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                {/* Tranche 1: House Manufacturing */}
+                                <div className="p-3.5 bg-orange-50/60 rounded-2xl border border-orange-200/80 flex flex-col justify-between">
+                                  <div>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-mono font-bold bg-orange-100 text-orange-800 px-1.5 py-0.2 rounded">
+                                        Stage 1
+                                      </span>
+                                      <Home className="w-3.5 h-3.5 text-orange-600" />
+                                    </div>
+                                    <div className="font-extrabold text-xs text-gray-950 mt-1.5">
+                                      House Manufacturing
+                                    </div>
+                                    <p className="text-[10px] text-gray-500 mt-0.5 leading-snug">
+                                      Paid separately upfront. Covers steel frame, SIP insulation &amp; interior finishes.
+                                    </p>
+                                  </div>
+                                  <div className="pt-2 mt-2 border-t border-orange-200/60">
+                                    <div className="text-sm font-black text-gray-900 font-mono">
+                                      {formatCurrency(order.pricing.basePrice + (order.pricing.optionsTotal || 0), config.currency)}
+                                    </div>
+                                    <div className="text-[10px] font-bold text-emerald-700 flex items-center gap-1 mt-0.5">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                      <span>Deposit Confirmed</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Tranche 2: International Ocean Freight */}
+                                <div className="p-3.5 bg-blue-50/60 rounded-2xl border border-blue-200/80 flex flex-col justify-between">
+                                  <div>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-mono font-bold bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded">
+                                        Stage 2
+                                      </span>
+                                      <Ship className="w-3.5 h-3.5 text-blue-600" />
+                                    </div>
+                                    <div className="font-extrabold text-xs text-gray-950 mt-1.5">
+                                      International Freight
+                                    </div>
+                                    <p className="text-[10px] text-gray-500 mt-0.5 leading-snug">
+                                      Pay after factory finishes manufacturing the house before port dispatch.
+                                    </p>
+                                  </div>
+                                  <div className="pt-2 mt-2 border-t border-blue-200/60">
+                                    <div className="text-sm font-black text-gray-900 font-mono">
+                                      {formatCurrency(order.pricing.freightCost || 4500, config.currency)}
+                                    </div>
+                                    <div className="text-[10px] font-bold text-blue-700 flex items-center gap-1 mt-0.5">
+                                      <Clock className="w-3 h-3 text-blue-600 shrink-0" />
+                                      <span>Due Post-Manufacturing</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Tranche 3: Port Clearing & Site Transport */}
+                                <div className="p-3.5 bg-purple-50/60 rounded-2xl border border-purple-200/80 flex flex-col justify-between">
+                                  <div>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-mono font-bold bg-purple-100 text-purple-800 px-1.5 py-0.2 rounded">
+                                        Stage 3
+                                      </span>
+                                      <Truck className="w-3.5 h-3.5 text-purple-600" />
+                                    </div>
+                                    <div className="font-extrabold text-xs text-gray-950 mt-1.5">
+                                      Port Clearing &amp; Transport
+                                    </div>
+                                    <p className="text-[10px] text-gray-500 mt-0.5 leading-snug">
+                                      Pay when container arrives at destination port for customs &amp; site haul.
+                                    </p>
+                                  </div>
+                                  <div className="pt-2 mt-2 border-t border-purple-200/60">
+                                    <div className="text-sm font-black text-gray-900 font-mono">
+                                      {formatCurrency(order.pricing.clearingTransportCost || 2800, config.currency)}
+                                    </div>
+                                    <div className="text-[10px] font-bold text-purple-700 flex items-center gap-1 mt-0.5">
+                                      <Clock className="w-3 h-3 text-purple-600 shrink-0" />
+                                      <span>Due on Port Arrival</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Tranche 4: On-Site Installation */}
+                                <div className="p-3.5 bg-emerald-50/60 rounded-2xl border border-emerald-200/80 flex flex-col justify-between">
+                                  <div>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded">
+                                        Stage 4
+                                      </span>
+                                      <Wrench className="w-3.5 h-3.5 text-emerald-600" />
+                                    </div>
+                                    <div className="font-extrabold text-xs text-gray-950 mt-1.5">
+                                      On-Site Installation
+                                    </div>
+                                    <p className="text-[10px] text-gray-500 mt-0.5 leading-snug">
+                                      Pay upon container arrival on site for certified unfolding &amp; MEP hookup.
+                                    </p>
+                                  </div>
+                                  <div className="pt-2 mt-2 border-t border-emerald-200/60">
+                                    <div className="text-sm font-black text-gray-900 font-mono">
+                                      {formatCurrency(order.pricing.installationCost || 2700, config.currency)}
+                                    </div>
+                                    <div className="text-[10px] font-bold text-emerald-700 flex items-center gap-1 mt-0.5">
+                                      <Clock className="w-3 h-3 text-emerald-600 shrink-0" />
+                                      <span>Due upon Site Arrival</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* ORDER ACTIVITIES & FACTORY TIMELINE */}
+                          <div className="mt-4 pt-4 border-t border-gray-100 bg-[#FAFBFD] -mx-6 -mb-6 p-6 rounded-b-3xl">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <Activity className="w-4 h-4 text-orange-600" />
+                                <span className="text-xs font-black text-gray-900 uppercase tracking-wider">
+                                  Order Activities &amp; Factory Status
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedProgressOrderId(order.id);
+                                  setActiveTab('progress');
+                                }}
+                                className="text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-1 cursor-pointer"
+                              >
+                                <span>View Full Activity Feed</span>
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            {/* Progress bar */}
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="font-bold text-gray-800">
+                                  {order.progress?.currentStageName || 'Engineering Permitting & Chassis Fabrication'}
+                                </span>
+                                <span className="font-mono font-extrabold text-orange-600">
+                                  {order.progress?.progressPercent ?? 25}% Complete
+                                </span>
+                              </div>
+                              <div className="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-orange-500 to-amber-500 rounded-full transition-all duration-700"
+                                  style={{ width: `${order.progress?.progressPercent ?? 25}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Mini Activity Logs Feed */}
+                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                              <div className="flex items-start gap-2 p-2 bg-white rounded-xl border border-gray-200/80">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                                <div className="text-gray-700">
+                                  <span className="font-bold text-gray-950 block">CAD Blueprint &amp; Permit Package Approved</span>
+                                  <span className="text-[10px] text-gray-400">Engineering seal verified for {order.customer.deliveryAddress || 'Customer Site'}</span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-start gap-2 p-2 bg-white rounded-xl border border-gray-200/80">
+                                <Activity className="w-3.5 h-3.5 text-orange-600 shrink-0 mt-0.5" />
+                                <div className="text-gray-700">
+                                  <span className="font-bold text-gray-950 block">Chassis Welding &amp; Galvanization in Assembly</span>
+                                  <span className="text-[10px] text-gray-400">Heavy-duty Q235 steel frame anti-corrosion dipping complete</span>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1191,9 +1858,10 @@ export default function UserDashboard() {
                 </div>
               </div>
             )}
-          </div>
-        )}
-      </main>
+              </div>
+            </div>
+          )}
+        </main>
 
       {/* Official Technical Spec Sheet / CAD Blueprint Modal */}
       {activeSpecSheetData && (

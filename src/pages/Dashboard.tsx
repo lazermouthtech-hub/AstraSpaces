@@ -36,6 +36,7 @@ import {
   FileSpreadsheet,
   Download,
   Upload,
+  Clock,
 } from 'lucide-react';
 import { BASE_MODELS } from '../data/models';
 import {
@@ -288,7 +289,7 @@ export default function Dashboard() {
         metricStr: '6,000mm × 6,000mm × 2,600mm',
       },
       basePrice: 25000,
-      leadTime: '3-4 Weeks',
+      leadTime: '10-12 Weeks',
       bedrooms: 1,
       bathrooms: 1,
       description: 'Custom modular prefab structure with structural steel framing and thermal insulation panels.',
@@ -1552,6 +1553,140 @@ export default function Dashboard() {
                               }}
                               className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-orange-500"
                             />
+                          </div>
+
+                          <div className="lg:col-span-2 space-y-2.5">
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                              <span className="flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5 text-orange-600" />
+                                <span>Production Lead Time</span>
+                              </span>
+                              <span className="text-[9px] text-orange-600 font-bold bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200">
+                                Default: 10-12 Weeks
+                              </span>
+                            </label>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              {/* 1. Dropdown Select List */}
+                              <div className="space-y-1">
+                                <span className="text-[9.5px] font-bold text-gray-500 uppercase tracking-wider block">
+                                  Choose from Standard Lead Times:
+                                </span>
+                                <select
+                                  value={
+                                    [
+                                      '10-12 Weeks',
+                                      '2-4 Weeks',
+                                      '4-6 Weeks',
+                                      '6-8 Weeks',
+                                      '8-10 Weeks',
+                                      '12-14 Weeks',
+                                      '14-16 Weeks',
+                                      '16-20 Weeks',
+                                      '1-2 Weeks (In Stock)',
+                                      'Immediate Dispatch (Ready Stock)',
+                                      'Special Factory Order (12-16 Weeks)',
+                                    ].includes(model.leadTime || '10-12 Weeks')
+                                      ? (model.leadTime || '10-12 Weeks')
+                                      : 'custom'
+                                  }
+                                  onChange={(e) => {
+                                    if (modelIndex === -1) return;
+                                    const val = e.target.value;
+                                    if (val !== 'custom') {
+                                      const updated = [...models];
+                                      updated[modelIndex].leadTime = val;
+                                      setModels(updated);
+                                    }
+                                  }}
+                                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-orange-500 cursor-pointer"
+                                >
+                                  <option value="10-12 Weeks">⭐ 10-12 Weeks (Default Standard)</option>
+                                  <option value="2-4 Weeks">⚡ 2-4 Weeks (Fast Turnaround)</option>
+                                  <option value="4-6 Weeks">📦 4-6 Weeks (Expedited Slot)</option>
+                                  <option value="6-8 Weeks">🔨 6-8 Weeks (Standard Pre-Fabrication)</option>
+                                  <option value="8-10 Weeks">⏱️ 8-10 Weeks (Accelerated Assembly)</option>
+                                  <option value="12-14 Weeks">🏗️ 12-14 Weeks (Architectural Custom)</option>
+                                  <option value="14-16 Weeks">🏢 14-16 Weeks (Complex Modular)</option>
+                                  <option value="16-20 Weeks">🌐 16-20 Weeks (Multi-Unit Compound)</option>
+                                  <option value="1-2 Weeks (In Stock)">🟢 1-2 Weeks (In Stock / Ready to Ship)</option>
+                                  <option value="Immediate Dispatch (Ready Stock)">🚀 Immediate Dispatch (Ready Stock)</option>
+                                  <option value="Special Factory Order (12-16 Weeks)">✨ Special Factory Order (12-16 Weeks)</option>
+                                  <option value="custom">✏️ Custom Lead Time (Enter Below)...</option>
+                                </select>
+                              </div>
+
+                              {/* 2. Manual Custom Input */}
+                              <div className="space-y-1">
+                                <span className="text-[9.5px] font-bold text-gray-500 uppercase tracking-wider block">
+                                  Custom Lead Time / Exact Value:
+                                </span>
+                                <input
+                                  type="text"
+                                  list={`lead-time-presets-${model.id}`}
+                                  value={model.leadTime || '10-12 Weeks'}
+                                  onChange={(e) => {
+                                    if (modelIndex === -1) return;
+                                    const updated = [...models];
+                                    updated[modelIndex].leadTime = e.target.value;
+                                    setModels(updated);
+                                  }}
+                                  placeholder="e.g. 10-12 Weeks"
+                                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-orange-500 font-mono"
+                                />
+                                <datalist id={`lead-time-presets-${model.id}`}>
+                                  <option value="10-12 Weeks" />
+                                  <option value="2-4 Weeks" />
+                                  <option value="4-6 Weeks" />
+                                  <option value="6-8 Weeks" />
+                                  <option value="8-10 Weeks" />
+                                  <option value="12-14 Weeks" />
+                                  <option value="14-16 Weeks" />
+                                  <option value="16-20 Weeks" />
+                                  <option value="1-2 Weeks (In Stock)" />
+                                  <option value="Immediate Dispatch (Ready Stock)" />
+                                  <option value="Special Factory Order (12-16 Weeks)" />
+                                </datalist>
+                              </div>
+                            </div>
+
+                            {/* 3. Quick-Pick Pill Chips for One-Touch Selection */}
+                            <div className="pt-1 flex flex-wrap items-center gap-1.5">
+                              <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mr-0.5">
+                                Quick Pick:
+                              </span>
+                              {[
+                                '10-12 Weeks',
+                                '2-4 Weeks',
+                                '4-6 Weeks',
+                                '6-8 Weeks',
+                                '8-10 Weeks',
+                                '12-14 Weeks',
+                                '14-16 Weeks',
+                                '1-2 Weeks (In Stock)',
+                              ].map((opt) => {
+                                const isCurrent = (model.leadTime || '10-12 Weeks') === opt;
+                                return (
+                                  <button
+                                    key={opt}
+                                    type="button"
+                                    onClick={() => {
+                                      if (modelIndex === -1) return;
+                                      const updated = [...models];
+                                      updated[modelIndex].leadTime = opt;
+                                      setModels(updated);
+                                    }}
+                                    className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold border transition-all cursor-pointer ${
+                                      isCurrent
+                                        ? 'bg-orange-600 text-white border-orange-600 shadow-2xs font-bold'
+                                        : 'bg-white text-gray-600 border-gray-200 hover:bg-orange-50 hover:text-orange-900 hover:border-orange-300'
+                                    }`}
+                                  >
+                                    {opt === '10-12 Weeks' ? '⭐ 10-12 Weeks (Default)' : opt}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
                       </div>

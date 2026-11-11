@@ -16,7 +16,7 @@ const RAW_MODELS: ModelSpecification[] = [
       metricStr: '3,100mm × 5,900mm × 2,500mm (Folded: 2,200mm)',
     },
     basePrice: 14800,
-    leadTime: '2-3 Weeks',
+    leadTime: '10-12 Weeks',
     bedrooms: 1,
     bathrooms: 1,
     description:
@@ -60,7 +60,7 @@ const RAW_MODELS: ModelSpecification[] = [
       metricStr: '6,400mm × 5,900mm × 2,500mm (Folded: 2,200mm)',
     },
     basePrice: 22800,
-    leadTime: '2-3 Weeks',
+    leadTime: '10-12 Weeks',
     bedrooms: 2,
     bathrooms: 1,
     description:
@@ -97,7 +97,7 @@ const RAW_MODELS: ModelSpecification[] = [
       metricStr: '9,000mm × 6,400mm × 2,500mm (Folded: 2,200mm)',
     },
     basePrice: 34500,
-    leadTime: '3-4 Weeks',
+    leadTime: '10-12 Weeks',
     bedrooms: 3,
     bathrooms: 1,
     description:
@@ -134,7 +134,7 @@ const RAW_MODELS: ModelSpecification[] = [
       metricStr: '11,800mm × 6,400mm × 2,500mm (Folded: 2,200mm)',
     },
     basePrice: 46900,
-    leadTime: '4-5 Weeks',
+    leadTime: '10-12 Weeks',
     bedrooms: 4,
     bathrooms: 2,
     description:
@@ -175,7 +175,7 @@ const RAW_MODELS: ModelSpecification[] = [
       metricStr: '5,800mm × 2,200mm × 2,480mm',
     },
     basePrice: 16800,
-    leadTime: '2-3 Weeks',
+    leadTime: '10-12 Weeks',
     bedrooms: 0,
     bathrooms: 1,
     description:
@@ -212,7 +212,7 @@ const RAW_MODELS: ModelSpecification[] = [
       metricStr: '10,000mm × 3,500mm × 3,200mm',
     },
     basePrice: 38500,
-    leadTime: '3-4 Weeks',
+    leadTime: '10-12 Weeks',
     bedrooms: 1,
     bathrooms: 1,
     description:
@@ -249,7 +249,7 @@ const RAW_MODELS: ModelSpecification[] = [
       metricStr: '8,500mm × 2,200mm × 3,360mm (Cabin H: 2,480mm)',
     },
     basePrice: 29800,
-    leadTime: '3-4 Weeks',
+    leadTime: '10-12 Weeks',
     bedrooms: 1,
     bathrooms: 1,
     description:
@@ -286,7 +286,7 @@ const RAW_MODELS: ModelSpecification[] = [
       metricStr: '11,800mm × 2,200mm × 2,480mm',
     },
     basePrice: 32900,
-    leadTime: '4-5 Weeks',
+    leadTime: '10-12 Weeks',
     bedrooms: 2,
     bathrooms: 1,
     description:
@@ -323,7 +323,7 @@ const RAW_MODELS: ModelSpecification[] = [
       metricStr: '5,800mm × 2,200mm × 4,980mm',
     },
     basePrice: 35800,
-    leadTime: '4-6 Weeks',
+    leadTime: '10-12 Weeks',
     bedrooms: 2,
     bathrooms: 1,
     description:
@@ -360,7 +360,7 @@ const RAW_MODELS: ModelSpecification[] = [
       metricStr: '5,800mm × 2,200mm × 4,960mm',
     },
     basePrice: 36200,
-    leadTime: '4-6 Weeks',
+    leadTime: '10-12 Weeks',
     bedrooms: 2,
     bathrooms: 1,
     description:
@@ -401,7 +401,7 @@ const RAW_MODELS: ModelSpecification[] = [
       metricStr: '7,000mm × 3,000mm × 3,200mm',
     },
     basePrice: 28900,
-    leadTime: '3-4 Weeks',
+    leadTime: '10-12 Weeks',
     bedrooms: 1,
     bathrooms: 1,
     description:
@@ -438,7 +438,7 @@ const RAW_MODELS: ModelSpecification[] = [
       metricStr: '8,500mm × 3,300mm × 3,300mm',
     },
     basePrice: 37800,
-    leadTime: '3-4 Weeks',
+    leadTime: '10-12 Weeks',
     bedrooms: 1,
     bathrooms: 1,
     description:
@@ -475,7 +475,7 @@ const RAW_MODELS: ModelSpecification[] = [
       metricStr: '11,500mm × 3,300mm × 3,300mm',
     },
     basePrice: 49500,
-    leadTime: '4-5 Weeks',
+    leadTime: '10-12 Weeks',
     bedrooms: 1,
     bathrooms: 1,
     description:
@@ -512,7 +512,7 @@ const RAW_MODELS: ModelSpecification[] = [
       metricStr: '9,400mm × 3,100mm × 3,300mm',
     },
     basePrice: 42500,
-    leadTime: '4-5 Weeks',
+    leadTime: '10-12 Weeks',
     bedrooms: 1,
     bathrooms: 1,
     description:
@@ -549,7 +549,7 @@ const RAW_MODELS: ModelSpecification[] = [
       metricStr: '10,500mm × 3,300mm × 3,300mm',
     },
     basePrice: 45800,
-    leadTime: '4-5 Weeks',
+    leadTime: '10-12 Weeks',
     bedrooms: 1,
     bathrooms: 1,
     description:
@@ -590,7 +590,7 @@ const RAW_MODELS: ModelSpecification[] = [
       metricStr: '5,850mm × 2,438mm × 2,620mm (Folded: 350-450mm)',
     },
     basePrice: 6500,
-    leadTime: '1-2 Weeks',
+    leadTime: '10-12 Weeks',
     bedrooms: 1,
     bathrooms: 0,
     description:
@@ -627,7 +627,7 @@ const RAW_MODELS: ModelSpecification[] = [
       metricStr: '5,850mm × 2,438mm × 2,620mm (Folded: 420mm)',
     },
     basePrice: 7200,
-    leadTime: '1-2 Weeks',
+    leadTime: '10-12 Weeks',
     bedrooms: 1,
     bathrooms: 0,
     description:
@@ -664,7 +664,7 @@ const RAW_MODELS: ModelSpecification[] = [
       metricStr: '6,000mm × 3,000mm × 2,896mm',
     },
     basePrice: 8900,
-    leadTime: '1-2 Weeks',
+    leadTime: '10-12 Weeks',
     bedrooms: 1,
     bathrooms: 0,
     description:

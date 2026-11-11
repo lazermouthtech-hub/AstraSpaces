@@ -1047,12 +1047,12 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
               <div className="pt-3 border-t border-gray-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-gray-600">
                 <div>
                   <span className="text-[10px] text-gray-400 block uppercase font-bold">Production Lead Time</span>
-                  <span className="font-bold text-gray-900 font-mono">{currentModel.leadTime}</span>
+                  <span className="font-bold text-gray-900 font-mono">{currentModel.leadTime || '10-12 Weeks'}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-gray-400 block uppercase font-bold">Estimated Financing</span>
-                  <span className="font-bold text-gray-900 font-mono">
-                    {formatCurrency(Math.round((totalPrice * 0.85 * 0.0625) / 12), config.currency, { ratesMap: config.exchangeRates })}/mo*
+                  <span className="text-[10px] text-gray-400 block uppercase font-bold">Financing Options</span>
+                  <span className="font-bold text-gray-900">
+                    Supporting Banks Only
                   </span>
                 </div>
                 <div>

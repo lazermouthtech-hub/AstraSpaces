@@ -3437,7 +3437,19 @@ export function buildHomeModel(
             // Wall position along central corridor spine:
             // Right side of walkway is at X = coreWidth / 2 (+1.10m), facing West (-X) into walkway & living room
             const tvWallX = opts.tvWallX !== undefined ? opts.tvWallX : coreWidth / 2;
-            const tvZ = opts.tvWallZ !== undefined ? opts.tvWallZ : opts.sZ;
+            let tvZ = opts.tvWallZ !== undefined ? opts.tvWallZ : opts.sZ;
+
+            // In 40ft flagship expandable (depth 11.8m), ensure TV media console never obstructs or covers any room door:
+            // - Front bedroom door (Bay 3) is at Z = 2.55m (ends at 2.96m + casing = 3.00m); safe console placement is Z = 4.20m (clearance > 35cm).
+            // - Middle bedroom door (Bay 2) is at Z = -0.50m (ends at -0.09m + casing = -0.05m); safe console placement is Z = 0.96m (clearance > 20cm).
+            if (is40ft && tvWallX > 0) {
+              if (tvZ >= 2.0 && tvZ <= 3.8) {
+                tvZ = 4.20;
+              } else if (tvZ >= -0.8 && tvZ <= 0.6) {
+                tvZ = 0.96;
+              }
+            }
+
             const mediaWallLength = opts.mediaWallLength || 1.70;
             const mediaWallH = 2.30;
             const isRightWall = tvWallX > 0;
@@ -4379,9 +4391,9 @@ export function buildHomeModel(
           // Front-Left: Living Room Lounge with detailed sofa against LEFT wall facing EAST (+X),
           // coffee table in center, area rug, and TV console mounted on the wall of the RIGHT side of the walkway (X = coreWidth / 2)
           // just before the entrance of the first room on your right (Bedroom 2, frontDoorZ = 0.65m)
-          // In the 40ft flagship expandable (depth 11.8m), positioned closer to the main entrance (tvWallZ = 3.45m)
-          // so it sits proudly on the right walkway corridor wall with ~53cm clearance from the structural pillar at mz = 1.97m
-          const tvWallZ = is40ft ? 3.45 : (is30ft ? 2.30 : 1.90);
+          // In the 40ft flagship expandable (depth 11.8m), positioned with generous room door clearance (tvWallZ = 4.20m)
+          // so it sits proudly on the solid right walkway corridor wall with >40cm clearance from the bedroom door
+          const tvWallZ = is40ft ? 4.20 : (is30ft ? 2.30 : 1.90);
           buildLiving(interiorGroup, {
             sX: leftWingCenterX,
             sZ: tvWallZ,
@@ -4494,15 +4506,16 @@ export function buildHomeModel(
             buildKitchen(interiorGroup, undefined, undefined, 1.80, true);
             buildDining(interiorGroup, leftWingCenterX, -3.20, 6);
 
-            // Middle: Living Room Lounge with 3-Seater Sofa & 65" TV
+            // Middle: Living Room Lounge with 3-Seater Sofa & 65" TV (Positioned clear of Bedroom 2 door at Z = -0.50m)
+            const tvZ_3bed = 0.96;
             buildLiving(interiorGroup, {
               sX: leftWingCenterX,
-              sZ: 0.00,
+              sZ: tvZ_3bed,
               sW: 2.15,
               facing: 'east',
               tvOnWall: true,
               tvWallX: coreWidth / 2,
-              tvWallZ: 0.80,
+              tvWallZ: tvZ_3bed,
               mediaWallLength: 1.70,
               hasExistingWall: true,
             });
@@ -4666,15 +4679,16 @@ export function buildHomeModel(
             });
             interiorGroup.add(pCounter);
 
-            // Front Living Room Lounge
+            // Front Living Room Lounge (Positioned at Z = 4.20m with >40cm clearance from Bedroom 3 door at Z = 2.55m)
+            const tvZ_lounge = 4.20;
             buildLiving(interiorGroup, {
               sX: leftWingCenterX,
-              sZ: 3.45,
+              sZ: tvZ_lounge,
               sW: 2.10,
               facing: 'east',
               tvOnWall: true,
               tvWallX: coreWidth / 2,
-              tvWallZ: 3.45,
+              tvWallZ: tvZ_lounge,
               mediaWallLength: 1.70,
               hasExistingWall: true,
             });
@@ -5070,15 +5084,16 @@ export function buildHomeModel(
             buildKitchen(interiorGroup, undefined, undefined, 1.80, true);
             buildDining(interiorGroup, leftWingCenterX, -3.20, 4);
 
-            // Middle Bay: Living Room Lounge with 3-Seater Sofa & 65" TV
+            // Middle Bay: Living Room Lounge with 3-Seater Sofa & 65" TV (Positioned at Z = 0.96m to cleanly clear Bedroom 2 door at Z = -0.50m)
+            const tvZ_4bed = 0.96;
             buildLiving(interiorGroup, {
               sX: leftWingCenterX,
-              sZ: 0.00,
+              sZ: tvZ_4bed,
               sW: 2.15,
               facing: 'east',
               tvOnWall: true,
               tvWallX: coreWidth / 2,
-              tvWallZ: 0.00,
+              tvWallZ: tvZ_4bed,
               mediaWallLength: 1.70,
               hasExistingWall: true,
             });

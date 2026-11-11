@@ -140,6 +140,7 @@ export default function Configurator() {
   // Optional Turnkey Services (Freight Transport & Site Prep / Foundation)
   const [includeFreight, setIncludeFreight] = useState<boolean>(true);
   const [includeSitePrep, setIncludeSitePrep] = useState<boolean>(true);
+  const [selectedPaymentOption, setSelectedPaymentOption] = useState<'full' | 'milestone'>('milestone');
 
   // Customer Account & 4-Minute Usage Popup Timer
   const { currentUser: authContextUser } = useAuth();
@@ -445,9 +446,9 @@ export default function Configurator() {
       />
 
       {/* Main Workspace Layout - Bento Grid with Configuration Space Mode Bar */}
-      <main className="flex-1 p-1 sm:p-3 lg:p-4 flex flex-col gap-1 sm:gap-2.5 overflow-hidden relative">
+      <main className="flex-1 p-1 sm:p-3 lg:p-4 landscape:p-1 flex flex-col gap-1 sm:gap-2.5 landscape:gap-1 overflow-hidden relative">
         {/* Workspace Configuration Bar: Basic Tools (Default) vs Advanced Tools */}
-        <div className="bg-white/95 backdrop-blur-md rounded-xl sm:rounded-2xl border border-gray-200/90 px-2 sm:px-4 py-1 sm:py-2 flex items-center justify-between gap-1.5 sm:gap-2 shadow-2xs shrink-0 z-20">
+        <div className="bg-white/95 backdrop-blur-md rounded-xl sm:rounded-2xl border border-gray-200/90 px-2 sm:px-4 landscape:px-2.5 py-1 sm:py-2 landscape:py-0.5 flex items-center justify-between gap-1.5 sm:gap-2 shadow-2xs shrink-0 z-20">
           <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
             <span className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full shrink-0 ${isAdvancedMode ? 'bg-orange-600 animate-pulse' : 'bg-emerald-500'}`} />
             <span className="text-[11px] sm:text-xs font-black text-gray-950 uppercase tracking-wider truncate">
@@ -595,7 +596,10 @@ export default function Configurator() {
             <CostBuildupPanel
               state={state}
               onStateChange={setState}
-              onOpenReserve={() => setShowReserve(true)}
+              onOpenReserve={(plan) => {
+                if (plan) setSelectedPaymentOption(plan);
+                setShowReserve(true);
+              }}
               onOpenSpecSheet={() => setShowSpecSheet(true)}
               onToggleCollapse={() => setShowInvestmentBreakdown(false)}
               isReserved={isProjectReserved}
@@ -610,16 +614,16 @@ export default function Configurator() {
       </main>
 
       {/* Mobile Bottom Navigation Bar */}
-      <div className="lg:hidden bg-white border-t border-gray-200 flex items-center justify-around p-2 shrink-0 z-30 shadow-xs">
+      <div className="lg:hidden bg-white border-t border-gray-200 flex items-center justify-around p-2 landscape:p-1 landscape:py-0.5 shrink-0 z-30 shadow-xs">
         <button
           onClick={() => setMobileTab('viewer')}
-          className={`flex-1 py-2 px-2 rounded-2xl flex flex-col items-center gap-1 text-[11px] font-bold transition-all cursor-pointer ${
+          className={`flex-1 py-2 px-2 landscape:py-1 landscape:flex-row landscape:justify-center rounded-2xl flex flex-col items-center gap-1 landscape:gap-1.5 text-[11px] landscape:text-[10px] font-bold transition-all cursor-pointer ${
             mobileTab === 'viewer'
               ? 'bg-orange-600 text-white shadow-xs'
               : 'text-gray-500 hover:text-gray-900'
           }`}
         >
-          <Box className="w-4 h-4" />
+          <Box className="w-4 h-4 landscape:w-3.5 landscape:h-3.5" />
           <span>3D View</span>
         </button>
 
@@ -628,25 +632,25 @@ export default function Configurator() {
             setMobileTab('customize');
             setIsMenuRevealed(true);
           }}
-          className={`flex-1 py-2 px-2 rounded-2xl flex flex-col items-center gap-1 text-[11px] font-bold transition-all cursor-pointer ${
+          className={`flex-1 py-2 px-2 landscape:py-1 landscape:flex-row landscape:justify-center rounded-2xl flex flex-col items-center gap-1 landscape:gap-1.5 text-[11px] landscape:text-[10px] font-bold transition-all cursor-pointer ${
             mobileTab === 'customize'
               ? 'bg-orange-600 text-white shadow-xs'
               : 'text-gray-500 hover:text-gray-900'
           }`}
         >
-          <Sliders className="w-4 h-4" />
+          <Sliders className="w-4 h-4 landscape:w-3.5 landscape:h-3.5" />
           <span>Customize</span>
         </button>
 
         <button
           onClick={() => setMobileTab('cost')}
-          className={`flex-1 py-2 px-2 rounded-2xl flex flex-col items-center gap-1 text-[11px] font-bold transition-all cursor-pointer ${
+          className={`flex-1 py-2 px-2 landscape:py-1 landscape:flex-row landscape:justify-center rounded-2xl flex flex-col items-center gap-1 landscape:gap-1.5 text-[11px] landscape:text-[10px] font-bold transition-all cursor-pointer ${
             mobileTab === 'cost'
               ? 'bg-orange-600 text-white shadow-xs'
               : 'text-gray-500 hover:text-gray-900'
           }`}
         >
-          <DollarSign className="w-4 h-4" />
+          <DollarSign className="w-4 h-4 landscape:w-3.5 landscape:h-3.5" />
           <span>Cost Buildup</span>
         </button>
       </div>
@@ -669,6 +673,7 @@ export default function Configurator() {
           setIncludeFreight={setIncludeFreight}
           includeSitePrep={includeSitePrep}
           setIncludeSitePrep={setIncludeSitePrep}
+          initialPaymentOption={selectedPaymentOption}
           onClose={() => setShowReserve(false)}
           onSuccess={(orderId) => {
             setIsProjectReservedState(true);

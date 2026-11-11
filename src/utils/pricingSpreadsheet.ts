@@ -277,7 +277,7 @@ function buildRowsForUnitModel(
       CurrentPriceUSD: model.basePrice || 0,
       NewPriceUSD: model.basePrice || 0,
       DimensionsOrSpecs: typeof model.dimensions === 'object' ? model.dimensions?.metricStr || '' : String(model.dimensions || ''),
-      NotesOrDescription: `Full Turnkey Base Structure | ${model.sqft || 0} sq ft | Lead Time: ${model.leadTime || '3-4 Weeks'}`,
+      NotesOrDescription: `Full Turnkey Base Structure | ${model.sqft || 0} sq ft | Lead Time: ${model.leadTime || '10-12 Weeks'}`,
     });
   }
 
@@ -384,7 +384,7 @@ function buildRowsForModelGroup(
       CurrentPriceUSD: model.basePrice || 0,
       NewPriceUSD: model.basePrice || 0,
       DimensionsOrSpecs: typeof model.dimensions === 'object' ? model.dimensions?.metricStr || '' : String(model.dimensions || ''),
-      NotesOrDescription: `${model.sqft || 0} sq ft | Lead Time: ${model.leadTime || '3-4 Weeks'}`,
+      NotesOrDescription: `${model.sqft || 0} sq ft | Lead Time: ${model.leadTime || '10-12 Weeks'}`,
     });
   });
 
@@ -547,7 +547,7 @@ export function generateMultiSheetPricingWorkbook(config: any): XLSX.WorkBook {
       model.basePrice || 0,
       typeof model.dimensions === 'object' ? model.dimensions?.metricStr || '' : String(model.dimensions || ''),
       model.sqft || 0,
-      model.leadTime || '3-4 Weeks',
+      model.leadTime || '10-12 Weeks',
       model.description || `Turnkey prefab module, includes standard bathroom, electrical, and flooring`,
     ]);
   });

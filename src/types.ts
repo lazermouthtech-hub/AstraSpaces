@@ -401,16 +401,50 @@ export interface OrderItemCustomization {
   rawState?: CustomizationState;
 }
 
+export type PaymentOptionType = 'full' | 'milestone' | 'bank_mortgage' | 'gov_scheme';
+
+export interface OrderFinancingDetails {
+  fundingType: PaymentOptionType;
+  providerName?: string;
+  schemeName?: string;
+  tenureYears?: number;
+  downPaymentPercent?: number;
+  downPaymentAmount?: number;
+  financedAmount?: number;
+  estimatedMonthlyPayment?: number;
+  applicantType?: 'salaried' | 'self_employed' | 'diaspora' | 'civil_servant' | string;
+  preApprovalRequested?: boolean;
+  notes?: string;
+}
+
+export interface PaymentMilestoneItem {
+  id: string;
+  stageNumber: number;
+  stageKey: 'house_manufacturing' | 'international_freight' | 'clearing_transport' | 'installation';
+  title: string;
+  timing: string;
+  triggerEvent: string;
+  amount: number;
+  description: string;
+  isHouseSeparate?: boolean;
+  status: 'paid' | 'due_now' | 'upcoming';
+}
+
 export interface OrderPricing {
   basePrice: number;
   optionsTotal: number;
   freightCost: number;
   sitePrepCost: number;
+  clearingTransportCost?: number;
+  installationCost?: number;
   taxAmount: number;
   totalPrice: number;
   depositDue: number;
   depositPaid: boolean;
   currency: string;
+  paymentOption?: PaymentOptionType;
+  paymentMilestones?: PaymentMilestoneItem[];
+  financingDetails?: OrderFinancingDetails;
 }
 
 export interface OrderInternalNote {
@@ -453,6 +487,19 @@ export interface ProductionProgressInfo {
   progressLogs?: ProgressLogEntry[];
 }
 
+export interface SpecialRequestDetails {
+  requestedSeries: string;
+  requestedModelName: string;
+  desiredDimensions?: string;
+  bedrooms?: string;
+  bathrooms?: string;
+  intendedUse?: string;
+  estimatedBudget?: string;
+  deliveryLocation?: string;
+  customRequirements?: string;
+  preferredContactMethod?: 'phone' | 'email' | 'whatsapp';
+}
+
 export interface CustomerOrder {
   id: string;
   createdAt: string;
@@ -461,9 +508,14 @@ export interface CustomerOrder {
   customer: CustomerDetails;
   customization: OrderItemCustomization;
   pricing: OrderPricing;
+  paymentOption?: PaymentOptionType;
+  paymentMilestones?: PaymentMilestoneItem[];
+  financingDetails?: OrderFinancingDetails;
   estimatedDeliveryDate: string;
   internalNotes: OrderInternalNote[];
   progress?: ProductionProgressInfo;
+  isSpecialRequest?: boolean;
+  specialRequestDetails?: SpecialRequestDetails;
 }
 
 export interface UserSavedProject {

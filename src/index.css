@@ -46,4 +46,43 @@
     break-before: page !important;
     page-break-before: always !important;
   }
+  [data-pdf-page="true"],
+  .pdf-page {
+    break-after: page !important;
+    page-break-after: always !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
 }
+
+/* Mobile Landscape View Optimizations for 3D Viewer & Vertical Menu */
+@media screen and (orientation: landscape) and (max-height: 550px) {
+  #three-viewer-container {
+    min-height: 0 !important;
+    height: 100% !important;
+    max-height: 100% !important;
+  }
+  #three-viewer-container > canvas {
+    width: 100% !important;
+    height: 100% !important;
+    display: block !important;
+  }
+  .mobile-landscape-rail {
+    max-height: calc(100dvh - 28px) !important;
+    padding: 3px !important;
+    gap: 3px !important;
+  }
+  .mobile-landscape-rail button {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 8px !important;
+    flex-shrink: 0 !important;
+  }
+  .mobile-landscape-rail button svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+}
+
