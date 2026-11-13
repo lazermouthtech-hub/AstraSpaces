@@ -241,7 +241,7 @@ export default function Login() {
                   ? 'Connecting to Firebase...'
                   : customerMode === 'register'
                   ? 'Create Firebase Account'
-                  : 'Sign In to Configurator'}
+                  : 'Sign In to Customize Home'}
               </button>
             </form>
           </div>
@@ -297,7 +297,7 @@ export default function Login() {
             onClick={() => navigate('/configurator')}
             className="hover:text-orange-600 cursor-pointer"
           >
-            3D Configurator →
+            Customize Home →
           </button>
         </div>
       </div>

@@ -37,11 +37,15 @@ import {
   Download,
   Upload,
   Clock,
+  Truck,
+  Percent,
 } from 'lucide-react';
 import { BASE_MODELS } from '../data/models';
 import {
   WALL_CLADDING_OPTIONS,
   GLAZING_OPTIONS,
+  INTERIOR_DOOR_OPTIONS,
+  BATHROOM_DOOR_OPTIONS,
   LIGHTING_OPTIONS,
   ELECTRICAL_OPTIONS,
   FLOORING_OPTIONS,
@@ -54,6 +58,14 @@ import { PricingSpreadsheetManager } from '../components/dashboard/PricingSpread
 import { SpreadsheetUploadModal } from '../components/dashboard/SpreadsheetUploadModal';
 import { downloadPricingSpreadsheet } from '../utils/pricingSpreadsheet';
 import { getOrders, subscribeToOrders, syncOrdersCurrency } from '../utils/orderManager';
+import { LogisticsFeeCategory, LogisticsLineItem } from '../types';
+import {
+  LOGISTICS_CATEGORY_PRESETS,
+  createDefaultLogisticsLineItems,
+  getLogisticsLineItems,
+  getLogisticsPreset,
+  syncLogisticsFromLineItems,
+} from '../utils/logisticsPricing';
 import {
   BASE_CURRENCY_CODE,
   POPULAR_CURRENCIES,
@@ -88,7 +100,17 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { config, updateConfig } = useAppConfig();
 
-  const [activeTab, setActiveTab] = useState<DashboardTab>('orders');
+  const [activeTab, setActiveTab] = useState<DashboardTab>(() => {
+    try {
+      const tabParam = new URLSearchParams(window.location.search).get('tab') as DashboardTab | null;
+      const validTabs: DashboardTab[] = [
+        'orders', 'models', 'walls', 'glazing', 'lighting',
+        'flooring', 'cabinetry', 'roof', 'addons', 'pricing', 'branding', 'viewer',
+      ];
+      if (tabParam && validTabs.includes(tabParam)) return tabParam;
+    } catch {}
+    return 'orders';
+  });
   const [savedToast, setSavedToast] = useState(false);
   const [spreadsheetToast, setSpreadsheetToast] = useState<string | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -128,6 +150,12 @@ export default function Dashboard() {
   const [models, setModels] = useState(config.models?.length ? config.models : BASE_MODELS);
   const [wallColors, setWallColors] = useState(config.wallOptions?.length ? config.wallOptions : WALL_CLADDING_OPTIONS);
   const [glazingOptions, setGlazingOptions] = useState(config.glazingOptions?.length ? config.glazingOptions : GLAZING_OPTIONS);
+  const [interiorDoorOptions, setInteriorDoorOptions] = useState(
+    config.interiorDoorOptions?.length ? config.interiorDoorOptions : INTERIOR_DOOR_OPTIONS
+  );
+  const [bathroomDoorOptions, setBathroomDoorOptions] = useState(
+    config.bathroomDoorOptions?.length ? config.bathroomDoorOptions : BATHROOM_DOOR_OPTIONS
+  );
   const [lightingOptions, setLightingOptions] = useState(config.lightingOptions?.length ? config.lightingOptions : LIGHTING_OPTIONS);
   const [electricalOptions, setElectricalOptions] = useState(config.electricalOptions?.length ? config.electricalOptions : ELECTRICAL_OPTIONS);
   const [flooringOptions, setFlooringOptions] = useState(config.flooringOptions?.length ? config.flooringOptions : FLOORING_OPTIONS);
@@ -141,6 +169,8 @@ export default function Dashboard() {
     if (config.models) setModels(config.models);
     if (config.wallOptions) setWallColors(config.wallOptions);
     if (config.glazingOptions) setGlazingOptions(config.glazingOptions);
+    if (config.interiorDoorOptions) setInteriorDoorOptions(config.interiorDoorOptions);
+    if (config.bathroomDoorOptions) setBathroomDoorOptions(config.bathroomDoorOptions);
     if (config.lightingOptions) setLightingOptions(config.lightingOptions);
     if (config.electricalOptions) setElectricalOptions(config.electricalOptions);
     if (config.flooringOptions) setFlooringOptions(config.flooringOptions);
@@ -181,11 +211,56 @@ export default function Dashboard() {
     defaultLighting: 'day',
     defaultCutaway: false,
   });
-  const [logistics, setLogistics] = useState(config.logistics || {
-    freightCost: 4500,
-    sitePrepCost: 5500,
-    taxRate: 0,
+  const [logistics, setLogistics] = useState(() => {
+    const raw = config.logistics || {
+      freightCost: 4500,
+      sitePrepCost: 5500,
+      taxRate: 0,
+    };
+    return syncLogisticsFromLineItems(raw, getLogisticsLineItems(raw));
   });
+
+  const logisticsLineItems = getLogisticsLineItems(logistics);
+
+  const updateLogisticsItems = (nextItems: LogisticsLineItem[]) => {
+    setLogistics(syncLogisticsFromLineItems(logistics, nextItems));
+  };
+
+  const handleAddLogisticsItem = (category: LogisticsFeeCategory) => {
+    const preset = getLogisticsPreset(category);
+    const newItem: LogisticsLineItem = {
+      id: `fee-${category}-${Date.now()}`,
+      name: preset.defaultName,
+      category: preset.category,
+      pricingType: preset.defaultPricingType,
+      amount: preset.defaultAmount,
+      enabled: true,
+      description: preset.defaultDescription,
+    };
+    updateLogisticsItems([...logisticsLineItems, newItem]);
+  };
+
+  const handleUpdateLogisticsItem = (id: string, patch: Partial<LogisticsLineItem>) => {
+    const updated = logisticsLineItems.map((item) =>
+      item.id === id ? { ...item, ...patch } : item
+    );
+    updateLogisticsItems(updated);
+  };
+
+  const handleRemoveLogisticsItem = (id: string) => {
+    const updated = logisticsLineItems.filter((item) => item.id !== id);
+    updateLogisticsItems(updated);
+  };
+
+  const handleResetLogisticsItems = () => {
+    updateLogisticsItems(
+      createDefaultLogisticsLineItems({
+        freightCost: 4500,
+        sitePrepCost: 5500,
+        taxRate: 0,
+      })
+    );
+  };
 
   // Currency display and input converters:
   // Converts internal USD value into the active dashboard baseCurrency
@@ -366,6 +441,93 @@ export default function Dashboard() {
     });
   };
 
+  const isOptionAvailable = (opt: any) => opt?.isAvailable !== false && opt?.isActive !== false;
+
+  const toggleConfigOptionAvailability = (
+    configKey:
+      | 'wallOptions'
+      | 'glazingOptions'
+      | 'interiorDoorOptions'
+      | 'bathroomDoorOptions'
+      | 'lightingOptions'
+      | 'electricalOptions'
+      | 'flooringOptions'
+      | 'cabinetryOptions'
+      | 'roofOptions',
+    currentList: any[],
+    setList: React.Dispatch<React.SetStateAction<any[]>>,
+    optionId: string
+  ) => {
+    const updated = currentList.map((item: any) => {
+      if (item.id === optionId) {
+        const nextState = !isOptionAvailable(item);
+        return {
+          ...item,
+          isAvailable: nextState,
+          isActive: nextState,
+        };
+      }
+      return item;
+    });
+    setList(updated);
+    updateConfig({
+      ...config,
+      [configKey]: updated,
+    });
+  };
+
+  const renderOptionAvailabilityToggle = (
+    configKey:
+      | 'wallOptions'
+      | 'glazingOptions'
+      | 'interiorDoorOptions'
+      | 'bathroomDoorOptions'
+      | 'lightingOptions'
+      | 'electricalOptions'
+      | 'flooringOptions'
+      | 'cabinetryOptions'
+      | 'roofOptions',
+    currentList: any[],
+    setList: React.Dispatch<React.SetStateAction<any[]>>,
+    opt: any
+  ) => {
+    const isAvail = isOptionAvailable(opt);
+    return (
+      <button
+        type="button"
+        onClick={() => toggleConfigOptionAvailability(configKey, currentList, setList, opt.id)}
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border shadow-2xs active:scale-95 ${
+          isAvail
+            ? 'bg-emerald-50 text-emerald-800 border-emerald-300 ring-2 ring-emerald-500/20 hover:bg-emerald-100'
+            : 'bg-amber-50 text-amber-900 border-amber-300 ring-2 ring-amber-500/20 hover:bg-amber-100'
+        }`}
+        title={
+          isAvail
+            ? 'Available in Configurator — click to hide from public clients'
+            : 'Hidden from Configurator — click to make available to public clients'
+        }
+      >
+        <span
+          className={`w-2 h-2 rounded-full ${
+            isAvail ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+          }`}
+        />
+        <span>{isAvail ? 'Available in Configurator' : 'Hidden from Configurator'}</span>
+        <div
+          className={`w-8 h-4.5 rounded-full relative transition-colors ${
+            isAvail ? 'bg-emerald-600' : 'bg-gray-300'
+          }`}
+        >
+          <div
+            className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-transform ${
+              isAvail ? 'left-4' : 'left-0.5'
+            }`}
+          />
+        </div>
+      </button>
+    );
+  };
+
   const setAllAddonsAvailability = (makePublic: boolean, category?: string) => {
     const updated = addons.map((a: any) => {
       if (!category || category === 'all' || a.category === category) {
@@ -393,13 +555,9 @@ export default function Dashboard() {
     // Category filter
     if (addonCategoryFilter !== 'all') {
       const cat = a.category || 'Interior Modules';
-      if (addonCategoryFilter === 'Interior Modules' && cat !== 'Interior Modules') return false;
-      if (addonCategoryFilter === 'Smart Living' && cat !== 'Smart Living') return false;
-      if (
-        addonCategoryFilter !== 'Interior Modules' &&
-        addonCategoryFilter !== 'Smart Living' &&
-        cat !== addonCategoryFilter
-      ) {
+      if (addonCategoryFilter === 'Utilities & Off-Grid') {
+        if (cat !== 'Utilities & Off-Grid' && cat !== 'Outdoor Living') return false;
+      } else if (cat !== addonCategoryFilter) {
         return false;
       }
     }
@@ -437,6 +595,8 @@ export default function Dashboard() {
       models,
       wallOptions: wallColors,
       glazingOptions,
+      interiorDoorOptions,
+      bathroomDoorOptions,
       lightingOptions,
       electricalOptions,
       flooringOptions,
@@ -461,6 +621,8 @@ export default function Dashboard() {
       setModels(BASE_MODELS);
       setWallColors(WALL_CLADDING_OPTIONS);
       setGlazingOptions(GLAZING_OPTIONS);
+      setInteriorDoorOptions(INTERIOR_DOOR_OPTIONS);
+      setBathroomDoorOptions(BATHROOM_DOOR_OPTIONS);
       setLightingOptions(LIGHTING_OPTIONS);
       setElectricalOptions(ELECTRICAL_OPTIONS);
       setFlooringOptions(FLOORING_OPTIONS);
@@ -475,6 +637,8 @@ export default function Dashboard() {
         models: BASE_MODELS,
         wallOptions: WALL_CLADDING_OPTIONS,
         glazingOptions: GLAZING_OPTIONS,
+        interiorDoorOptions: INTERIOR_DOOR_OPTIONS,
+        bathroomDoorOptions: BATHROOM_DOOR_OPTIONS,
         lightingOptions: LIGHTING_OPTIONS,
         electricalOptions: ELECTRICAL_OPTIONS,
         flooringOptions: FLOORING_OPTIONS,
@@ -498,11 +662,20 @@ export default function Dashboard() {
           defaultLighting: 'day',
           defaultCutaway: false,
         },
-        logistics: {
-          freightCost: 4500,
-          sitePrepCost: 5500,
-          taxRate: 0,
-        },
+        logistics: (() => {
+          const factoryLogistics = {
+            freightCost: 4500,
+            sitePrepCost: 5500,
+            taxRate: 0,
+            lineItems: createDefaultLogisticsLineItems({
+              freightCost: 4500,
+              sitePrepCost: 5500,
+              taxRate: 0,
+            }),
+          };
+          setLogistics(factoryLogistics);
+          return factoryLogistics;
+        })(),
       });
       syncOrdersCurrency('USD');
       setSavedToast(true);
@@ -780,7 +953,7 @@ export default function Dashboard() {
                   <span>Windows & Doors</span>
                 </div>
                 <span className="text-[10px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">
-                  {glazingOptions.length}
+                  {glazingOptions.length + interiorDoorOptions.length + bathroomDoorOptions.length}
                 </span>
               </button>
 
@@ -1713,8 +1886,15 @@ export default function Dashboard() {
                 </div>
 
                 {wallColors.map((color: any, idx: number) => (
-                  <div key={color.id} className="bg-white p-5 rounded-3xl border border-gray-200 shadow-xs flex flex-col gap-4">
-                    <div className="flex items-start justify-between gap-4">
+                  <div
+                    key={color.id}
+                    className={`p-5 rounded-3xl border transition-all flex flex-col gap-4 ${
+                      isOptionAvailable(color)
+                        ? 'bg-white border-gray-200 shadow-xs'
+                        : 'bg-amber-50/20 border-amber-200/90 shadow-xs ring-1 ring-amber-400/20'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <div className="relative group">
                           <div
@@ -1740,15 +1920,19 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      {wallColors.length > 1 && (
-                        <button
-                          onClick={() => setWallColors(wallColors.filter((w: any) => w.id !== color.id))}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Remove option"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                        {renderOptionAvailabilityToggle('wallOptions', wallColors, setWallColors, color)}
+                        {wallColors.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setWallColors(wallColors.filter((w: any) => w.id !== color.id))}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            title="Remove option"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
@@ -1896,8 +2080,15 @@ export default function Dashboard() {
                 </div>
 
                 {glazingOptions.map((opt: any, idx: number) => (
-                  <div key={opt.id} className="bg-white p-5 rounded-3xl border border-gray-200 shadow-xs flex flex-col gap-4">
-                    <div className="flex items-start justify-between gap-4">
+                  <div
+                    key={opt.id}
+                    className={`p-5 rounded-3xl border transition-all flex flex-col gap-4 ${
+                      isOptionAvailable(opt)
+                        ? 'bg-white border-gray-200 shadow-xs'
+                        : 'bg-amber-50/20 border-amber-200/90 shadow-xs ring-1 ring-amber-400/20'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <div
                           className="w-10 h-10 rounded-xl border border-gray-300 shrink-0 shadow-2xs relative overflow-hidden"
@@ -1921,14 +2112,18 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      {glazingOptions.length > 1 && (
-                        <button
-                          onClick={() => setGlazingOptions(glazingOptions.filter((g: any) => g.id !== opt.id))}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                        {renderOptionAvailabilityToggle('glazingOptions', glazingOptions, setGlazingOptions, opt)}
+                        {glazingOptions.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setGlazingOptions(glazingOptions.filter((g: any) => g.id !== opt.id))}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
@@ -2004,6 +2199,202 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))}
+
+                {/* INTERIOR ROOM DOORS */}
+                <div className="pt-6 border-t border-gray-200 space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <h3 className="font-bold text-gray-900 text-sm">
+                        Interior Room Doors ({interiorDoorOptions.length})
+                      </h3>
+                      <p className="text-xs text-gray-500">
+                        Manage bedroom and interior partition doors and pricing across models.
+                      </p>
+                    </div>
+                  </div>
+
+                  {interiorDoorOptions.map((opt: any, idx: number) => (
+                    <div
+                      key={opt.id}
+                      className={`p-5 rounded-3xl border transition-all flex flex-col gap-4 ${
+                        isOptionAvailable(opt)
+                          ? 'bg-white border-gray-200 shadow-xs'
+                          : 'bg-amber-50/20 border-amber-200/90 shadow-xs ring-1 ring-amber-400/20'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-10 h-10 rounded-xl border border-gray-300 shrink-0 shadow-2xs"
+                            style={{ backgroundColor: opt.color || '#c89f72' }}
+                          />
+                          <div>
+                            <div className="text-xs font-mono font-bold text-gray-900">{opt.id}</div>
+                            <div className="text-[10px] text-indigo-600 font-semibold">Room Door Finish</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                          {renderOptionAvailabilityToggle(
+                            'interiorDoorOptions',
+                            interiorDoorOptions,
+                            setInteriorDoorOptions,
+                            opt
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                            Room Door Name
+                          </label>
+                          <input
+                            type="text"
+                            value={opt.name}
+                            onChange={(e) => {
+                              const updated = [...interiorDoorOptions];
+                              updated[idx] = { ...updated[idx], name: e.target.value };
+                              setInteriorDoorOptions(updated);
+                            }}
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                            Base Upgrade Price ({baseCurrency})
+                          </label>
+                          <input
+                            type="number"
+                            value={toDisplayPrice(opt.price)}
+                            onChange={(e) => {
+                              const updated = [...interiorDoorOptions];
+                              updated[idx] = {
+                                ...updated[idx],
+                                price: toStoredUsdPrice(Number(e.target.value)),
+                                priceByModel: undefined,
+                              };
+                              setInteriorDoorOptions(updated);
+                            }}
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                            Badge Tag
+                          </label>
+                          <input
+                            type="text"
+                            value={opt.badge || ''}
+                            onChange={(e) => {
+                              const updated = [...interiorDoorOptions];
+                              updated[idx] = { ...updated[idx], badge: e.target.value };
+                              setInteriorDoorOptions(updated);
+                            }}
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* BATHROOM DOORS */}
+                <div className="pt-6 border-t border-gray-200 space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <h3 className="font-bold text-gray-900 text-sm">
+                        Bathroom Doors ({bathroomDoorOptions.length})
+                      </h3>
+                      <p className="text-xs text-gray-500">
+                        Manage waterproof WPC, louvered, fluted glass, and PDLC smart privacy bathroom doors.
+                      </p>
+                    </div>
+                  </div>
+
+                  {bathroomDoorOptions.map((opt: any, idx: number) => (
+                    <div
+                      key={opt.id}
+                      className={`p-5 rounded-3xl border transition-all flex flex-col gap-4 ${
+                        isOptionAvailable(opt)
+                          ? 'bg-white border-gray-200 shadow-xs'
+                          : 'bg-amber-50/20 border-amber-200/90 shadow-xs ring-1 ring-amber-400/20'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-10 h-10 rounded-xl border border-gray-300 shrink-0 shadow-2xs"
+                            style={{ backgroundColor: opt.color || '#f8fafc' }}
+                          />
+                          <div>
+                            <div className="text-xs font-mono font-bold text-gray-900">{opt.id}</div>
+                            <div className="text-[10px] text-emerald-600 font-semibold">Bathroom Door Finish</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                          {renderOptionAvailabilityToggle(
+                            'bathroomDoorOptions',
+                            bathroomDoorOptions,
+                            setBathroomDoorOptions,
+                            opt
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                            Bathroom Door Name
+                          </label>
+                          <input
+                            type="text"
+                            value={opt.name}
+                            onChange={(e) => {
+                              const updated = [...bathroomDoorOptions];
+                              updated[idx] = { ...updated[idx], name: e.target.value };
+                              setBathroomDoorOptions(updated);
+                            }}
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                            Base Upgrade Price ({baseCurrency})
+                          </label>
+                          <input
+                            type="number"
+                            value={toDisplayPrice(opt.price)}
+                            onChange={(e) => {
+                              const updated = [...bathroomDoorOptions];
+                              updated[idx] = {
+                                ...updated[idx],
+                                price: toStoredUsdPrice(Number(e.target.value)),
+                                priceByModel: undefined,
+                              };
+                              setBathroomDoorOptions(updated);
+                            }}
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                            Badge Tag
+                          </label>
+                          <input
+                            type="text"
+                            value={opt.badge || ''}
+                            onChange={(e) => {
+                              const updated = [...bathroomDoorOptions];
+                              updated[idx] = { ...updated[idx], badge: e.target.value };
+                              setBathroomDoorOptions(updated);
+                            }}
+                            className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -2026,8 +2417,15 @@ export default function Dashboard() {
                   </div>
 
                   {lightingOptions.map((opt: any, idx: number) => (
-                    <div key={opt.id} className="bg-white p-5 rounded-3xl border border-gray-200 shadow-xs flex flex-col gap-4">
-                      <div className="flex items-start justify-between gap-4">
+                    <div
+                      key={opt.id}
+                      className={`p-5 rounded-3xl border transition-all flex flex-col gap-4 ${
+                        isOptionAvailable(opt)
+                          ? 'bg-white border-gray-200 shadow-xs'
+                          : 'bg-amber-50/20 border-amber-200/90 shadow-xs ring-1 ring-amber-400/20'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
                           <div
                             className="w-10 h-10 rounded-xl border border-gray-300 shrink-0 shadow-2xs relative overflow-hidden flex items-center justify-center"
@@ -2051,14 +2449,18 @@ export default function Dashboard() {
                           </div>
                         </div>
 
-                        {lightingOptions.length > 1 && (
-                          <button
-                            onClick={() => setLightingOptions(lightingOptions.filter((l: any) => l.id !== opt.id))}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                          {renderOptionAvailabilityToggle('lightingOptions', lightingOptions, setLightingOptions, opt)}
+                          {lightingOptions.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setLightingOptions(lightingOptions.filter((l: any) => l.id !== opt.id))}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
@@ -2151,21 +2553,32 @@ export default function Dashboard() {
                   </div>
 
                   {electricalOptions.map((opt: any, idx: number) => (
-                    <div key={opt.id} className="bg-white p-5 rounded-3xl border border-gray-200 shadow-xs flex flex-col gap-4">
-                      <div className="flex items-start justify-between gap-4">
+                    <div
+                      key={opt.id}
+                      className={`p-5 rounded-3xl border transition-all flex flex-col gap-4 ${
+                        isOptionAvailable(opt)
+                          ? 'bg-white border-gray-200 shadow-xs'
+                          : 'bg-amber-50/20 border-amber-200/90 shadow-xs ring-1 ring-amber-400/20'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div>
                           <div className="text-xs font-mono font-bold text-gray-900">{opt.id}</div>
                           <div className="text-[10px] text-gray-400">Panel Class: {opt.badge || 'Standard'}</div>
                         </div>
 
-                        {electricalOptions.length > 1 && (
-                          <button
-                            onClick={() => setElectricalOptions(electricalOptions.filter((e: any) => e.id !== opt.id))}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                          {renderOptionAvailabilityToggle('electricalOptions', electricalOptions, setElectricalOptions, opt)}
+                          {electricalOptions.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setElectricalOptions(electricalOptions.filter((e: any) => e.id !== opt.id))}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
@@ -2261,8 +2674,15 @@ export default function Dashboard() {
                 </div>
 
                 {flooringOptions.map((opt: any, idx: number) => (
-                  <div key={opt.id} className="bg-white p-5 rounded-3xl border border-gray-200 shadow-xs flex flex-col gap-4">
-                    <div className="flex items-start justify-between gap-4">
+                  <div
+                    key={opt.id}
+                    className={`p-5 rounded-3xl border transition-all flex flex-col gap-4 ${
+                      isOptionAvailable(opt)
+                        ? 'bg-white border-gray-200 shadow-xs'
+                        : 'bg-amber-50/20 border-amber-200/90 shadow-xs ring-1 ring-amber-400/20'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <div
                           className="w-10 h-10 rounded-xl border border-gray-300 shrink-0 shadow-2xs relative overflow-hidden"
@@ -2286,14 +2706,18 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      {flooringOptions.length > 1 && (
-                        <button
-                          onClick={() => setFlooringOptions(flooringOptions.filter((f: any) => f.id !== opt.id))}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                        {renderOptionAvailabilityToggle('flooringOptions', flooringOptions, setFlooringOptions, opt)}
+                        {flooringOptions.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setFlooringOptions(flooringOptions.filter((f: any) => f.id !== opt.id))}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
@@ -2388,8 +2812,15 @@ export default function Dashboard() {
                 </div>
 
                 {cabinetryOptions.map((opt: any, idx: number) => (
-                  <div key={opt.id} className="bg-white p-5 rounded-3xl border border-gray-200 shadow-xs flex flex-col gap-4">
-                    <div className="flex items-start justify-between gap-4">
+                  <div
+                    key={opt.id}
+                    className={`p-5 rounded-3xl border transition-all flex flex-col gap-4 ${
+                      isOptionAvailable(opt)
+                        ? 'bg-white border-gray-200 shadow-xs'
+                        : 'bg-amber-50/20 border-amber-200/90 shadow-xs ring-1 ring-amber-400/20'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <div
                           className="w-10 h-10 rounded-xl border border-gray-300 shrink-0 shadow-2xs relative overflow-hidden"
@@ -2413,14 +2844,18 @@ export default function Dashboard() {
                         </div>
                       </div>
 
-                      {cabinetryOptions.length > 1 && (
-                        <button
-                          onClick={() => setCabinetryOptions(cabinetryOptions.filter((c: any) => c.id !== opt.id))}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                        {renderOptionAvailabilityToggle('cabinetryOptions', cabinetryOptions, setCabinetryOptions, opt)}
+                        {cabinetryOptions.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setCabinetryOptions(cabinetryOptions.filter((c: any) => c.id !== opt.id))}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
@@ -2606,21 +3041,32 @@ export default function Dashboard() {
                 </div>
 
                 {roofOptions.map((opt: any, idx: number) => (
-                  <div key={opt.id} className="bg-white p-5 rounded-3xl border border-gray-200 shadow-xs flex flex-col gap-4">
-                    <div className="flex items-start justify-between gap-4">
+                  <div
+                    key={opt.id}
+                    className={`p-5 rounded-3xl border transition-all flex flex-col gap-4 ${
+                      isOptionAvailable(opt)
+                        ? 'bg-white border-gray-200 shadow-xs'
+                        : 'bg-amber-50/20 border-amber-200/90 shadow-xs ring-1 ring-amber-400/20'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
                         <div className="text-xs font-mono font-bold text-gray-900">{opt.id}</div>
                         <div className="text-[10px] text-gray-400">Category: {opt.category || 'Roof & Energy'}</div>
                       </div>
 
-                      {roofOptions.length > 1 && (
-                        <button
-                          onClick={() => setRoofOptions(roofOptions.filter((r: any) => r.id !== opt.id))}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                        {renderOptionAvailabilityToggle('roofOptions', roofOptions, setRoofOptions, opt)}
+                        {roofOptions.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setRoofOptions(roofOptions.filter((r: any) => r.id !== opt.id))}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
@@ -2878,7 +3324,11 @@ export default function Dashboard() {
                       {[
                         { id: 'all', label: 'All' },
                         { id: 'Interior Modules', label: 'Living Pods' },
+                        { id: 'Climate & Comfort', label: 'Climate & AC' },
+                        { id: 'Solar & Battery', label: 'Solar & Batteries' },
                         { id: 'Smart Living', label: 'Smart Living' },
+                        { id: 'Home Furnishings', label: 'Furnishings' },
+                        { id: 'Utilities & Off-Grid', label: 'Off-Grid & Outdoor' },
                       ].map((cat) => {
                         const isActive = addonCategoryFilter === cat.id;
                         return (
@@ -3096,6 +3546,7 @@ export default function Dashboard() {
                           </label>
                           <input
                             type="text"
+                            list="addon-category-presets"
                             value={addon.category || 'Interior Modules'}
                             onChange={(e) => {
                               if (addonIndex === -1) return;
@@ -3105,6 +3556,15 @@ export default function Dashboard() {
                             }}
                             className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-orange-500"
                           />
+                          <datalist id="addon-category-presets">
+                            <option value="Interior Modules" />
+                            <option value="Climate & Comfort" />
+                            <option value="Solar & Battery" />
+                            <option value="Smart Living" />
+                            <option value="Home Furnishings" />
+                            <option value="Outdoor Living" />
+                            <option value="Utilities & Off-Grid" />
+                          </datalist>
                         </div>
                       </div>
 
@@ -3814,20 +4274,17 @@ export default function Dashboard() {
                               cat: 'Casita Series',
                               usd: 54900,
                             },
-                            {
-                              name: 'Flat Freight Transport Estimate',
-                              cat: 'Logistics',
-                              usd: logistics.freightCost || 4500,
-                            },
-                            {
-                              name: 'Site Prep & Foundation Baseline',
-                              cat: 'Site Prep',
-                              usd: logistics.sitePrepCost || 5500,
-                            },
+                            ...logisticsLineItems
+                              .filter((item) => item.enabled && item.pricingType === 'fixed')
+                              .map((item) => ({
+                                name: item.name,
+                                cat: getLogisticsPreset(item.category).shortLabel,
+                                usd: item.amount || 0,
+                              })),
                             {
                               name: 'Priority Production Reservation Fee',
                               cat: 'Deposit Slot',
-                              usd: branding.reservationFee || 250,
+                              usd: branding.reservationFee ?? 250,
                             },
                           ].map((item, idx) => {
                             const rate =
@@ -3863,58 +4320,431 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* Section 4: Global Markup Modifier */}
-                  <div className="pt-6 border-t border-gray-100">
-                    <h3 className="font-bold text-gray-900 mb-1 text-sm">Global Markup Modifier</h3>
-                    <p className="text-xs text-gray-500 mb-4">
-                      Applies a universal percentage markup or discount to all base prices and upgrades.
-                    </p>
-                    <div className="max-w-xs">
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
-                        Markup Percentage (%)
-                      </label>
-                      <input
-                        type="number"
-                        value={markup}
-                        onChange={(e) => setMarkup(Number(e.target.value))}
-                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold focus:outline-none focus:border-orange-500"
-                      />
+                  {/* Section 4: Reservation Deposit Price & Global Markup Modifier */}
+                  <div className="pt-6 border-t border-gray-100 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Reservation Price Control */}
+                    <div className="p-5 rounded-2xl bg-[#FAFAFC] border border-gray-200/90 space-y-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="font-bold text-gray-900 mb-1 text-sm flex items-center gap-2">
+                            <DollarSign className="w-4 h-4 text-orange-600" />
+                            <span>4. Reservation Deposit Price</span>
+                          </h3>
+                          <p className="text-xs text-gray-500">
+                            Set the refundable reservation fee required to lock a production slot across the configurator, checkout, and spec sheets.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleSave}
+                          className="px-3 py-1.5 rounded-xl bg-black hover:bg-gray-800 text-white text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 shadow-xs"
+                        >
+                          <Save className="w-3 h-3 text-orange-400" />
+                          <span>Save Price</span>
+                        </button>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                            Reservation Fee ({normalizeCurrency(baseCurrency)})
+                          </label>
+                          {normalizeCurrency(baseCurrency) !== 'USD' && (
+                            <span className="text-[10px] font-mono text-gray-500">
+                              Base USD: ${(branding.reservationFee ?? 250).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={toDisplayPrice(branding.reservationFee ?? 250)}
+                            onChange={(e) => {
+                              const rawVal = Math.max(0, Number(e.target.value) || 0);
+                              setBranding({
+                                ...branding,
+                                reservationFee: toStoredUsdPrice(rawVal),
+                              });
+                            }}
+                            className="w-full px-4 py-2.5 pr-14 bg-white border border-gray-200 rounded-xl text-sm font-mono font-bold text-gray-900 focus:outline-none focus:border-orange-500"
+                          />
+                          <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-mono font-bold text-gray-400 pointer-events-none">
+                            {normalizeCurrency(baseCurrency)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                          Quick Presets (USD Base)
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[100, 250, 500, 1000, 2500].map((presetUsd) => {
+                            const currentUsd = branding.reservationFee ?? 250;
+                            const isActive = Math.abs(currentUsd - presetUsd) < 0.5;
+                            return (
+                              <button
+                                key={presetUsd}
+                                type="button"
+                                onClick={() =>
+                                  setBranding({
+                                    ...branding,
+                                    reservationFee: presetUsd,
+                                  })
+                                }
+                                className={`px-2.5 py-1 rounded-xl text-[11px] font-mono font-bold border transition-colors cursor-pointer ${
+                                  isActive
+                                    ? 'bg-orange-600 text-white border-orange-600 shadow-2xs'
+                                    : 'bg-white text-gray-700 border-gray-200 hover:bg-orange-50 hover:border-orange-200'
+                                }`}
+                              >
+                                {formatCurrency(presetUsd, baseCurrency, {
+                                  ratesMap: exchangeRates,
+                                })}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Global Markup Modifier */}
+                    <div className="p-5 rounded-2xl bg-[#FAFAFC] border border-gray-200/90 space-y-4">
+                      <div>
+                        <h3 className="font-bold text-gray-900 mb-1 text-sm">
+                          5. Global Markup Modifier
+                        </h3>
+                        <p className="text-xs text-gray-500">
+                          Applies a universal percentage markup or discount to all base prices and upgrades.
+                        </p>
+                      </div>
+                      <div className="max-w-xs space-y-1.5">
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                          Markup Percentage (%)
+                        </label>
+                        <input
+                          type="number"
+                          value={markup}
+                          onChange={(e) => setMarkup(Number(e.target.value))}
+                          className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-mono font-bold focus:outline-none focus:border-orange-500"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Logistics Card */}
+                {/* Logistics Card: Individual Pricing Builder */}
                 <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-xs space-y-6">
-                  <h3 className="font-bold text-gray-900 mb-1 text-sm">Logistics, Delivery & Tax Rates</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Header + Totals */}
+                  <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Flat Freight Estimate ({baseCurrency})</label>
-                      <input
-                        type="number"
-                        value={toDisplayPrice(logistics.freightCost)}
-                        onChange={(e) => setLogistics({ ...logistics, freightCost: toStoredUsdPrice(Number(e.target.value)) })}
-                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold"
-                      />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Truck className="w-4 h-4 text-orange-600" />
+                        <h3 className="font-bold text-gray-900 text-sm">
+                          Individual Logistics, Duties, Permits &amp; Tax Pricing
+                        </h3>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
+                          {logisticsLineItems.filter((i) => i.enabled).length} of {logisticsLineItems.length} Active
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Add, enable, edit, or remove individual pricing items (Local Logistics, International Freight, Customs, Insurance, Site Preparation, Local Permission Rates, Taxes, etc.) as fixed {normalizeCurrency(baseCurrency)} amounts or % rates.
+                      </p>
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Site Prep Baseline ({baseCurrency})</label>
-                      <input
-                        type="number"
-                        value={toDisplayPrice(logistics.sitePrepCost)}
-                        onChange={(e) => setLogistics({ ...logistics, sitePrepCost: toStoredUsdPrice(Number(e.target.value)) })}
-                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold"
-                      />
+
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <div className="px-3 py-1.5 rounded-xl bg-gray-50 border border-gray-200 text-right">
+                        <div className="text-[9px] font-bold uppercase tracking-wider text-gray-400">
+                          Active Fixed Fees
+                        </div>
+                        <div className="text-xs font-mono font-black text-gray-950">
+                          {formatCurrency(
+                            logisticsLineItems
+                              .filter((i) => i.enabled && i.pricingType === 'fixed')
+                              .reduce((sum, i) => sum + (Number(i.amount) || 0), 0),
+                            baseCurrency,
+                            { ratesMap: exchangeRates }
+                          )}
+                        </div>
+                      </div>
+                      <div className="px-3 py-1.5 rounded-xl bg-gray-50 border border-gray-200 text-right">
+                        <div className="text-[9px] font-bold uppercase tracking-wider text-gray-400">
+                          Active % Rates
+                        </div>
+                        <div className="text-xs font-mono font-black text-orange-700">
+                          {logisticsLineItems
+                            .filter((i) => i.enabled && i.pricingType === 'percent')
+                            .reduce((sum, i) => sum + (Number(i.amount) || 0), 0)
+                            .toFixed(1).replace(/\.0$/, '')}%
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleSave}
+                        className="px-3.5 py-2 rounded-xl bg-black hover:bg-gray-800 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                      >
+                        <Save className="w-3.5 h-3.5 text-orange-400" />
+                        <span>Save Pricing</span>
+                      </button>
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Local Tax Rate (%)</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={logistics.taxRate}
-                        onChange={(e) => setLogistics({ ...logistics, taxRate: Number(e.target.value) })}
-                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold"
-                      />
+                  </div>
+
+                  {/* Quick-Add Preset Toolbar */}
+                  <div className="p-3.5 rounded-2xl bg-[#FAFAFC] border border-gray-200/80 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-gray-500">
+                        Quick-Add Individual Fee or Rate Item:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleResetLogisticsItems}
+                        className="text-[11px] font-bold text-gray-500 hover:text-gray-900 inline-flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Restore Standard Items</span>
+                      </button>
                     </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {LOGISTICS_CATEGORY_PRESETS.map((preset) => (
+                        <button
+                          key={preset.category}
+                          type="button"
+                          onClick={() => handleAddLogisticsItem(preset.category)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white hover:bg-orange-50 text-gray-800 hover:text-orange-800 border border-gray-200 hover:border-orange-300 text-[11px] font-bold transition-all cursor-pointer shadow-2xs"
+                        >
+                          <Plus className="w-3 h-3 text-orange-600" />
+                          <span>{preset.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Individual Line Items List */}
+                  {logisticsLineItems.length === 0 ? (
+                    <div className="p-8 rounded-2xl border border-dashed border-gray-300 bg-gray-50/60 text-center space-y-2">
+                      <p className="text-xs font-bold text-gray-700">
+                        No individual logistics or fee items configured yet.
+                      </p>
+                      <p className="text-[11px] text-gray-500">
+                        Use any quick-add button above to add Local Logistics, International Freight, Customs, Insurance, Site Preparation, or Local Permission Rates.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {logisticsLineItems.map((item) => {
+                        const preset = getLogisticsPreset(item.category);
+                        return (
+                          <div
+                            key={item.id}
+                            className={`p-4 rounded-2xl border transition-all space-y-3 ${
+                              item.enabled
+                                ? 'bg-white border-gray-200 shadow-2xs'
+                                : 'bg-gray-50/80 border-gray-200/70 opacity-75'
+                            }`}
+                          >
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                              {/* Enable/Disable Toggle + Category Badge */}
+                              <div className="md:col-span-4 space-y-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                    Line Item Name
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleUpdateLogisticsItem(item.id, { enabled: !item.enabled })
+                                    }
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border cursor-pointer transition-colors ${
+                                      item.enabled
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                        : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200'
+                                    }`}
+                                    title={item.enabled ? 'Click to disable this charge' : 'Click to enable this charge'}
+                                  >
+                                    {item.enabled ? (
+                                      <>
+                                        <Eye className="w-3 h-3" />
+                                        <span>Active</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <EyeOff className="w-3 h-3" />
+                                        <span>Disabled</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                                <input
+                                  type="text"
+                                  value={item.name}
+                                  placeholder="e.g. Local Logistics, Customs, Insurance..."
+                                  onChange={(e) =>
+                                    handleUpdateLogisticsItem(item.id, { name: e.target.value })
+                                  }
+                                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 focus:outline-none focus:border-orange-500"
+                                />
+                              </div>
+
+                              {/* Category */}
+                              <div className="md:col-span-3 space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                    Category
+                                  </label>
+                                  <span
+                                    className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${preset.badgeClass}`}
+                                  >
+                                    {preset.shortLabel}
+                                  </span>
+                                </div>
+                                <select
+                                  value={item.category}
+                                  onChange={(e) =>
+                                    handleUpdateLogisticsItem(item.id, {
+                                      category: e.target.value as LogisticsFeeCategory,
+                                    })
+                                  }
+                                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 focus:outline-none focus:border-orange-500 cursor-pointer"
+                                >
+                                  {LOGISTICS_CATEGORY_PRESETS.map((p) => (
+                                    <option key={p.category} value={p.category}>
+                                      {p.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {/* Mode: Fixed Amount vs Percentage Rate */}
+                              <div className="md:col-span-2 space-y-1">
+                                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                  Pricing Basis
+                                </label>
+                                <div className="grid grid-cols-2 gap-1 p-1 bg-gray-100 rounded-xl border border-gray-200">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleUpdateLogisticsItem(item.id, {
+                                        pricingType: 'fixed',
+                                      })
+                                    }
+                                    className={`py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                                      item.pricingType === 'fixed'
+                                        ? 'bg-white text-gray-900 shadow-2xs'
+                                        : 'text-gray-500 hover:text-gray-800'
+                                    }`}
+                                  >
+                                    {normalizeCurrency(baseCurrency)}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleUpdateLogisticsItem(item.id, {
+                                        pricingType: 'percent',
+                                      })
+                                    }
+                                    className={`py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-0.5 ${
+                                      item.pricingType === 'percent'
+                                        ? 'bg-white text-orange-700 shadow-2xs'
+                                        : 'text-gray-500 hover:text-gray-800'
+                                    }`}
+                                  >
+                                    <Percent className="w-2.5 h-2.5" />
+                                    <span>Rate</span>
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Amount / Percentage Input + Delete */}
+                              <div className="md:col-span-3 flex items-end gap-2">
+                                <div className="flex-1 space-y-1">
+                                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                    {item.pricingType === 'percent'
+                                      ? 'Rate (% of Home Subtotal)'
+                                      : `Fee Amount (${normalizeCurrency(baseCurrency)})`}
+                                  </label>
+                                  <div className="relative">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step={item.pricingType === 'percent' ? '0.1' : '1'}
+                                      value={
+                                        item.pricingType === 'percent'
+                                          ? item.amount
+                                          : toDisplayPrice(item.amount)
+                                      }
+                                      onChange={(e) => {
+                                        const val = Math.max(0, Number(e.target.value) || 0);
+                                        handleUpdateLogisticsItem(item.id, {
+                                          amount:
+                                            item.pricingType === 'percent'
+                                              ? val
+                                              : toStoredUsdPrice(val),
+                                        });
+                                      }}
+                                      className="w-full px-3 py-2 pr-9 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-bold text-gray-900 focus:outline-none focus:border-orange-500"
+                                    />
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 pointer-events-none">
+                                      {item.pricingType === 'percent'
+                                        ? '%'
+                                        : normalizeCurrency(baseCurrency)}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveLogisticsItem(item.id)}
+                                  className="p-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200/70 transition-colors cursor-pointer shrink-0"
+                                  title={`Remove ${item.name}`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Optional Description / Customer Breakdown Note */}
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-1 border-t border-gray-100">
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider shrink-0">
+                                Client Note:
+                              </span>
+                              <input
+                                type="text"
+                                value={item.description || ''}
+                                placeholder="Short description shown on client quote & reservation summary..."
+                                onChange={(e) =>
+                                  handleUpdateLogisticsItem(item.id, {
+                                    description: e.target.value,
+                                  })
+                                }
+                                className="flex-1 px-2.5 py-1.5 bg-gray-50/70 border border-gray-200/80 rounded-lg text-[11px] text-gray-700 focus:outline-none focus:border-orange-400"
+                              />
+                              {item.pricingType === 'fixed' && normalizeCurrency(baseCurrency) !== 'USD' && (
+                                <span className="text-[10px] font-mono text-gray-400 shrink-0">
+                                  Base USD: ${Math.round(item.amount || 0).toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Footer Add Row CTA */}
+                  <div className="pt-2 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleAddLogisticsItem('other')}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-dashed border-gray-300 hover:border-orange-400 hover:bg-orange-50/40 text-xs font-bold text-gray-700 hover:text-orange-800 transition-all cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-orange-600" />
+                      <span>Add Another Custom Pricing Item</span>
+                    </button>
+                    <p className="text-[11px] text-gray-400">
+                      All active items automatically appear itemized in the customer configurator breakdown and checkout quote.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -3974,7 +4804,7 @@ export default function Dashboard() {
                     <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Reservation Deposit Amount ({baseCurrency})</label>
                     <input
                       type="number"
-                      value={toDisplayPrice(branding.reservationFee || 250)}
+                      value={toDisplayPrice(branding.reservationFee ?? 250)}
                       onChange={(e) => setBranding({ ...branding, reservationFee: toStoredUsdPrice(Number(e.target.value)) })}
                       className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono font-semibold"
                     />

@@ -10,6 +10,7 @@ export interface BuiltHomeModel {
   solarGroup: THREE.Group;
   terraceGroup: THREE.Group;
   pergolaGroup: THREE.Group;
+  satelliteGroup: THREE.Group;
   interiorLights: THREE.PointLight[];
   hotspotPositions: {
     walls: THREE.Vector3;
@@ -37,6 +38,7 @@ export function buildHomeModel(
   const solarGroup = new THREE.Group();
   const terraceGroup = new THREE.Group();
   const pergolaGroup = new THREE.Group();
+  const satelliteGroup = new THREE.Group();
   const interiorLights: THREE.PointLight[] = [];
 
   // Determine Architectural Series
@@ -154,6 +156,501 @@ export function buildHomeModel(
     castingGroup.add(apZ);
 
     return castingGroup;
+  };
+
+  // Helper: Detailed Powder-Coated White Indoor Mini-Split Evaporator Head
+  const createDetailedIndoorAcUnit = (
+    x: number,
+    y: number,
+    z: number,
+    rotY = 0
+  ) => {
+    const indoorGroup = new THREE.Group();
+    const inW = 0.88;
+    const inH = 0.28;
+    const inD = 0.19;
+
+    const whiteBody = materials.acWhiteCasingMaterial || materials.countertopMaterial;
+    const whiteTrim = materials.acWhiteTrimMaterial || materials.countertopMaterial;
+    const darkAccent = materials.acShroudCavityMaterial || materials.chassisMaterial;
+
+    // Main curved/stepped appliance-white body
+    const casing = new THREE.Mesh(new THREE.BoxGeometry(inW, inH, inD), whiteBody);
+    casing.castShadow = true;
+
+    // Front decorative chamfered fascia plate
+    const frontFace = new THREE.Mesh(
+      new THREE.BoxGeometry(inW - 0.01, inH - 0.025, 0.014),
+      whiteTrim
+    );
+    frontFace.position.set(0, 0.005, inD / 2 + 0.005);
+
+    // Subtle horizontal chrome/silver accent pinstripe
+    const trimLine = new THREE.Mesh(
+      new THREE.BoxGeometry(inW - 0.04, 0.006, 0.018),
+      materials.metalTrimMaterial
+    );
+    trimLine.position.set(0, -inH * 0.24, inD / 2 + 0.006);
+
+    // Top recessed air intake louver slots
+    const intakeGrille = new THREE.Mesh(
+      new THREE.BoxGeometry(inW - 0.08, 0.016, inD - 0.05),
+      darkAccent
+    );
+    intakeGrille.position.set(0, inH / 2 - 0.004, -0.005);
+
+    // Bottom dark discharge channel + motorized white airflow vane
+    const dischargeWell = new THREE.Mesh(
+      new THREE.BoxGeometry(inW - 0.08, 0.032, 0.035),
+      darkAccent
+    );
+    dischargeWell.position.set(0, -inH / 2 + 0.018, inD / 2 - 0.02);
+
+    const airLouver = new THREE.Mesh(
+      new THREE.BoxGeometry(inW - 0.07, 0.026, 0.038),
+      whiteTrim
+    );
+    airLouver.rotation.x = 0.28;
+    airLouver.position.set(0, -inH / 2 + 0.016, inD / 2 - 0.006);
+
+    // Front digital temperature display & status LED
+    const ledWindow = new THREE.Mesh(
+      new THREE.BoxGeometry(0.085, 0.032, 0.005),
+      darkAccent
+    );
+    ledWindow.position.set(inW * 0.30, 0.005, inD / 2 + 0.012);
+
+    const ledDisplay = new THREE.Mesh(
+      new THREE.BoxGeometry(0.055, 0.014, 0.004),
+      materials.capsuleGlowMaterial || materials.ledStripMaterial
+    );
+    ledDisplay.position.set(inW * 0.30, 0.005, inD / 2 + 0.014);
+
+    indoorGroup.add(
+      casing,
+      frontFace,
+      trimLine,
+      intakeGrille,
+      dischargeWell,
+      airLouver,
+      ledWindow,
+      ledDisplay
+    );
+    indoorGroup.position.set(x, y, z);
+    indoorGroup.rotation.y = rotY;
+    return indoorGroup;
+  };
+
+  // Helper: Detailed Powder-Coated White Outdoor Inverter AC Condenser Unit
+  const createDetailedOutdoorAcUnit = (
+    outX: number,
+    outY: number,
+    wallOuterZ: number,
+    outW = 0.88,
+    outH = 0.66,
+    outD = 0.34,
+    wallGap = 0.09
+  ) => {
+    const acGroup = new THREE.Group();
+    const whiteMat = materials.acWhiteCasingMaterial || materials.countertopMaterial;
+    const whiteTrim = materials.acWhiteTrimMaterial || materials.countertopMaterial;
+    const darkCavity = materials.acShroudCavityMaterial || materials.chassisMaterial;
+    const metalTrim = materials.metalTrimMaterial;
+    const finMat = materials.acCoilFinsMaterial || materials.metalTrimMaterial;
+    const copperMat = materials.acCopperMaterial || materials.brassHandleMaterial;
+    const brassMat = materials.acBrassMaterial || materials.solarDecalMaterial;
+    const rubberMat = materials.acRubberPadMaterial || materials.windowGasketMaterial;
+
+    const fanX = -outW * 0.14;
+    const fanY = 0.01;
+    const fanR = 0.22;
+
+    // 1. Rear & core appliance-white cabinet body (inset slightly from front fascia for deep fan well)
+    const coreBodyD = outD - 0.065;
+    const coreBody = new THREE.Mesh(
+      new THREE.BoxGeometry(outW - 0.016, outH - 0.03, coreBodyD),
+      whiteMat
+    );
+    coreBody.position.set(0, 0, -outD / 2 + coreBodyD / 2);
+    coreBody.castShadow = true;
+    coreBody.receiveShadow = true;
+    acGroup.add(coreBody);
+
+    // White right-side electrical bay filler extending flush to the front fascia
+    const elecBayW = outW * 0.33;
+    const elecBayBlock = new THREE.Mesh(
+      new THREE.BoxGeometry(elecBayW, outH - 0.03, 0.045),
+      whiteMat
+    );
+    elecBayBlock.position.set(outW / 2 - elecBayW / 2 - 0.008, 0, outD / 2 - 0.045);
+    elecBayBlock.castShadow = true;
+    acGroup.add(elecBayBlock);
+
+    // 2. Extruded Powder-Coated White Front Fascia Panel with true circular fan cutout
+    const frontShape = new THREE.Shape();
+    const hw = outW / 2;
+    const hh = outH / 2 - 0.012;
+    const cr = 0.016;
+    frontShape.moveTo(-hw + cr, -hh);
+    frontShape.lineTo(hw - cr, -hh);
+    frontShape.quadraticCurveTo(hw, -hh, hw, -hh + cr);
+    frontShape.lineTo(hw, hh - cr);
+    frontShape.quadraticCurveTo(hw, hh, hw - cr, hh);
+    frontShape.lineTo(-hw + cr, hh);
+    frontShape.quadraticCurveTo(-hw, hh, -hw, hh - cr);
+    frontShape.lineTo(-hw, -hh + cr);
+    frontShape.quadraticCurveTo(-hw, -hh, -hw + cr, -hh);
+
+    const fanCutout = new THREE.Path();
+    fanCutout.absarc(fanX, fanY, fanR, 0, Math.PI * 2, true);
+    frontShape.holes.push(fanCutout);
+
+    const frontPanelGeo = new THREE.ExtrudeGeometry(frontShape, {
+      depth: 0.022,
+      bevelEnabled: true,
+      bevelThickness: 0.006,
+      bevelSize: 0.006,
+      bevelSegments: 2,
+      curveSegments: 32,
+    });
+    const frontPanel = new THREE.Mesh(frontPanelGeo, whiteMat);
+    frontPanel.position.set(0, 0, outD / 2 - 0.028);
+    frontPanel.castShadow = true;
+    frontPanel.receiveShadow = true;
+    acGroup.add(frontPanel);
+
+    // 3. Top Stamped White Overhanging Rain Hood + Recessed Shadow-Line Trim
+    const topShadowGap = new THREE.Mesh(
+      new THREE.BoxGeometry(outW - 0.004, 0.007, outD - 0.004),
+      darkCavity
+    );
+    topShadowGap.position.set(0, outH / 2 - 0.012, 0);
+    acGroup.add(topShadowGap);
+
+    const topHood = new THREE.Mesh(
+      new THREE.BoxGeometry(outW + 0.024, 0.024, outD + 0.02),
+      whiteTrim
+    );
+    topHood.position.set(0, outH / 2 + 0.002, 0.002);
+    topHood.castShadow = true;
+    topHood.receiveShadow = true;
+    acGroup.add(topHood);
+
+    // 4. Stamped White Rolled Bottom Base Pan
+    const baseTray = new THREE.Mesh(
+      new THREE.BoxGeometry(outW + 0.012, 0.028, outD + 0.014),
+      whiteTrim
+    );
+    baseTray.position.set(0, -outH / 2 + 0.002, 0);
+    baseTray.castShadow = true;
+    acGroup.add(baseTray);
+
+    // 5. Deep Circular Fan Shroud Cavity + Swept Axial Impeller Blades + Molded White Venturi Ring
+    const shroudWall = new THREE.Mesh(
+      new THREE.CylinderGeometry(fanR + 0.016, fanR + 0.016, 0.048, 32, 1, true),
+      darkCavity
+    );
+    shroudWall.rotation.x = Math.PI / 2;
+    shroudWall.position.set(fanX, fanY, outD / 2 - 0.044);
+    acGroup.add(shroudWall);
+
+    const shroudBackDisk = new THREE.Mesh(
+      new THREE.CircleGeometry(fanR + 0.018, 32),
+      darkCavity
+    );
+    shroudBackDisk.position.set(fanX, fanY, outD / 2 - 0.066);
+    acGroup.add(shroudBackDisk);
+
+    // Motor rotor hub + stainless nut
+    const motorHub = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.052, 0.058, 0.028, 20),
+      materials.chassisMaterial
+    );
+    motorHub.rotation.x = Math.PI / 2;
+    motorHub.position.set(fanX, fanY, outD / 2 - 0.042);
+    acGroup.add(motorHub);
+
+    const spinnerCap = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.02, 0.032, 0.012, 16),
+      metalTrim
+    );
+    spinnerCap.rotation.x = Math.PI / 2;
+    spinnerCap.position.set(fanX, fanY, outD / 2 - 0.026);
+    acGroup.add(spinnerCap);
+
+    // 3 Swept Pitched Condenser Fan Blades
+    const fanBladeMat = materials.stairTreadMaterial || materials.chassisMaterial;
+    for (let b = 0; b < 3; b++) {
+      const bladePivot = new THREE.Group();
+      bladePivot.position.set(fanX, fanY, outD / 2 - 0.042);
+      bladePivot.rotation.z = (b * Math.PI * 2) / 3 + 0.35;
+
+      const blade = new THREE.Mesh(
+        new THREE.BoxGeometry(0.088, 0.165, 0.008),
+        fanBladeMat
+      );
+      blade.position.set(0.015, 0.115, 0);
+      blade.rotation.y = 0.42; // Aerodynamic pitch angle
+      blade.rotation.z = -0.18; // Swept crescent tilt
+      bladePivot.add(blade);
+      acGroup.add(bladePivot);
+    }
+
+    // Stepped White Outer Venturi Rim framing circular exhaust opening
+    const venturiRim = new THREE.Mesh(
+      new THREE.TorusGeometry(fanR + 0.006, 0.012, 14, 36),
+      whiteTrim
+    );
+    venturiRim.position.set(fanX, fanY, outD / 2 + 0.002);
+    venturiRim.castShadow = true;
+    acGroup.add(venturiRim);
+
+    // Protective Concentric Wire Fan Guard (5 rings + 4 radial ribs + center medallion)
+    const guardWireMat = materials.chassisMaterial;
+    [0.068, 0.106, 0.144, 0.182, 0.216].forEach((r) => {
+      const wireRing = new THREE.Mesh(
+        new THREE.TorusGeometry(r, 0.0036, 8, 32),
+        guardWireMat
+      );
+      wireRing.position.set(fanX, fanY, outD / 2 + 0.01);
+      acGroup.add(wireRing);
+    });
+
+    [0, Math.PI / 2, Math.PI / 4, -Math.PI / 4].forEach((angle) => {
+      const rib = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.0035, 0.0035, fanR * 2 + 0.012, 6),
+        guardWireMat
+      );
+      rib.position.set(fanX, fanY, outD / 2 + 0.009);
+      rib.rotation.z = angle;
+      acGroup.add(rib);
+    });
+
+    const centerBadge = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.034, 0.034, 0.007, 18),
+      whiteTrim
+    );
+    centerBadge.rotation.x = Math.PI / 2;
+    centerBadge.position.set(fanX, fanY, outD / 2 + 0.012);
+    acGroup.add(centerBadge);
+
+    // 6. Right-Side Stamped White Electrical Panel, Brand Nameplate & Indicator LED
+    const seamStrip = new THREE.Mesh(
+      new THREE.BoxGeometry(0.005, outH - 0.04, 0.005),
+      darkCavity
+    );
+    seamStrip.position.set(outW * 0.125, 0, outD / 2 + 0.001);
+    acGroup.add(seamStrip);
+
+    const specPlate = new THREE.Mesh(
+      new THREE.BoxGeometry(0.145, 0.042, 0.006),
+      materials.acBadgeMaterial || darkCavity
+    );
+    specPlate.position.set(outW * 0.30, outH * 0.28, outD / 2 + 0.003);
+    acGroup.add(specPlate);
+
+    const statusLed = new THREE.Mesh(
+      new THREE.SphereGeometry(0.006, 8, 8),
+      materials.solarStatusLedMaterial || materials.ledStripMaterial
+    );
+    statusLed.position.set(outW * 0.40, outH * 0.28, outD / 2 + 0.004);
+    acGroup.add(statusLed);
+
+    // Stamped right-side access hatch + corner screws
+    const accessDoor = new THREE.Mesh(
+      new THREE.BoxGeometry(0.18, 0.24, 0.008),
+      whiteTrim
+    );
+    accessDoor.position.set(outW * 0.30, -outH * 0.04, outD / 2 + 0.001);
+    acGroup.add(accessDoor);
+
+    [
+      [outW * 0.22, outH * 0.06],
+      [outW * 0.38, outH * 0.06],
+      [outW * 0.22, -outH * 0.14],
+      [outW * 0.38, -outH * 0.14],
+    ].forEach(([sx, sy]) => {
+      const screw = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.004, 0.004, 0.004, 8),
+        metalTrim
+      );
+      screw.rotation.x = Math.PI / 2;
+      screw.position.set(sx, sy, outD / 2 + 0.006);
+      acGroup.add(screw);
+    });
+
+    // 7. Exposed Aluminum Condenser Coil Fins (Rear & Left Air-Intake) + Protective White Louvers
+    const rearCoilFins = new THREE.Mesh(
+      new THREE.BoxGeometry(outW - 0.14, outH - 0.08, 0.014),
+      finMat
+    );
+    rearCoilFins.position.set(-0.04, 0, -outD / 2 - 0.002);
+    acGroup.add(rearCoilFins);
+
+    // Protective rear wire guard bars over the exposed aluminum fins
+    [-0.18, 0, 0.18].forEach((ry) => {
+      const rearWire = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.004, 0.004, outW - 0.12, 8),
+        whiteTrim
+      );
+      rearWire.rotation.z = Math.PI / 2;
+      rearWire.position.set(-0.04, ry, -outD / 2 - 0.012);
+      acGroup.add(rearWire);
+    });
+
+    // Left intake coil core + stamped white louver slats
+    const leftCoilFins = new THREE.Mesh(
+      new THREE.BoxGeometry(0.012, outH - 0.10, outD - 0.10),
+      finMat
+    );
+    leftCoilFins.position.set(-outW / 2 - 0.002, 0, -0.015);
+    acGroup.add(leftCoilFins);
+
+    for (let s = -4; s <= 4; s++) {
+      const slat = new THREE.Mesh(
+        new THREE.BoxGeometry(0.014, 0.01, outD - 0.09),
+        whiteTrim
+      );
+      slat.position.set(-outW / 2 - 0.008, s * 0.052, -0.015);
+      slat.rotation.z = -0.35;
+      acGroup.add(slat);
+    }
+
+    // Recessed right & left side carry grips
+    [-outW / 2 - 0.002, outW / 2 + 0.002].forEach((gx) => {
+      const grip = new THREE.Mesh(
+        new THREE.BoxGeometry(0.01, 0.045, 0.10),
+        darkCavity
+      );
+      grip.position.set(gx, outH * 0.30, 0.02);
+      acGroup.add(grip);
+    });
+
+    // 8. Right-Side Brass Service Valves, Bare Copper Stubs & White Insulated Line-Set Conduit
+    const valveBox = new THREE.Mesh(
+      new THREE.BoxGeometry(0.042, 0.22, 0.14),
+      whiteTrim
+    );
+    valveBox.position.set(outW / 2 + 0.016, -outH * 0.18, -0.04);
+    valveBox.castShadow = true;
+    acGroup.add(valveBox);
+
+    [-0.14, -0.22].forEach((vy) => {
+      const valve = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.016, 0.016, 0.036, 12),
+        brassMat
+      );
+      valve.rotation.z = Math.PI / 2;
+      valve.position.set(outW / 2 + 0.04, vy, -0.02);
+      acGroup.add(valve);
+
+      const copperStub = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.008, 0.008, 0.055, 10),
+        copperMat
+      );
+      copperStub.rotation.z = Math.PI / 2;
+      copperStub.position.set(outW / 2 + 0.055, vy, -0.02);
+      acGroup.add(copperStub);
+    });
+
+    // Smooth curved twin insulated white refrigerant lines routing directly into wall gland flange
+    const wallLocalZ = -(outD / 2 + wallGap);
+    [0.018, -0.018].forEach((zOff, idx) => {
+      const yOff = idx === 0 ? -0.14 : -0.22;
+      const lineCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(outW / 2 + 0.075, yOff, -0.02 + zOff * 0.5),
+        new THREE.Vector3(outW / 2 + 0.095, yOff + 0.05, -outD * 0.22 + zOff * 0.4),
+        new THREE.Vector3(outW / 2 + 0.045, yOff + 0.22, wallLocalZ + 0.04),
+        new THREE.Vector3(outW * 0.36, 0.14, wallLocalZ),
+      ]);
+      const lineTube = new THREE.Mesh(
+        new THREE.TubeGeometry(lineCurve, 18, 0.014, 10, false),
+        whiteTrim
+      );
+      lineTube.castShadow = true;
+      acGroup.add(lineTube);
+    });
+
+    // Weatherproof white wall penetration gland collar flush against exterior wall
+    const wallGland = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.044, 0.048, 0.032, 16),
+      whiteTrim
+    );
+    wallGland.rotation.x = Math.PI / 2;
+    wallGland.position.set(outW * 0.36, 0.14, wallLocalZ + 0.014);
+    acGroup.add(wallGland);
+
+    // Grey flexible condensate drain elbow exiting downward
+    const drainCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(outW * 0.32, -outH / 2 - 0.01, -0.04),
+      new THREE.Vector3(outW * 0.32, -outH / 2 - 0.10, -0.05),
+      new THREE.Vector3(outW * 0.34, -outH / 2 - 0.16, -0.09),
+    ]);
+    const drainHose = new THREE.Mesh(
+      new THREE.TubeGeometry(drainCurve, 10, 0.011, 8, false),
+      metalTrim
+    );
+    acGroup.add(drainHose);
+
+    // 9. Stamped White Condenser Feet + Powder-Coated White Heavy-Duty L-Brackets & Black Rubber Pads
+    [-outW * 0.34, outW * 0.34].forEach((bx) => {
+      // Condenser mounting foot
+      const unitFoot = new THREE.Mesh(
+        new THREE.BoxGeometry(0.068, 0.022, outD + 0.05),
+        whiteTrim
+      );
+      unitFoot.position.set(bx, -outH / 2 - 0.018, 0);
+      unitFoot.castShadow = true;
+      acGroup.add(unitFoot);
+
+      // Black EPDM rubber isolator pads + stainless hex bolts
+      [-outD * 0.34, outD * 0.34].forEach((pz) => {
+        const pad = new THREE.Mesh(
+          new THREE.BoxGeometry(0.048, 0.014, 0.048),
+          rubberMat
+        );
+        pad.position.set(bx, -outH / 2 - 0.036, pz);
+        acGroup.add(pad);
+
+        const bolt = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.007, 0.007, 0.016, 6),
+          materials.windowHardwareMaterial || metalTrim
+        );
+        bolt.position.set(bx, -outH / 2 - 0.006, pz);
+        acGroup.add(bolt);
+      });
+
+      // Horizontal bracket arm
+      const hArm = new THREE.Mesh(
+        new THREE.BoxGeometry(0.048, 0.034, outD + wallGap + 0.02),
+        whiteMat
+      );
+      hArm.position.set(bx, -outH / 2 - 0.058, -wallGap / 2 - 0.01);
+      hArm.castShadow = true;
+      acGroup.add(hArm);
+
+      // Vertical wall-mounted bracket plate flush on wallOuterZ
+      const vArm = new THREE.Mesh(
+        new THREE.BoxGeometry(0.052, 0.36, 0.026),
+        whiteMat
+      );
+      vArm.position.set(bx, -outH / 2 - 0.18, wallLocalZ + 0.013);
+      vArm.castShadow = true;
+      acGroup.add(vArm);
+
+      // Angled structural diagonal brace
+      const brace = new THREE.Mesh(
+        new THREE.BoxGeometry(0.032, 0.026, 0.28),
+        whiteMat
+      );
+      brace.position.set(bx, -outH / 2 - 0.16, wallLocalZ + 0.11);
+      brace.rotation.x = Math.PI / 4;
+      acGroup.add(brace);
+    });
+
+    acGroup.position.set(outX, outY, wallOuterZ - outD / 2 - wallGap);
+    acGroup.rotation.y = Math.PI;
+    return acGroup;
   };
 
   // Helper: Mechanical Folding Leveling Jack Leg (for expanded wings)
@@ -950,12 +1447,20 @@ export function buildHomeModel(
       const numSideWindows = is40ft ? 3 : is10ft ? 1 : 2;
       // Doors and windows come in sleek architectural black by default:
       const isWhiteWin = false;
+      const activeWindowStyle =
+        state.windowStyle ||
+        (state.glazing === 'casement-window' ||
+        state.glazing === 'sliding-window' ||
+        state.glazing === 'tophanging-window' ||
+        state.glazing === 'overhanging-window'
+          ? state.glazing
+          : 'sliding-window');
       const winType: 'sliding' | 'casement' | 'tophanging' | 'overhanging' =
-        state.glazing === 'casement-window'
+        activeWindowStyle === 'casement-window'
           ? 'casement'
-          : state.glazing === 'tophanging-window'
+          : activeWindowStyle === 'tophanging-window'
           ? 'tophanging'
-          : state.glazing === 'overhanging-window'
+          : activeWindowStyle === 'overhanging-window'
           ? 'overhanging'
           : 'sliding';
 
@@ -1092,7 +1597,7 @@ export function buildHomeModel(
       // Install High-Precision Architectural Window Units in rear apertures
       [rx1, rx2].forEach((rx) => {
         const rearWinUnit = createArchitecturalWindowUnit({
-          type: 'sliding',
+          type: winType,
           width: winW,
           height: winH,
           wallThickness: wallT,
@@ -1474,10 +1979,6 @@ export function buildHomeModel(
       // Features hollow frames, projecting sloped sills, and realistic operable sashes
       // Supports Casement (with open sash & stay arm!), Sliding, Tophanging, and Overhanging
       // =======================================================================
-      const isCasementWin = state.glazing === 'casement-window';
-      const isTopHangingWin = state.glazing === 'tophanging-window';
-      const isOverhangingWin = state.glazing === 'overhanging-window';
-
       // Wing front wall panels & centered windows
       [-1, 1].forEach((dir) => {
         const wingCenterX = dir * (coreWidth / 2 + wingWidth / 2);
@@ -1512,7 +2013,7 @@ export function buildHomeModel(
 
         // Install High-Precision Architectural Window Unit in front wing opening
         const frontWinUnit = createArchitecturalWindowUnit({
-          type: isCasementWin ? 'casement' : isTopHangingWin ? 'tophanging' : isOverhangingWin ? 'overhanging' : 'sliding',
+          type: winType,
           width: winW,
           height: winH,
           wallThickness: wallT,
@@ -2103,22 +2604,49 @@ export function buildHomeModel(
     dRight.position.set(doorXPos + glassDoorW / 2 - frameT / 2, frontGlassCenterY, frontElevationZ);
     frontWallGroup.add(dTop, dBot, dLeft, dRight);
 
-    // Double glass door panels
+    // Double glass door panels (respects state.glazing Main Entrance Door style)
+    const isCabinDouble =
+      state.glazing === 'broken-bridge-double-door' ||
+      state.glazing === 'aluminum-alloy-double-door' ||
+      state.glazing === 'kfc-double-door';
+    const isCabinGrille =
+      state.glazing === 'broken-bridge-grille-door' ||
+      state.glazing === 'aluminum-alloy-double-door';
+
     if (glassDoorW > 1.5) {
-      // Sliding patio door (two bypass panes)
       const halfDoorW = glassDoorW / 2 - 0.02;
       const doorPaneL = new THREE.Mesh(
         new THREE.BoxGeometry(halfDoorW, glassDoorH - 0.08, 0.024),
         materials.glassMaterial
       );
-      doorPaneL.position.set(doorXPos - halfDoorW / 2 + 0.01, frontGlassCenterY, frontElevationZ - 0.012);
+      doorPaneL.position.set(doorXPos - halfDoorW / 2 + 0.01, frontGlassCenterY, frontElevationZ + (isCabinDouble ? 0 : -0.012));
 
       const doorPaneR = new THREE.Mesh(
         new THREE.BoxGeometry(halfDoorW, glassDoorH - 0.08, 0.024),
         materials.glassMaterial
       );
-      doorPaneR.position.set(doorXPos + halfDoorW / 2 - 0.01, frontGlassCenterY, frontElevationZ + 0.012);
+      doorPaneR.position.set(doorXPos + halfDoorW / 2 - 0.01, frontGlassCenterY, frontElevationZ + (isCabinDouble ? 0 : 0.012));
       frontWallGroup.add(doorPaneL, doorPaneR);
+
+      if (isCabinDouble) {
+        const centerAstragal = new THREE.Mesh(
+          new THREE.BoxGeometry(0.04, glassDoorH - 0.06, 0.045),
+          materials.chassisMaterial
+        );
+        centerAstragal.position.set(doorXPos, frontGlassCenterY, frontElevationZ + 0.01);
+        frontWallGroup.add(centerAstragal);
+      }
+
+      if (isCabinGrille) {
+        for (let gx = -glassDoorW / 2 + 0.22; gx <= glassDoorW / 2 - 0.22; gx += 0.24) {
+          const bar = new THREE.Mesh(
+            new THREE.BoxGeometry(0.018, glassDoorH - 0.12, 0.018),
+            materials.chassisMaterial
+          );
+          bar.position.set(doorXPos + gx, frontGlassCenterY, frontElevationZ + 0.025);
+          frontWallGroup.add(bar);
+        }
+      }
     } else {
       // Single full-vision swing patio door
       const singlePane = new THREE.Mesh(
@@ -2129,13 +2657,24 @@ export function buildHomeModel(
       frontWallGroup.add(singlePane);
     }
 
-    // Vertical stainless steel architectural pull handle
-    const pullHandle = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.014, 0.014, 0.75, 12),
-      materials.metalTrimMaterial
-    );
-    pullHandle.position.set(doorXPos + (glassDoorW > 1.5 ? 0.06 : glassDoorW / 2 - 0.08), frontGlassCenterY - 0.1, frontElevationZ + 0.045);
-    frontWallGroup.add(pullHandle);
+    // Vertical stainless steel architectural pull handle(s)
+    if (state.glazing === 'kfc-double-door' || isCabinDouble) {
+      [-0.08, 0.08].forEach((hx) => {
+        const pull = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.014, 0.014, state.glazing === 'kfc-double-door' ? 1.1 : 0.75, 12),
+          materials.metalTrimMaterial
+        );
+        pull.position.set(doorXPos + hx, frontGlassCenterY - 0.05, frontElevationZ + 0.048);
+        frontWallGroup.add(pull);
+      });
+    } else {
+      const pullHandle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.014, 0.014, 0.75, 12),
+        materials.metalTrimMaterial
+      );
+      pullHandle.position.set(doorXPos + (glassDoorW > 1.5 ? 0.06 : glassDoorW / 2 - 0.08), frontGlassCenterY - 0.1, frontElevationZ + 0.045);
+      frontWallGroup.add(pullHandle);
+    }
 
     if (state.hasSmartDoorLock) {
       const lockKeypad = new THREE.Mesh(
@@ -2678,8 +3217,15 @@ export function buildHomeModel(
     roofGroup.add(pitchGroup);
   }
 
-  if (state.roofOption === 'solar-array-3kw' || state.roofOption === 'solar-deck-combo') {
-    const solarCount = length > 9 ? 6 : length > 6 ? 4 : 2;
+  const hasAddonSolar = Boolean(
+    state.hasSolarBattery3kw || state.hasSolarBattery6kw || state.hasSolarBattery10kw
+  );
+  if (state.roofOption === 'solar-array-3kw' || state.roofOption === 'solar-deck-combo' || hasAddonSolar) {
+    const solarCount = state.hasSolarBattery10kw
+      ? (length > 9 ? 8 : length > 6 ? 6 : 4)
+      : state.hasSolarBattery6kw
+      ? (length > 9 ? 6 : length > 6 ? 5 : 3)
+      : (length > 9 ? 6 : length > 6 ? 4 : 2);
     const solarArray = createDetailedSolarArray(solarCount, state.roofOption === 'solar-deck-combo' ? -length * 0.22 : 0, 0);
     solarGroup.add(solarArray);
   }
@@ -2697,8 +3243,292 @@ export function buildHomeModel(
     rootGroup.add(stairs);
   }
 
+  // -------------------------------------------------------------------------
+  // ROOFTOP STARLINK SATELLITE TERMINAL (RECTANGULAR PHASED ARRAY + X-BASE)
+  // -------------------------------------------------------------------------
+  const createRooftopSatelliteDish = (
+    mountX: number,
+    mountRoofTopY: number,
+    mountZ: number,
+    mastHeight = 0.36
+  ) => {
+    const satRoot = new THREE.Group();
+    satRoot.position.set(mountX, mountRoofTopY, mountZ);
+
+    // Distinct PBR materials per Three.js material contrast guidelines
+    const radomeWhiteMat = new THREE.MeshStandardMaterial({
+      color: '#f8fafc',
+      roughness: 0.62,
+      metalness: 0.04,
+    });
+    const backShellMat = new THREE.MeshStandardMaterial({
+      color: '#e2e8f0',
+      roughness: 0.44,
+      metalness: 0.12,
+    });
+    const edgeTrimMat = new THREE.MeshStandardMaterial({
+      color: '#64748b',
+      roughness: 0.36,
+      metalness: 0.45,
+    });
+    const xBaseAlloyMat = new THREE.MeshStandardMaterial({
+      color: '#7c828a',
+      roughness: 0.48,
+      metalness: 0.38,
+    });
+    const mastShaftMat = new THREE.MeshStandardMaterial({
+      color: '#6b7280',
+      roughness: 0.32,
+      metalness: 0.58,
+    });
+    const darkSealMat = new THREE.MeshStandardMaterial({
+      color: '#1e293b',
+      roughness: 0.72,
+      metalness: 0.15,
+    });
+
+    // 1. Sculpted 4-Legged Splayed X-Frame Roof Base (flush at Y = 0)
+    const hubSocket = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.044, 0.058, 0.095, 20),
+      xBaseAlloyMat
+    );
+    hubSocket.position.set(0, 0.068, 0);
+    hubSocket.castShadow = true;
+    hubSocket.receiveShadow = true;
+    satRoot.add(hubSocket);
+
+    // Lower hub release detent collar detail
+    const latchCollar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.036, 0.038, 0.022, 16),
+      darkSealMat
+    );
+    latchCollar.position.set(0, 0.118, 0);
+    satRoot.add(latchCollar);
+
+    // Tapered leg side profile extruded cleanly so outer tips touch Y = 0
+    const legShape = new THREE.Shape();
+    legShape.moveTo(0.02, 0.035);
+    legShape.lineTo(0.28, 0.0);
+    legShape.lineTo(0.35, 0.0);
+    legShape.lineTo(0.35, 0.015);
+    legShape.lineTo(0.035, 0.092);
+    legShape.closePath();
+
+    const legGeo = new THREE.ExtrudeGeometry(legShape, {
+      depth: 0.026,
+      bevelEnabled: true,
+      bevelThickness: 0.005,
+      bevelSize: 0.004,
+      bevelSegments: 2,
+    });
+    legGeo.translate(0, 0, -0.013);
+
+    for (let i = 0; i < 4; i++) {
+      const legHolder = new THREE.Group();
+      legHolder.rotation.y = Math.PI / 4 + (i * Math.PI) / 2;
+
+      const legMesh = new THREE.Mesh(legGeo, xBaseAlloyMat);
+      legMesh.position.y = 0.004;
+      legMesh.castShadow = true;
+      legMesh.receiveShadow = true;
+      legHolder.add(legMesh);
+
+      // Stainless roof anchor fastener seated in each outer foot tip eyelet
+      const anchorBolt = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.008, 0.008, 0.018, 8),
+        darkSealMat
+      );
+      anchorBolt.position.set(0.325, 0.01, 0);
+      legHolder.add(anchorBolt);
+
+      satRoot.add(legHolder);
+    }
+
+    // Compact waterproof coax cable gland neatly tucked beside center mast
+    const coaxGland = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.016, 0.02, 0.024, 12),
+      darkSealMat
+    );
+    coaxGland.position.set(-0.085, 0.012, -0.07);
+    satRoot.add(coaxGland);
+
+    // 2. Vertical Anodized Mast Pole
+    const mastStartY = 0.095;
+    const mastMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.025, 0.027, mastHeight, 20),
+      mastShaftMat
+    );
+    mastMesh.position.set(0, mastStartY + mastHeight / 2, 0);
+    mastMesh.castShadow = true;
+    satRoot.add(mastMesh);
+
+    const mastTopY = mastStartY + mastHeight;
+
+    // 3. Rectangular Phased-Array Dish Assembly (Sleek 5:3 White Face + Tapered Rear Spine)
+    const dishPivot = new THREE.Group();
+    dishPivot.position.set(0, mastTopY + 0.015, 0);
+    dishPivot.rotation.order = 'YXZ';
+    // Orient tilted face skyward & angled toward front-right exterior camera
+    dishPivot.rotation.y = Math.PI * 0.2;
+    dishPivot.rotation.x = 0.64; // ~37 deg architectural tilt matching Starlink profile
+
+    const dishW = 0.46; // Width along local X
+    const dishL = 0.76; // Length along local Z
+    const cornerR = 0.036;
+
+    const createRoundedRectShape = (w: number, l: number, r: number) => {
+      const s = new THREE.Shape();
+      const hw = w / 2;
+      const hl = l / 2;
+      s.moveTo(-hw + r, -hl);
+      s.lineTo(hw - r, -hl);
+      s.quadraticCurveTo(hw, -hl, hw, -hl + r);
+      s.lineTo(hw, hl - r);
+      s.quadraticCurveTo(hw, hl, hw - r, hl);
+      s.lineTo(-hw + r, hl);
+      s.quadraticCurveTo(-hw, hl, -hw, hl - r);
+      s.lineTo(-hw, -hl + r);
+      s.quadraticCurveTo(-hw, -hl, -hw + r, -hl);
+      return s;
+    };
+
+    // Main matte-white top phased-array radome plate
+    const topPlateGeo = new THREE.ExtrudeGeometry(
+      createRoundedRectShape(dishW, dishL, cornerR),
+      {
+        depth: 0.012,
+        bevelEnabled: true,
+        bevelThickness: 0.004,
+        bevelSize: 0.004,
+        bevelSegments: 2,
+      }
+    );
+    topPlateGeo.rotateX(-Math.PI / 2);
+    const topPlate = new THREE.Mesh(topPlateGeo, radomeWhiteMat);
+    topPlate.position.set(0, 0.014, 0);
+    topPlate.castShadow = true;
+    topPlate.receiveShadow = true;
+    dishPivot.add(topPlate);
+
+    // Subtle dark hairline gasket trim band along outer perimeter edge
+    const trimPlateGeo = new THREE.ExtrudeGeometry(
+      createRoundedRectShape(dishW + 0.006, dishL + 0.006, cornerR + 0.002),
+      {
+        depth: 0.006,
+        bevelEnabled: false,
+      }
+    );
+    trimPlateGeo.rotateX(-Math.PI / 2);
+    const trimPlate = new THREE.Mesh(trimPlateGeo, edgeTrimMat);
+    trimPlate.position.set(0, 0.008, 0);
+    dishPivot.add(trimPlate);
+
+    // Sculpted Tapered Rear Housing Pan underneath white top face
+    const backPanGeo = new THREE.ExtrudeGeometry(
+      createRoundedRectShape(dishW * 0.88, dishL * 0.88, cornerR * 0.8),
+      {
+        depth: 0.018,
+        bevelEnabled: true,
+        bevelThickness: 0.01,
+        bevelSize: 0.016,
+        bevelSegments: 2,
+      }
+    );
+    backPanGeo.rotateX(-Math.PI / 2);
+    const backPan = new THREE.Mesh(backPanGeo, backShellMat);
+    backPan.position.set(0, -0.01, 0);
+    backPan.castShadow = true;
+    dishPivot.add(backPan);
+
+    // Central Underside Spine Rib & Motorized Mast Socket Coupling
+    const spineGeo = new THREE.ExtrudeGeometry(
+      createRoundedRectShape(0.11, dishL * 0.56, 0.03),
+      {
+        depth: 0.034,
+        bevelEnabled: true,
+        bevelThickness: 0.012,
+        bevelSize: 0.014,
+        bevelSegments: 2,
+      }
+    );
+    spineGeo.rotateX(-Math.PI / 2);
+    const spineMesh = new THREE.Mesh(spineGeo, backShellMat);
+    spineMesh.position.set(0, -0.044, -0.02);
+    spineMesh.castShadow = true;
+    dishPivot.add(spineMesh);
+
+    // Tilted neck barrel connecting mast to underside spine
+    const neckBarrel = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.029, 0.033, 0.075, 16),
+      mastShaftMat
+    );
+    neckBarrel.position.set(0, -0.055, -0.04);
+    neckBarrel.rotation.x = -0.32;
+    dishPivot.add(neckBarrel);
+
+    satRoot.add(dishPivot);
+    return satRoot;
+  };
+
+  if (state.hasSatelliteInternet) {
+    let satX = 0;
+    let satY = roofBaseY;
+    let satZ = 0;
+    let satMastH = 0.44;
+
+    if (state.roofOption === 'pitched-roof' || state.roofOption === 'pitched-terrace-combo') {
+      // Mount squarely atop the pitched gable roof ridge cap
+      satY = roofBaseY + 0.55 + 0.06;
+      satX = state.roofOption === 'pitched-terrace-combo' ? -length * 0.36 : length * 0.34;
+      satZ = 0;
+      satMastH = 0.42;
+    } else if (modelSeries === 'expandable') {
+      // Mount on the rigid 2.2m central core roof (works in both expanded and 2.2m folded modes)
+      satY = height + 0.15 + 0.16;
+      satX = 0.55;
+      satZ = houseDepth / 2 - 0.55;
+      if (state.roofOption === 'rooftop-terrace-deck' || state.roofOption === 'solar-deck-combo') {
+        satZ = houseDepth / 2 - 0.28;
+        satMastH = 1.05;
+      }
+    } else if (modelSeries === 'space-capsule') {
+      // Capsule aerodynamic roof cap height (clear of central skylight & solar panels)
+      satY = height + 0.15 + 0.03;
+      satX = -length * 0.38;
+      satZ = depth * 0.28;
+    } else if (modelSeries === 'folding') {
+      satY = roofBaseY;
+      satX = length * 0.36;
+      satZ = depth * 0.28;
+    } else if (isAC03) {
+      // AC03 walkable terrace: mount at rear-right corner rising cleanly above the 0.84m glass rail
+      satY = roofBaseY + 0.04;
+      satX = length / 2 - 0.34;
+      satZ = -depth / 2 + 0.28;
+      satMastH = 1.02;
+    } else if (isDuplex) {
+      // Two-storey duplex upper roof top surface
+      const upperDeckTopY = isAD01 ? 4.98 : 4.96;
+      const upperCenterX = 1.85 / 2;
+      satY = upperDeckTopY;
+      satX = upperCenterX + 5.8 * 0.34;
+      satZ = 2.2 * 0.26;
+    } else {
+      // Standard Apple Cabin (AC01, AC02, AC04)
+      satY = roofBaseY;
+      satX = -length * 0.38;
+      satZ = depth * 0.28;
+      if (state.roofOption === 'rooftop-terrace-deck' || state.roofOption === 'solar-deck-combo') {
+        satMastH = 1.05;
+      }
+    }
+
+    satelliteGroup.add(createRooftopSatelliteDish(satX, satY, satZ, satMastH));
+  }
+
   roofGroup.add(solarGroup);
   roofGroup.add(terraceGroup);
+  roofGroup.add(satelliteGroup);
   rootGroup.add(roofGroup);
 
   // =========================================================================
@@ -2759,60 +3589,195 @@ export function buildHomeModel(
         isAlongZ = true,
         addDoorLeaf = true
       ) => {
+        const roomStyle = state.interiorDoor || 'room-solid-flush-oak';
         const headerH = height - doorH;
+        const isFrameless = roomStyle === 'room-invisible-flush-wall';
+        const isBarn = roomStyle === 'room-barn-sliding-black';
+        const isPocket = roomStyle === 'room-pocket-sliding-oak';
+        const isGlassLoft = roomStyle === 'room-glass-inlay-loft';
+
+        const frameMat = isFrameless
+          ? materials.bambooCharcoalWallMaterial
+          : new THREE.MeshStandardMaterial({
+              color: roomStyle === 'room-modern-grooved-white' ? 0xe2e8f0 : 0x18181b,
+              roughness: 0.45,
+              metalness: 0.25,
+            });
+
+        const getRoomDoorMaterial = () => {
+          switch (roomStyle) {
+            case 'room-modern-grooved-white':
+              return new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.35, metalness: 0.05 });
+            case 'room-matte-black-shaker':
+              return new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.5, metalness: 0.15 });
+            case 'room-walnut-vertical-slat':
+              return new THREE.MeshStandardMaterial({ color: 0x5c3c24, roughness: 0.45, metalness: 0.08 });
+            case 'room-steel-wood-armored':
+              return new THREE.MeshStandardMaterial({ color: 0x7c5338, roughness: 0.4, metalness: 0.25 });
+            case 'room-glass-inlay-loft':
+              return new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.35, metalness: 0.45 });
+            case 'room-barn-sliding-black':
+              return new THREE.MeshStandardMaterial({ color: 0x92623a, roughness: 0.5, metalness: 0.08 });
+            case 'room-pocket-sliding-oak':
+              return new THREE.MeshStandardMaterial({ color: 0xb08960, roughness: 0.45, metalness: 0.05 });
+            case 'room-invisible-flush-wall':
+              return materials.bambooCharcoalWallMaterial;
+            case 'room-solid-hardwood-teak':
+              return new THREE.MeshStandardMaterial({ color: 0x6b4226, roughness: 0.38, metalness: 0.08 });
+            case 'room-solid-flush-oak':
+            default:
+              return materials.woodDeckMaterial || materials.cabinetMaterial;
+          }
+        };
+
+        const leafMat = getRoomDoorMaterial();
+        const darkHandleMat =
+          roomStyle === 'room-walnut-vertical-slat' || roomStyle === 'room-solid-hardwood-teak'
+            ? materials.brassHandleMaterial || materials.metalTrimMaterial
+            : new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.35, metalness: 0.7 });
+
         if (isAlongZ) {
-          // Door along X axis (wall runs along Z)
           const header = new THREE.Mesh(new THREE.BoxGeometry(intWallT, headerH, doorW), materials.bambooCharcoalWallMaterial);
           header.position.set(doorX, 0.15 + doorH + headerH / 2, doorZ);
-          const f1 = new THREE.Mesh(new THREE.BoxGeometry(intWallT + 0.02, doorH, 0.05), materials.metalTrimMaterial);
-          f1.position.set(doorX, 0.15 + doorH / 2, doorZ - doorW / 2);
-          const f2 = new THREE.Mesh(new THREE.BoxGeometry(intWallT + 0.02, doorH, 0.05), materials.metalTrimMaterial);
-          f2.position.set(doorX, 0.15 + doorH / 2, doorZ + doorW / 2);
-          target.add(header, f1, f2);
+          target.add(header);
 
-          // Wood door leaf swung ajar into the room
+          if (!isFrameless) {
+            const f1 = new THREE.Mesh(new THREE.BoxGeometry(intWallT + 0.02, doorH, 0.045), frameMat);
+            f1.position.set(doorX, 0.15 + doorH / 2, doorZ - doorW / 2);
+            const f2 = new THREE.Mesh(new THREE.BoxGeometry(intWallT + 0.02, doorH, 0.045), frameMat);
+            f2.position.set(doorX, 0.15 + doorH / 2, doorZ + doorW / 2);
+            target.add(f1, f2);
+          }
+
           if (addDoorLeaf) {
-            const doorThick = 0.035;
-            const doorLeaf = new THREE.Mesh(
-              new THREE.BoxGeometry(doorThick, doorH - 0.03, doorW - 0.02),
-              materials.woodDeckMaterial || materials.cabinetMaterial
-            );
+            const doorThick = 0.036;
             const swingDir = doorX > 0 ? 1 : -1;
-            doorLeaf.rotation.y = swingDir * 0.95;
-            doorLeaf.position.set(
-              doorX + swingDir * 0.28,
-              0.15 + (doorH - 0.03) / 2,
-              doorZ - doorW / 4
-            );
-            const handle = new THREE.Mesh(
-              new THREE.BoxGeometry(0.10, 0.025, 0.06),
-              materials.brassHandleMaterial || materials.metalTrimMaterial
-            );
-            handle.position.set(
-              doorLeaf.position.x + swingDir * 0.03,
-              0.15 + 1.0,
-              doorLeaf.position.z + 0.22
-            );
-            target.add(doorLeaf, handle);
+
+            if (isBarn || isPocket) {
+              // Sliding leaf (either outside track or half-retracted pocket)
+              const offsetSide = isBarn ? swingDir * (intWallT / 2 + 0.032) : 0;
+              if (isBarn) {
+                const rail = new THREE.Mesh(
+                  new THREE.BoxGeometry(0.022, 0.04, doorW * 1.9),
+                  new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.35, metalness: 0.75 })
+                );
+                rail.position.set(doorX + offsetSide, 0.15 + doorH + 0.07, doorZ + doorW * 0.32);
+                target.add(rail);
+              }
+              const leafZ = doorZ + doorW * (isPocket ? 0.56 : 0.44);
+              const doorLeaf = new THREE.Mesh(
+                new THREE.BoxGeometry(doorThick, doorH - 0.03, doorW - 0.02),
+                leafMat
+              );
+              doorLeaf.position.set(doorX + offsetSide, 0.15 + (doorH - 0.03) / 2, leafZ);
+              target.add(doorLeaf);
+
+              const pullBar = new THREE.Mesh(
+                new THREE.BoxGeometry(0.015, 0.24, 0.025),
+                darkHandleMat
+              );
+              pullBar.position.set(
+                doorLeaf.position.x + swingDir * 0.024,
+                0.15 + 1.05,
+                leafZ - doorW * 0.32
+              );
+              target.add(pullBar);
+            } else {
+              const doorGroup = new THREE.Group();
+              const leafLength = doorW - 0.02;
+              const leafHeight = doorH - 0.03;
+              doorGroup.position.set(doorX, 0.15 + leafHeight / 2, doorZ - doorW / 2 + 0.01);
+              doorGroup.rotation.y = swingDir * -0.78;
+
+              if (isGlassLoft) {
+                // Perimeter black frame + frosted tempered glass panel
+                const stileMat = frameMat;
+                const sTop = new THREE.Mesh(new THREE.BoxGeometry(doorThick, 0.06, leafLength), stileMat);
+                sTop.position.set(0, leafHeight / 2 - 0.03, leafLength / 2);
+                const sBot = new THREE.Mesh(new THREE.BoxGeometry(doorThick, 0.08, leafLength), stileMat);
+                sBot.position.set(0, -leafHeight / 2 + 0.04, leafLength / 2);
+                const sL = new THREE.Mesh(new THREE.BoxGeometry(doorThick, leafHeight, 0.055), stileMat);
+                sL.position.set(0, 0, 0.028);
+                const sR = new THREE.Mesh(new THREE.BoxGeometry(doorThick, leafHeight, 0.055), stileMat);
+                sR.position.set(0, 0, leafLength - 0.028);
+                const frostedPane = new THREE.Mesh(
+                  new THREE.BoxGeometry(0.012, leafHeight - 0.14, leafLength - 0.11),
+                  new THREE.MeshPhysicalMaterial({
+                    color: 0xe2e8f0,
+                    roughness: 0.45,
+                    metalness: 0.05,
+                    transmission: 0.45,
+                    transparent: true,
+                    opacity: 0.85,
+                  })
+                );
+                frostedPane.position.set(0, -0.01, leafLength / 2);
+                doorGroup.add(sTop, sBot, sL, sR, frostedPane);
+              } else {
+                const doorLeaf = new THREE.Mesh(
+                  new THREE.BoxGeometry(doorThick, leafHeight, leafLength),
+                  leafMat
+                );
+                doorLeaf.position.set(0, 0, leafLength / 2);
+                doorLeaf.castShadow = true;
+                doorGroup.add(doorLeaf);
+
+                if (roomStyle === 'room-modern-grooved-white') {
+                  [-0.48, -0.16, 0.16, 0.48].forEach((gy) => {
+                    const g = new THREE.Mesh(
+                      new THREE.BoxGeometry(doorThick + 0.004, 0.012, leafLength - 0.1),
+                      new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.5 })
+                    );
+                    g.position.set(0, gy, leafLength / 2);
+                    doorGroup.add(g);
+                  });
+                } else if (roomStyle === 'room-matte-black-shaker') {
+                  [-0.55, 0, 0.55].forEach((py) => {
+                    const panel = new THREE.Mesh(
+                      new THREE.BoxGeometry(doorThick + 0.005, 0.42, leafLength - 0.18),
+                      new THREE.MeshStandardMaterial({ color: 0x27272a, roughness: 0.55 })
+                    );
+                    panel.position.set(0, py, leafLength / 2);
+                    doorGroup.add(panel);
+                  });
+                } else if (roomStyle === 'room-walnut-vertical-slat') {
+                  const brassLine = new THREE.Mesh(
+                    new THREE.BoxGeometry(doorThick + 0.005, leafHeight - 0.08, 0.014),
+                    materials.brassHandleMaterial || materials.metalTrimMaterial
+                  );
+                  brassLine.position.set(0, 0, leafLength - 0.14);
+                  doorGroup.add(brassLine);
+                }
+              }
+
+              const handle = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.022, 0.11), darkHandleMat);
+              handle.position.set(0, -leafHeight / 2 + 1.0, leafLength - 0.1);
+              doorGroup.add(handle);
+              target.add(doorGroup);
+            }
           }
         } else {
           // Door along Z axis (wall runs along X)
           const header = new THREE.Mesh(new THREE.BoxGeometry(doorW, headerH, intWallT), materials.bambooCharcoalWallMaterial);
           header.position.set(doorX, 0.15 + doorH + headerH / 2, doorZ);
-          const f1 = new THREE.Mesh(new THREE.BoxGeometry(0.05, doorH, intWallT + 0.02), materials.metalTrimMaterial);
-          f1.position.set(doorX - doorW / 2, 0.15 + doorH / 2, doorZ);
-          const f2 = new THREE.Mesh(new THREE.BoxGeometry(0.05, doorH, intWallT + 0.02), materials.metalTrimMaterial);
-          f2.position.set(doorX + doorW / 2, 0.15 + doorH / 2, doorZ);
-          target.add(header, f1, f2);
+          target.add(header);
+
+          if (!isFrameless) {
+            const f1 = new THREE.Mesh(new THREE.BoxGeometry(0.045, doorH, intWallT + 0.02), frameMat);
+            f1.position.set(doorX - doorW / 2, 0.15 + doorH / 2, doorZ);
+            const f2 = new THREE.Mesh(new THREE.BoxGeometry(0.045, doorH, intWallT + 0.02), frameMat);
+            f2.position.set(doorX + doorW / 2, 0.15 + doorH / 2, doorZ);
+            target.add(f1, f2);
+          }
 
           if (addDoorLeaf) {
-            const doorThick = 0.035;
+            const doorThick = 0.036;
             const doorLeaf = new THREE.Mesh(
               new THREE.BoxGeometry(doorW - 0.02, doorH - 0.03, doorThick),
-              materials.woodDeckMaterial || materials.cabinetMaterial
+              leafMat
             );
-            doorLeaf.rotation.y = 0.95;
-            doorLeaf.position.set(doorX - doorW / 4, 0.15 + (doorH - 0.03) / 2, doorZ + 0.28);
+            doorLeaf.rotation.y = 0.78;
+            doorLeaf.position.set(doorX - doorW / 4, 0.15 + (doorH - 0.03) / 2, doorZ + 0.25);
             target.add(doorLeaf);
           }
         }
@@ -3923,51 +4888,153 @@ export function buildHomeModel(
         threshold.position.set(doorOpeningX, 0.15 + 0.0075, frontWallZ);
         bathGroup.add(headerJamb, threshold);
 
-        // Entrance Access Door Leaf: Modern acoustic timber door swung open ajar (~22 deg into restroom)
+        // Entrance Access Door Leaf: Reflects selected state.bathroomDoor style
+        const bathDoorStyle = state.bathroomDoor || 'bath-wpc-waterproof-white';
         const doorThick = 0.038;
         const doorLeafW = bDoorW - 0.02;
         const doorLeafH = bDoorH - 0.03;
         const doorHingeX = doorOpeningX - bDoorW / 2 + 0.015; // Hinge on left jamb
-        const doorSwingAngle = 0.38; // ~22 degrees open
+        const isBathPocket = bathDoorStyle === 'bath-pocket-sliding-wetroom';
+        const doorSwingAngle = isBathPocket ? 0 : 0.38; // ~22 degrees open
 
         const doorGroup = new THREE.Group();
-        doorGroup.position.set(doorHingeX, 0.15 + doorLeafH / 2, frontWallZ);
+        doorGroup.position.set(
+          isBathPocket ? doorHingeX - doorLeafW * 0.42 : doorHingeX,
+          0.15 + doorLeafH / 2,
+          isBathPocket ? frontWallZ - 0.02 : frontWallZ
+        );
         doorGroup.rotation.y = -doorSwingAngle;
 
-        const doorPanel = new THREE.Mesh(
-          new THREE.BoxGeometry(doorLeafW, doorLeafH, doorThick),
-          materials.woodDeckMaterial || materials.cabinetMaterial
-        );
-        doorPanel.position.set(doorLeafW / 2, 0, 0);
-        doorPanel.castShadow = true;
-        doorGroup.add(doorPanel);
+        if (isBathPocket) {
+          const pocketRail = new THREE.Mesh(
+            new THREE.BoxGeometry(bDoorW * 1.4, 0.03, 0.04),
+            materials.metalTrimMaterial
+          );
+          pocketRail.position.set(doorOpeningX - doorLeafW * 0.15, 0.15 + bDoorH + 0.015, frontWallZ - 0.02);
+          bathGroup.add(pocketRail);
+        }
 
-        // Horizontal architectural routing groove lines on door leaf
-        [-0.50, -0.15, 0.20, 0.55].forEach((gy) => {
-          const groove = new THREE.Mesh(new THREE.BoxGeometry(doorLeafW - 0.06, 0.008, 0.005), materials.chassisMaterial);
-          groove.position.set(doorLeafW / 2, gy, doorThick / 2 + 0.002);
-          const grooveBack = new THREE.Mesh(new THREE.BoxGeometry(doorLeafW - 0.06, 0.008, 0.005), materials.chassisMaterial);
-          grooveBack.position.set(doorLeafW / 2, gy, -doorThick / 2 - 0.002);
-          doorGroup.add(groove, grooveBack);
-        });
+        const isGlassBathDoor =
+          bathDoorStyle === 'bath-alu-frosted-glass' ||
+          bathDoorStyle === 'bath-titanium-magnesium-alloy' ||
+          bathDoorStyle === 'bath-fluted-reeded-glass' ||
+          bathDoorStyle === 'bath-pocket-sliding-wetroom' ||
+          bathDoorStyle === 'bath-pdlc-smart-privacy';
 
-        // Modern brushed brass architectural lever handles on both sides with escutcheon plates
+        if (isGlassBathDoor) {
+          const bezelColor =
+            bathDoorStyle === 'bath-titanium-magnesium-alloy'
+              ? 0x3f3f46
+              : bathDoorStyle === 'bath-pocket-sliding-wetroom'
+              ? 0x475569
+              : 0x09090b;
+          const bezelMat = new THREE.MeshStandardMaterial({
+            color: bezelColor,
+            roughness: 0.35,
+            metalness: 0.6,
+          });
+          const frameW = bathDoorStyle === 'bath-fluted-reeded-glass' ? 0.035 : 0.055;
+          const topBar = new THREE.Mesh(new THREE.BoxGeometry(doorLeafW, frameW, doorThick), bezelMat);
+          topBar.position.set(doorLeafW / 2, doorLeafH / 2 - frameW / 2, 0);
+          const botBar = new THREE.Mesh(new THREE.BoxGeometry(doorLeafW, frameW, doorThick), bezelMat);
+          botBar.position.set(doorLeafW / 2, -doorLeafH / 2 + frameW / 2, 0);
+          const leftBar = new THREE.Mesh(new THREE.BoxGeometry(frameW, doorLeafH, doorThick), bezelMat);
+          leftBar.position.set(frameW / 2, 0, 0);
+          const rightBar = new THREE.Mesh(new THREE.BoxGeometry(frameW, doorLeafH, doorThick), bezelMat);
+          rightBar.position.set(doorLeafW - frameW / 2, 0, 0);
+
+          const glassTint =
+            bathDoorStyle === 'bath-titanium-magnesium-alloy'
+              ? 0x475569
+              : bathDoorStyle === 'bath-pdlc-smart-privacy'
+              ? 0xcbd5e1
+              : 0xe2e8f0;
+          const glassMat = new THREE.MeshPhysicalMaterial({
+            color: glassTint,
+            roughness: bathDoorStyle === 'bath-titanium-magnesium-alloy' ? 0.2 : 0.45,
+            metalness: 0.05,
+            transmission: bathDoorStyle === 'bath-pdlc-smart-privacy' ? 0.35 : 0.45,
+            transparent: true,
+            opacity: bathDoorStyle === 'bath-pdlc-smart-privacy' ? 0.9 : 0.85,
+          });
+          const glassPane = new THREE.Mesh(
+            new THREE.BoxGeometry(doorLeafW - frameW * 2, doorLeafH - frameW * 2, 0.014),
+            glassMat
+          );
+          glassPane.position.set(doorLeafW / 2, 0, 0);
+          doorGroup.add(topBar, botBar, leftBar, rightBar, glassPane);
+
+          if (bathDoorStyle === 'bath-fluted-reeded-glass') {
+            for (let rx = frameW + 0.05; rx < doorLeafW - frameW - 0.03; rx += 0.055) {
+              const reed = new THREE.Mesh(
+                new THREE.BoxGeometry(0.008, doorLeafH - frameW * 2.2, 0.022),
+                new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.25, transparent: true, opacity: 0.55 })
+              );
+              reed.position.set(rx, 0, 0);
+              doorGroup.add(reed);
+            }
+          }
+        } else {
+          const wpcColor =
+            bathDoorStyle === 'bath-recessed-morandi-grey'
+              ? 0x64748b
+              : bathDoorStyle === 'bath-wpc-louver-vent'
+              ? 0xe2e8f0
+              : 0xf8fafc;
+          const doorPanel = new THREE.Mesh(
+            new THREE.BoxGeometry(doorLeafW, doorLeafH, doorThick),
+            new THREE.MeshStandardMaterial({ color: wpcColor, roughness: 0.38, metalness: 0.05 })
+          );
+          doorPanel.position.set(doorLeafW / 2, 0, 0);
+          doorPanel.castShadow = true;
+          doorGroup.add(doorPanel);
+
+          if (bathDoorStyle === 'bath-wpc-louver-vent') {
+            // Bottom architectural ventilation louvers
+            for (let ly = -doorLeafH / 2 + 0.14; ly <= -doorLeafH / 2 + 0.46; ly += 0.045) {
+              const louver = new THREE.Mesh(
+                new THREE.BoxGeometry(doorLeafW - 0.18, 0.018, doorThick + 0.008),
+                new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.4 })
+              );
+              louver.position.set(doorLeafW / 2, ly, 0);
+              doorGroup.add(louver);
+            }
+          } else {
+            const grooveMat = new THREE.MeshStandardMaterial({
+              color: bathDoorStyle === 'bath-recessed-morandi-grey' ? 0x475569 : 0xcbd5e1,
+              roughness: 0.45,
+            });
+            [-0.50, -0.15, 0.20, 0.55].forEach((gy) => {
+              const groove = new THREE.Mesh(new THREE.BoxGeometry(doorLeafW - 0.08, 0.008, 0.005), grooveMat);
+              groove.position.set(doorLeafW / 2, gy, doorThick / 2 + 0.002);
+              const grooveBack = new THREE.Mesh(new THREE.BoxGeometry(doorLeafW - 0.08, 0.008, 0.005), grooveMat);
+              grooveBack.position.set(doorLeafW / 2, gy, -doorThick / 2 - 0.002);
+              doorGroup.add(groove, grooveBack);
+            });
+          }
+        }
+
+        // Matte black / brushed hardware lever handles & occupancy indicator
+        const hwMat =
+          bathDoorStyle === 'bath-alu-frosted-glass' || bathDoorStyle === 'bath-pdlc-smart-privacy'
+            ? materials.brassHandleMaterial || materials.metalTrimMaterial
+            : new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.3, metalness: 0.75 });
         const handleX = doorLeafW - 0.08;
         const handleY = 0.15 + 1.02 - (0.15 + doorLeafH / 2);
         [-1, 1].forEach((dir) => {
-          const escutcheon = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.14, 0.006), materials.brassHandleMaterial || materials.metalTrimMaterial);
+          const escutcheon = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.14, 0.006), hwMat);
           escutcheon.position.set(handleX, handleY, dir * (doorThick / 2 + 0.003));
-          const leverStem = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.035, 8), materials.brassHandleMaterial || materials.metalTrimMaterial);
+          const leverStem = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.035, 8), hwMat);
           leverStem.rotation.x = Math.PI / 2;
           leverStem.position.set(handleX, handleY + 0.02, dir * (doorThick / 2 + 0.02));
-          const leverArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.015, 0.015), materials.brassHandleMaterial || materials.metalTrimMaterial);
+          const leverArm = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.015, 0.015), hwMat);
           leverArm.position.set(handleX - 0.05, handleY + 0.02, dir * (doorThick / 2 + 0.035));
           doorGroup.add(escutcheon, leverStem, leverArm);
         });
         const indicator = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.008, 12), materials.metalTrimMaterial);
         indicator.rotation.x = Math.PI / 2;
         indicator.position.set(handleX, handleY - 0.035, doorThick / 2 + 0.004);
-        const thumbturn = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.008, 0.016), materials.brassHandleMaterial || materials.metalTrimMaterial);
+        const thumbturn = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.008, 0.016), hwMat);
         thumbturn.position.set(handleX, handleY - 0.035, -doorThick / 2 - 0.008);
         doorGroup.add(indicator, thumbturn);
         bathGroup.add(doorGroup);
@@ -5205,104 +6272,28 @@ export function buildHomeModel(
       // ---------------------------------------------------------------------
       // 7. HVAC MINI-SPLIT & SMART HOME AUTOMATION
       // ---------------------------------------------------------------------
-      if (Boolean(state.hasHvacMiniSplit)) {
+      if (Boolean(state.hasHvacMiniSplit) || Boolean(state.hasAirConditionerUnit)) {
         // =====================================================================
-        // HVAC MINI-SPLIT SYSTEM (User Add-on: Indoor Head + Outdoor Heat Pump)
-        // Relocated to the main Living Lounge / Great Room zone for 20ft, 30ft, and 40ft models
-        // Mounted high on the front exterior wall header (X = leftWingCenterX, Y = 2.20m)
-        // blowing conditioned air down the full length of the living & dining space
+        // HVAC MINI-SPLIT SYSTEM (User Add-on: White Indoor Head + Detailed White Outdoor Unit)
         // =====================================================================
-        const hvacGroup = new THREE.Group();
-
-        // 1. Indoor High-Efficiency Wall-Mounted Blower Unit (Living Room)
-        const inW = 0.88;
-        const inH = 0.28;
         const inD = 0.19;
         const inX = leftWingCenterX;
         const inY = 0.15 + height - 0.35; // ~2.22m, mounted cleanly below ceiling
         const inZ = zFront - inD / 2 - 0.01;
 
-        // Main sleek appliance-white casing
-        const indoorCasing = new THREE.Mesh(
-          new THREE.BoxGeometry(inW, inH, inD),
-          materials.countertopMaterial || materials.cabinetMaterial
+        const indoorHead = createDetailedIndoorAcUnit(inX, inY, inZ, Math.PI);
+        interiorGroup.add(indoorHead);
+
+        const outdoorAc = createDetailedOutdoorAcUnit(
+          leftWingCenterX,
+          0.56,
+          -houseDepth / 2,
+          0.88,
+          0.66,
+          0.34,
+          0.09
         );
-        indoorCasing.position.set(inX, inY, inZ);
-        indoorCasing.castShadow = true;
-
-        // Top recessed air intake grille
-        const intakeGrille = new THREE.Mesh(
-          new THREE.BoxGeometry(inW - 0.08, 0.02, inD - 0.04),
-          materials.metalTrimMaterial
-        );
-        intakeGrille.position.set(inX, inY + inH / 2 - 0.01, inZ);
-
-        // Bottom motorized air discharge swing louver / vane (angled into room)
-        const airLouver = new THREE.Mesh(
-          new THREE.BoxGeometry(inW - 0.06, 0.035, 0.04),
-          materials.metalTrimMaterial
-        );
-        airLouver.rotation.x = 0.25; // Angled downward to disperse conditioned airflow
-        airLouver.position.set(inX, inY - inH / 2 + 0.02, inZ - inD / 2 + 0.01);
-
-        // Digital LED status / temperature indicator badge on front face
-        const ledDisplay = new THREE.Mesh(
-          new THREE.BoxGeometry(0.08, 0.035, 0.005),
-          materials.capsuleGlowMaterial || materials.ledStripMaterial
-        );
-        ledDisplay.position.set(inX + inW * 0.30, inY, inZ - inD / 2 - 0.003);
-
-        hvacGroup.add(indoorCasing, intakeGrille, airLouver, ledDisplay);
-        interiorGroup.add(hvacGroup);
-
-        // 2. Outdoor Inverter Heat-Pump Condenser Unit
-        // Mounted on heavy-duty vibration-damped chassis brackets at rear exterior of left wing
-        const outW = 0.88;
-        const outH = 0.68;
-        const outD = 0.35;
-        const outX = leftWingCenterX;
-        const outY = 0.52;
-        const outZ = -houseDepth / 2 - outD / 2 - 0.06;
-
-        const outdoorComp = new THREE.Mesh(
-          new THREE.BoxGeometry(outW, outH, outD),
-          materials.q235SteelMaterial || materials.chassisMaterial
-        );
-        outdoorComp.position.set(outX, outY, outZ);
-        outdoorComp.castShadow = true;
-
-        // Circular condenser exhaust fan grille with center motor hub
-        const fanOuterRing = new THREE.Mesh(
-          new THREE.RingGeometry(0.18, 0.24, 24),
-          materials.metalTrimMaterial
-        );
-        fanOuterRing.position.set(outX - 0.10, outY + 0.04, outZ - outD / 2 - 0.005);
-
-        const fanHub = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.06, 0.06, 0.02, 16),
-          materials.chassisMaterial
-        );
-        fanHub.rotation.x = Math.PI / 2;
-        fanHub.position.set(outX - 0.10, outY + 0.04, outZ - outD / 2 - 0.01);
-
-        // Heavy-duty dual mounting feet
-        [-outW * 0.35, outW * 0.35].forEach((fx) => {
-          const foot = new THREE.Mesh(
-            new THREE.BoxGeometry(0.08, 0.05, outD + 0.10),
-            materials.q235SteelMaterial || materials.chassisMaterial
-          );
-          foot.position.set(outX + fx, outY - outH / 2 + 0.025, outZ);
-          rootGroup.add(foot);
-        });
-
-        // Insulated copper refrigerant line conduit entering exterior wall
-        const conduit = new THREE.Mesh(
-          new THREE.BoxGeometry(0.06, 0.06, 0.12),
-          materials.metalTrimMaterial
-        );
-        conduit.position.set(outX + outW * 0.32, outY + 0.18, -houseDepth / 2 - 0.06);
-
-        rootGroup.add(outdoorComp, fanOuterRing, fanHub, conduit);
+        rootGroup.add(outdoorAc);
       }
 
       // Smart digital home automation pad by entrance door
@@ -5391,15 +6382,31 @@ export function buildHomeModel(
         partWallFront.position.set(bathX - doorGap / 2, (height - 0.1) / 2 + 0.15, bathZ + bathPodD / 2);
         bathPodGroup.add(partWallFront);
 
-        // Access Door with Frame, Lever Handle and Privacy Latch
+        // Access Door with Frame, Lever Handle and Privacy Latch (reflects state.bathroomDoor)
+        const podBathStyle = state.bathroomDoor || 'bath-wpc-waterproof-white';
         const doorLeafW = doorGap - 0.02;
         const doorLeafH = height - 0.22;
+        const podDoorMat =
+          podBathStyle === 'bath-recessed-morandi-grey'
+            ? new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.4 })
+            : podBathStyle === 'bath-alu-frosted-glass' ||
+              podBathStyle === 'bath-fluted-reeded-glass' ||
+              podBathStyle === 'bath-pdlc-smart-privacy' ||
+              podBathStyle === 'bath-titanium-magnesium-alloy'
+            ? new THREE.MeshPhysicalMaterial({
+                color: podBathStyle === 'bath-titanium-magnesium-alloy' ? 0x475569 : 0xdbeafe,
+                roughness: 0.4,
+                transmission: 0.4,
+                transparent: true,
+                opacity: 0.85,
+              })
+            : new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.35 });
         const doorLeaf = new THREE.Mesh(
           new THREE.BoxGeometry(doorLeafW, doorLeafH, 0.035),
-          materials.woodDeckMaterial || materials.cabinetMaterial
+          podDoorMat
         );
         doorLeaf.position.set(bathX + frontWallW / 2 + 0.06, 0.15 + doorLeafH / 2, bathZ + bathPodD / 2 - 0.06);
-        doorLeaf.rotation.y = -0.32; // Swung slightly open into bathroom
+        doorLeaf.rotation.y = podBathStyle === 'bath-pocket-sliding-wetroom' ? 0 : -0.32;
 
         const doorHandle = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.02, 0.04), materials.brassHandleMaterial || materials.metalTrimMaterial);
         doorHandle.position.set(bathX + frontWallW / 2 + doorLeafW * 0.4, 0.15 + 1.02, bathZ + bathPodD / 2);
@@ -5737,25 +6744,28 @@ export function buildHomeModel(
         interiorGroup.add(loungeGroup);
       }
 
-      // E. HVAC Mini-Split (Indoor & Outdoor)
-      if (state.hasHvacMiniSplit) {
+      // E. HVAC Mini-Split / Air Conditioner (White Indoor Head & Detailed White Outdoor Unit)
+      if (state.hasHvacMiniSplit || state.hasAirConditionerUnit) {
         const hvacX = length * 0.25;
-        const indoorHvac = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.28, 0.18), materials.cabinetMaterial);
-        indoorHvac.position.set(
+        const rearWallZ = isAppleCabin ? -depth / 2 : -effectiveDepth / 2;
+        const indoorHvac = createDetailedIndoorAcUnit(
           hvacX,
           height - 0.22,
-          -effectiveDepth / 2 + 0.1 + wallThickness
+          rearWallZ + 0.1 + wallThickness,
+          0
         );
         interiorGroup.add(indoorHvac);
 
-        const outdoorComp = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.65, 0.35), materials.q235SteelMaterial || materials.chassisMaterial);
-        outdoorComp.position.set(
+        const outdoorAc = createDetailedOutdoorAcUnit(
           hvacX,
-          0.55,
-          -effectiveDepth / 2 - 0.22
+          0.56,
+          rearWallZ,
+          0.86,
+          0.65,
+          0.34,
+          0.08
         );
-        outdoorComp.castShadow = true;
-        rootGroup.add(outdoorComp);
+        rootGroup.add(outdoorAc);
       }
 
       // F. Smart Control Panel
@@ -6293,6 +7303,7 @@ export function buildHomeModel(
     solarGroup,
     terraceGroup,
     pergolaGroup,
+    satelliteGroup,
     interiorLights,
     hotspotPositions,
   };

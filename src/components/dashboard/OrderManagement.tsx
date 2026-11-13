@@ -33,6 +33,7 @@ import { OrderWorkOrderSheet } from './OrderWorkOrderSheet';
 import { ProductLineDrawing } from './ProductLineDrawing';
 import { ThreeViewer } from '../3d/ThreeViewer';
 import { DevelopmentProgressManager } from './DevelopmentProgressManager';
+import { FeatureVisibilityModal, getHiddenFeatureCount } from './FeatureVisibilityModal';
 import { exportElementToPDF } from '../../utils/pdfGenerator';
 import {
   Search,
@@ -54,6 +55,7 @@ import {
   Trash2,
   Edit,
   Eye,
+  EyeOff,
   X,
   Send,
   Phone,
@@ -300,6 +302,8 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ onGoToConfigur
   const [modelFilter, setModelFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<CustomerOrder | null>(null);
   const [showNewOrderModal, setShowNewOrderModal] = useState(false);
+  const [showFeatureVisibilityModal, setShowFeatureVisibilityModal] = useState(false);
+  const hiddenFeaturesCount = getHiddenFeatureCount(config);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [newNoteText, setNewNoteText] = useState('');
   const [isEditingCustomer, setIsEditingCustomer] = useState(false);
@@ -960,7 +964,34 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ onGoToConfigur
           </div>
         </div>
 
-        <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
+        <div className="flex items-center gap-2.5 self-start md:self-auto shrink-0 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setShowFeatureVisibilityModal(true)}
+            className={`px-3.5 py-2 rounded-2xl text-xs font-bold border transition-all flex items-center gap-2 cursor-pointer shadow-2xs active:scale-95 ${
+              hiddenFeaturesCount > 0
+                ? 'bg-amber-50 hover:bg-amber-100 text-amber-950 border-amber-300'
+                : 'bg-gray-900 hover:bg-gray-800 text-white border-gray-900'
+            }`}
+            title="Show or hide any configurator features, models, add-ons, walls, or solar packages from the public or clients"
+          >
+            {hiddenFeaturesCount > 0 ? (
+              <EyeOff className="w-3.5 h-3.5 text-amber-700" />
+            ) : (
+              <Eye className="w-3.5 h-3.5 text-orange-400" />
+            )}
+            <span>Show / Hide Features</span>
+            <span
+              className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full ${
+                hiddenFeaturesCount > 0
+                  ? 'bg-amber-200 text-amber-950'
+                  : 'bg-emerald-500/20 text-emerald-300'
+              }`}
+            >
+              {hiddenFeaturesCount > 0 ? `${hiddenFeaturesCount} Hidden` : 'All Public'}
+            </span>
+          </button>
+
           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Two Currencies:</span>
           <div className="inline-flex p-1 bg-gray-100 rounded-2xl border border-gray-200">
             {TWO_CURRENCIES.map((curr) => {
@@ -3826,6 +3857,11 @@ export const OrderManagement: React.FC<OrderManagementProps> = ({ onGoToConfigur
           </div>
         </div>
       )}
+
+      <FeatureVisibilityModal
+        isOpen={showFeatureVisibilityModal}
+        onClose={() => setShowFeatureVisibilityModal(false)}
+      />
     </div>
   );
 };

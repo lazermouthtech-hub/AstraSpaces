@@ -80,7 +80,7 @@ export const CustomerProgressTracker: React.FC<CustomerProgressTrackerProps> = (
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs transition-all shadow-xs cursor-pointer"
         >
           <Box className="w-4 h-4" />
-          <span>Configure &amp; Reserve in 3D</span>
+          <span>Customize &amp; Reserve Home</span>
         </Link>
       </div>
     );

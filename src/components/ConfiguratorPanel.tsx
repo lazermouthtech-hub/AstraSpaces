@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   CustomizationState,
   HomeModelId,
@@ -12,7 +13,12 @@ import {
   FloorPlanId,
 } from '../types';
 import { BASE_MODELS } from '../data/models';
-import { INTERIOR_WALL_OPTIONS, FLOOR_PLAN_OPTIONS } from '../data/options';
+import {
+  INTERIOR_WALL_OPTIONS,
+  INTERIOR_DOOR_OPTIONS,
+  BATHROOM_DOOR_OPTIONS,
+  FLOOR_PLAN_OPTIONS,
+} from '../data/options';
 import { FloorPlanDiagram } from './FloorPlanDiagram';
 import { SpecialModelRequestModal } from './SpecialModelRequestModal';
 import { useAppConfig } from '../context/AppConfigContext';
@@ -49,6 +55,7 @@ import {
   ChevronRight,
   ArrowRight,
   X,
+  DoorOpen,
 } from 'lucide-react';
 
 export function DoorWindowDiagram({ id }: { id: string }) {
@@ -213,6 +220,214 @@ export function DoorWindowDiagram({ id }: { id: string }) {
           <rect x="10" y="58" width="60" height="4" rx="1" fill="#cbd5e1" />
         </svg>
       );
+    case 'room-solid-flush-oak':
+      return (
+        <svg viewBox="0 0 80 64" className="w-full h-full drop-shadow-xs">
+          <rect x="20" y="4" width="40" height="56" rx="1.5" fill="#92400e" />
+          <rect x="23" y="7" width="34" height="52" fill="#d97706" />
+          <rect x="23" y="7" width="34" height="52" fill="#f59e0b" opacity="0.25" />
+          {/* Wood grain vertical lines */}
+          <line x1="30" y1="9" x2="30" y2="57" stroke="#b45309" strokeWidth="1" opacity="0.5" />
+          <line x1="40" y1="9" x2="40" y2="57" stroke="#b45309" strokeWidth="1" opacity="0.4" />
+          <line x1="50" y1="9" x2="50" y2="57" stroke="#b45309" strokeWidth="1" opacity="0.5" />
+          {/* Matte black lever handle */}
+          <circle cx="52" cy="34" r="2" fill="#18181b" />
+          <line x1="47" y1="34" x2="53" y2="34" stroke="#18181b" strokeWidth="2.5" strokeLinecap="round" />
+        </svg>
+      );
+    case 'room-modern-grooved-white':
+      return (
+        <svg viewBox="0 0 80 64" className="w-full h-full drop-shadow-xs">
+          <rect x="20" y="4" width="40" height="56" rx="1.5" fill="#cbd5e1" />
+          <rect x="23" y="7" width="34" height="52" fill="#ffffff" stroke="#e2e8f0" strokeWidth="1" />
+          {/* 4 horizontal CNC routing grooves */}
+          <line x1="25" y1="18" x2="55" y2="18" stroke="#94a3b8" strokeWidth="1.5" />
+          <line x1="25" y1="27" x2="55" y2="27" stroke="#94a3b8" strokeWidth="1.5" />
+          <line x1="25" y1="39" x2="55" y2="39" stroke="#94a3b8" strokeWidth="1.5" />
+          <line x1="25" y1="48" x2="55" y2="48" stroke="#94a3b8" strokeWidth="1.5" />
+          {/* Matte black handle */}
+          <line x1="47" y1="33" x2="53" y2="33" stroke="#18181b" strokeWidth="2.5" strokeLinecap="round" />
+        </svg>
+      );
+    case 'room-matte-black-shaker':
+      return (
+        <svg viewBox="0 0 80 64" className="w-full h-full drop-shadow-xs">
+          <rect x="20" y="4" width="40" height="56" rx="1.5" fill="#09090b" />
+          <rect x="23" y="7" width="34" height="52" fill="#18181b" />
+          {/* 3-panel shaker recess */}
+          <rect x="27" y="10" width="26" height="13" rx="0.8" fill="#27272a" stroke="#3f3f46" strokeWidth="1" />
+          <rect x="27" y="26" width="26" height="14" rx="0.8" fill="#27272a" stroke="#3f3f46" strokeWidth="1" />
+          <rect x="27" y="43" width="26" height="12" rx="0.8" fill="#27272a" stroke="#3f3f46" strokeWidth="1" />
+          <line x1="47" y1="33" x2="53" y2="33" stroke="#d4d4d8" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      );
+    case 'room-walnut-vertical-slat':
+      return (
+        <svg viewBox="0 0 80 64" className="w-full h-full drop-shadow-xs">
+          <rect x="20" y="4" width="40" height="56" rx="1.5" fill="#3b2313" />
+          <rect x="23" y="7" width="34" height="52" fill="#5c3c24" />
+          {/* Vertical fluted slats + brass accent inlay */}
+          <line x1="27" y1="8" x2="27" y2="58" stroke="#3b2313" strokeWidth="1.8" />
+          <line x1="31" y1="8" x2="31" y2="58" stroke="#3b2313" strokeWidth="1.8" />
+          <line x1="35" y1="8" x2="35" y2="58" stroke="#3b2313" strokeWidth="1.8" />
+          <line x1="39" y1="8" x2="39" y2="58" stroke="#f59e0b" strokeWidth="1.6" />
+          <line x1="43" y1="8" x2="43" y2="58" stroke="#3b2313" strokeWidth="1.8" />
+          <line x1="47" y1="33" x2="53" y2="33" stroke="#fbbf24" strokeWidth="2.5" strokeLinecap="round" />
+        </svg>
+      );
+    case 'room-steel-wood-armored':
+      return (
+        <svg viewBox="0 0 80 64" className="w-full h-full drop-shadow-xs">
+          <rect x="19" y="4" width="42" height="56" rx="1.5" fill="#334155" />
+          <rect x="23" y="7" width="34" height="52" fill="#7c5338" stroke="#475569" strokeWidth="1.5" />
+          {/* Armored triple hinges & multi-point lock */}
+          <rect x="21" y="12" width="3" height="6" fill="#94a3b8" />
+          <rect x="21" y="29" x2="24" width="3" height="6" fill="#94a3b8" />
+          <rect x="21" y="46" width="3" height="6" fill="#94a3b8" />
+          <rect x="27" y="12" width="26" height="42" fill="none" stroke="#451a03" strokeWidth="1.5" />
+          <rect x="50" y="29" width="4" height="10" rx="1" fill="#e2e8f0" />
+        </svg>
+      );
+    case 'room-glass-inlay-loft':
+      return (
+        <svg viewBox="0 0 80 64" className="w-full h-full drop-shadow-xs">
+          <rect x="20" y="4" width="40" height="56" rx="1.5" fill="#18181b" />
+          <rect x="24" y="8" width="32" height="50" fill="#e2e8f0" />
+          {/* Frosted glass muntin bars */}
+          <line x1="24" y1="21" x2="56" y2="21" stroke="#18181b" strokeWidth="2" />
+          <line x1="24" y1="34" x2="56" y2="34" stroke="#18181b" strokeWidth="2" />
+          <line x1="24" y1="46" x2="56" y2="46" stroke="#18181b" strokeWidth="2" />
+          <line x1="48" y1="31" x2="54" y2="31" stroke="#09090b" strokeWidth="2.5" strokeLinecap="round" />
+        </svg>
+      );
+    case 'room-barn-sliding-black':
+      return (
+        <svg viewBox="0 0 80 64" className="w-full h-full drop-shadow-xs">
+          {/* Exposed top sliding rail + rollers */}
+          <rect x="8" y="6" width="64" height="3.5" rx="1" fill="#18181b" />
+          <circle cx="28" cy="7.5" r="3" fill="#52525b" stroke="#09090b" strokeWidth="1" />
+          <circle cx="52" cy="7.5" r="3" fill="#52525b" stroke="#09090b" strokeWidth="1" />
+          <rect x="22" y="10" width="36" height="49" fill="#92400e" stroke="#451a03" strokeWidth="1.2" />
+          {/* Z-brace barn detail */}
+          <line x1="24" y1="12" x2="56" y2="57" stroke="#78350f" strokeWidth="2.5" />
+          <rect x="24" y="11" width="32" height="47" fill="none" stroke="#78350f" strokeWidth="2" />
+          <rect x="51" y="30" width="2.5" height="10" rx="1" fill="#18181b" />
+        </svg>
+      );
+    case 'room-pocket-sliding-oak':
+      return (
+        <svg viewBox="0 0 80 64" className="w-full h-full drop-shadow-xs">
+          {/* Wall pocket cavity on left */}
+          <rect x="8" y="5" width="28" height="55" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1.2" />
+          <rect x="24" y="8" width="32" height="51" fill="#c89f72" stroke="#78350f" strokeWidth="1.2" />
+          <line x1="36" y1="5" x2="64" y2="5" stroke="#475569" strokeWidth="2.5" />
+          {/* Flush pull + pocket arrow */}
+          <rect x="50" y="29" width="2.5" height="9" rx="0.8" fill="#18181b" />
+          <path d="M42 33 L32 33 M36 29 L32 33 L36 37" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" fill="none" />
+        </svg>
+      );
+    case 'room-invisible-flush-wall':
+      return (
+        <svg viewBox="0 0 80 64" className="w-full h-full drop-shadow-xs">
+          {/* Seamless wall with ultra-thin reveal seam */}
+          <rect x="8" y="5" width="64" height="55" fill="#f1f5f9" />
+          <rect x="22" y="7" width="36" height="53" fill="#ffffff" stroke="#94a3b8" strokeWidth="1" strokeDasharray="3 1.5" />
+          <line x1="49" y1="33" x2="54" y2="33" stroke="#334155" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      );
+    case 'room-solid-hardwood-teak':
+      return (
+        <svg viewBox="0 0 80 64" className="w-full h-full drop-shadow-xs">
+          <rect x="19" y="4" width="42" height="56" rx="1.5" fill="#451a03" />
+          <rect x="23" y="7" width="34" height="52" fill="#7c4722" />
+          <rect x="27" y="11" width="26" height="20" rx="1" fill="#6b3a19" stroke="#9a5c32" strokeWidth="1" />
+          <rect x="27" y="35" width="26" height="20" rx="1" fill="#6b3a19" stroke="#9a5c32" strokeWidth="1" />
+          <line x1="47" y1="33" x2="53" y2="33" stroke="#fbbf24" strokeWidth="2.5" strokeLinecap="round" />
+        </svg>
+      );
+    case 'bath-wpc-waterproof-white':
+      return (
+        <svg viewBox="0 0 80 64" className="w-full h-full drop-shadow-xs">
+          <rect x="20" y="4" width="40" height="56" rx="1.5" fill="#cbd5e1" />
+          <rect x="23" y="7" width="34" height="52" fill="#f8fafc" stroke="#94a3b8" strokeWidth="1" />
+          <rect x="28" y="11" width="24" height="44" rx="1" fill="none" stroke="#e2e8f0" strokeWidth="1.5" />
+          {/* Privacy occupancy badge */}
+          <circle cx="51" cy="36" r="2.2" fill="#10b981" stroke="#0f172a" strokeWidth="0.8" />
+          <line x1="47" y1="31" x2="53" y2="31" stroke="#334155" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      );
+    case 'bath-alu-frosted-glass':
+      return (
+        <svg viewBox="0 0 80 64" className="w-full h-full drop-shadow-xs">
+          <rect x="20" y="4" width="40" height="56" rx="1.5" fill="#18181b" />
+          <rect x="24" y="8" width="32" height="50" fill="#e2e8f0" />
+          <rect x="27" y="11" width="26" height="44" fill="#cbd5e1" opacity="0.6" stroke="#94a3b8" strokeWidth="1" strokeDasharray="2 2" />
+          <circle cx="51" cy="36" r="2" fill="#ef4444" />
+          <line x1="47" y1="31" x2="53" y2="31" stroke="#18181b" strokeWidth="2.5" strokeLinecap="round" />
+        </svg>
+      );
+    case 'bath-wpc-louver-vent':
+      return (
+        <svg viewBox="0 0 80 64" className="w-full h-full drop-shadow-xs">
+          <rect x="20" y="4" width="40" height="56" rx="1.5" fill="#94a3b8" />
+          <rect x="23" y="7" width="34" height="52" fill="#f1f5f9" />
+          {/* Upper privacy panel + bottom ventilation louvers */}
+          <rect x="27" y="10" width="26" height="24" fill="#e2e8f0" stroke="#cbd5e1" strokeWidth="1" />
+          <line x1="27" y1="40" x2="53" y2="40" stroke="#475569" strokeWidth="1.8" />
+          <line x1="27" y1="44" x2="53" y2="44" stroke="#475569" strokeWidth="1.8" />
+          <line x1="27" y1="48" x2="53" y2="48" stroke="#475569" strokeWidth="1.8" />
+          <line x1="27" y1="52" x2="53" y2="52" stroke="#475569" strokeWidth="1.8" />
+          <line x1="47" y1="34" x2="53" y2="34" stroke="#18181b" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      );
+    case 'bath-recessed-morandi-grey':
+      return (
+        <svg viewBox="0 0 80 64" className="w-full h-full drop-shadow-xs">
+          <rect x="20" y="4" width="40" height="56" rx="1.5" fill="#475569" />
+          <rect x="23" y="7" width="34" height="52" fill="#64748b" />
+          <rect x="28" y="12" width="24" height="42" rx="1" fill="#94a3b8" opacity="0.4" stroke="#cbd5e1" strokeWidth="1" />
+          <line x1="47" y1="33" x2="53" y2="33" stroke="#0f172a" strokeWidth="2.5" strokeLinecap="round" />
+        </svg>
+      );
+    case 'bath-titanium-magnesium-alloy':
+      return (
+        <svg viewBox="0 0 80 64" className="w-full h-full drop-shadow-xs">
+          <rect x="20" y="4" width="40" height="56" rx="1.5" fill="#27272a" />
+          <rect x="24" y="8" width="32" height="50" fill="#52525b" opacity="0.85" />
+          <line x1="26" y1="10" x2="54" y2="10" stroke="#a1a1aa" strokeWidth="1" opacity="0.6" />
+          <line x1="47" y1="33" x2="53" y2="33" stroke="#e4e4e7" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      );
+    case 'bath-fluted-reeded-glass':
+      return (
+        <svg viewBox="0 0 80 64" className="w-full h-full drop-shadow-xs">
+          <rect x="20" y="4" width="40" height="56" rx="1.5" fill="#09090b" />
+          <rect x="23" y="7" width="34" height="52" fill="#e2e8f0" />
+          {/* Vertical fluted/reeded glass ridges */}
+          {[26, 29, 32, 35, 38, 41, 44, 47, 50, 53].map((x) => (
+            <line key={x} x1={x} y1="7" x2={x} y2="59" stroke="#94a3b8" strokeWidth="1.2" />
+          ))}
+          <line x1="47" y1="33" x2="53" y2="33" stroke="#09090b" strokeWidth="2.5" strokeLinecap="round" />
+        </svg>
+      );
+    case 'bath-pocket-sliding-wetroom':
+      return (
+        <svg viewBox="0 0 80 64" className="w-full h-full drop-shadow-xs">
+          <rect x="9" y="5" width="26" height="55" fill="#cbd5e1" stroke="#64748b" strokeWidth="1.2" />
+          <rect x="25" y="8" width="31" height="51" fill="#1e293b" />
+          <rect x="28" y="11" width="25" height="45" fill="#e2e8f0" opacity="0.9" />
+          <path d="M45 33 L35 33 M39 29 L35 33 L39 37" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" fill="none" />
+        </svg>
+      );
+    case 'bath-pdlc-smart-privacy':
+      return (
+        <svg viewBox="0 0 80 64" className="w-full h-full drop-shadow-xs">
+          <rect x="20" y="4" width="40" height="56" rx="1.5" fill="#0f172a" />
+          <rect x="24" y="8" width="32" height="50" fill="#bae6fd" opacity="0.85" />
+          <polygon points="40,8 56,8 56,58 24,58" fill="#cbd5e1" opacity="0.7" />
+          <path d="M41 24 L37 33 L42 33 L39 42" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        </svg>
+      );
     default:
       return (
         <svg viewBox="0 0 80 64" className="w-full h-full drop-shadow-xs">
@@ -223,6 +438,239 @@ export function DoorWindowDiagram({ id }: { id: string }) {
       );
   }
 }
+
+interface AddonInfoHighlight {
+  label: string;
+  value: string;
+}
+
+interface AddonInfoButtonProps {
+  title: string;
+  badge?: string;
+  sizeLabel?: string;
+  priceLabel?: string;
+  description: string;
+  specDetail?: string;
+  highlights?: AddonInfoHighlight[];
+  imageUrl?: string;
+  imageAlt?: string;
+  footerHint?: string;
+}
+
+const AddonInfoButton: React.FC<AddonInfoButtonProps> = ({
+  title,
+  badge,
+  sizeLabel,
+  priceLabel,
+  description,
+  specDetail,
+  highlights,
+  imageUrl,
+  imageAlt,
+  footerHint,
+}) => {
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isPinned, setIsPinned] = useState(false);
+  const [coords, setCoords] = useState<{ top: number; left: number; placement: 'top' | 'bottom' }>({
+    top: 0,
+    left: 0,
+    placement: 'bottom',
+  });
+
+  const updatePosition = useCallback(() => {
+    const btn = buttonRef.current;
+    if (!btn || typeof window === 'undefined') return;
+    const rect = btn.getBoundingClientRect();
+    const bubbleWidth = Math.min(312, window.innerWidth - 24);
+    const estimatedHeight = 250;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const placement: 'top' | 'bottom' =
+      spaceBelow < estimatedHeight && rect.top > estimatedHeight ? 'top' : 'bottom';
+    const rawLeft = rect.left + rect.width / 2 - bubbleWidth / 2;
+    const clampedLeft = Math.max(12, Math.min(rawLeft, window.innerWidth - bubbleWidth - 12));
+    const top = placement === 'bottom' ? rect.bottom + 8 : rect.top - 8;
+    setCoords({ top, left: clampedLeft, placement });
+  }, []);
+
+  const clearCloseTimer = () => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  };
+
+  const handleOpen = () => {
+    clearCloseTimer();
+    updatePosition();
+    setIsOpen(true);
+  };
+
+  const handleDelayedClose = () => {
+    if (isPinned) return;
+    clearCloseTimer();
+    closeTimerRef.current = window.setTimeout(() => {
+      setIsOpen(false);
+    }, 120);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    updatePosition();
+    const handleScrollOrResize = () => updatePosition();
+    const handleDocPointerDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (buttonRef.current?.contains(target)) return;
+      if (target?.closest('[data-addon-info-bubble="true"]')) return;
+      setIsPinned(false);
+      setIsOpen(false);
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsPinned(false);
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    window.addEventListener('resize', handleScrollOrResize);
+    document.addEventListener('mousedown', handleDocPointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      window.removeEventListener('resize', handleScrollOrResize);
+      document.removeEventListener('mousedown', handleDocPointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, updatePosition]);
+
+  useEffect(() => {
+    return () => clearCloseTimer();
+  }, []);
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-label={`More info about ${title}`}
+        aria-expanded={isOpen}
+        onMouseEnter={handleOpen}
+        onMouseLeave={handleDelayedClose}
+        onFocus={handleOpen}
+        onBlur={() => {
+          if (!isPinned) setIsOpen(false);
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          if (isPinned && isOpen) {
+            setIsPinned(false);
+            setIsOpen(false);
+          } else {
+            updatePosition();
+            setIsPinned(true);
+            setIsOpen(true);
+          }
+        }}
+        className={`w-[18px] h-[18px] rounded-full border inline-flex items-center justify-center shrink-0 transition-all cursor-pointer select-none ${
+          isOpen
+            ? 'bg-orange-600 text-white border-orange-600 shadow-xs'
+            : 'bg-gray-100 hover:bg-orange-50 text-gray-600 hover:text-orange-700 border-gray-300 hover:border-orange-300'
+        }`}
+      >
+        <span className="text-[10px] font-bold leading-none font-serif italic">i</span>
+      </button>
+
+      {isOpen &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            data-addon-info-bubble="true"
+            role="tooltip"
+            onMouseEnter={clearCloseTimer}
+            onMouseLeave={handleDelayedClose}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'fixed',
+              top: coords.top,
+              left: coords.left,
+              width: 'min(312px, calc(100vw - 24px))',
+              transform: coords.placement === 'top' ? 'translateY(-100%)' : 'translateY(0)',
+              zIndex: 90,
+            }}
+            className="bg-white rounded-2xl border border-gray-200 shadow-2xl p-3.5 text-left space-y-2.5 max-h-[75vh] overflow-y-auto animate-in fade-in duration-150"
+          >
+            <div className="flex items-start justify-between gap-2.5">
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="text-xs font-black text-gray-950 leading-snug break-words">{title}</div>
+                <div className="flex items-center gap-1 flex-wrap">
+                  {sizeLabel && (
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-200/80 leading-tight">
+                      {sizeLabel}
+                    </span>
+                  )}
+                  {badge && (
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200/80 leading-tight">
+                      {badge}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {priceLabel && (
+                <span className="text-xs font-bold font-mono text-orange-700 bg-orange-50 border border-orange-200/70 px-2 py-0.5 rounded-lg shrink-0 whitespace-nowrap">
+                  {priceLabel}
+                </span>
+              )}
+            </div>
+
+            {imageUrl && (
+              <div className="w-full h-24 rounded-xl bg-gray-50 border border-gray-200/80 p-2 flex items-center justify-center overflow-hidden">
+                <img
+                  src={imageUrl}
+                  alt={imageAlt || title}
+                  className="max-h-full max-w-full object-contain"
+                />
+              </div>
+            )}
+
+            <p className="text-[11px] text-gray-600 leading-relaxed break-words">{description}</p>
+
+            {highlights && highlights.length > 0 && (
+              <div className="grid grid-cols-1 gap-1 pt-0.5">
+                {highlights.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="px-2 py-1 rounded-lg bg-gray-50 border border-gray-200/75 flex items-start justify-between gap-2 text-[10px]"
+                  >
+                    <span className="font-bold uppercase tracking-wider text-gray-400 shrink-0 pt-0.5">
+                      {item.label}
+                    </span>
+                    <span className="font-semibold text-gray-800 text-right leading-snug break-words min-w-0">
+                      {item.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {specDetail && (
+              <div className="text-[10px] text-gray-700 font-mono bg-orange-50/70 border border-orange-100 px-2.5 py-1.5 rounded-lg leading-snug">
+                Spec: {specDetail}
+              </div>
+            )}
+
+            {footerHint && (
+              <div className="text-[9px] text-gray-400 font-medium pt-0.5 border-t border-gray-100">
+                {footerHint}
+              </div>
+            )}
+          </div>,
+          document.body
+        )}
+    </>
+  );
+};
 
 interface ConfiguratorPanelProps {
   state: CustomizationState;
@@ -266,9 +714,11 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
   const [floorPlanFilter, setFloorPlanFilter] = useState<'all' | '1-bed' | '2-bed' | '3-bed' | '4-bed'>('all');
   const [wallSubFilter, setWallSubFilter] = useState<string>('all');
   const [interiorWallSubFilter, setInteriorWallSubFilter] = useState<string>('all');
-  const [glazingSubFilter, setGlazingSubFilter] = useState<'all' | 'Windows' | 'Entrance Doors'>('all');
+  const [glazingSubFilter, setGlazingSubFilter] = useState<
+    'all' | 'Windows' | 'Main Entrance' | 'Room Doors' | 'Bathroom Doors'
+  >('all');
   const [flooringSubFilter, setFlooringSubFilter] = useState<string>('all');
-  const [addonSubFilter, setAddonSubFilter] = useState<'all' | 'living' | 'climate' | 'smart'>('all');
+  const [addonSubFilter, setAddonSubFilter] = useState<'all' | 'living' | 'climate' | 'solar' | 'smart'>('all');
   const [isSpecialRequestModalOpen, setIsSpecialRequestModalOpen] = useState<boolean>(false);
   
   const [internalMenuRevealed, setInternalMenuRevealed] = useState<boolean>(true);
@@ -329,6 +779,22 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
   const availableGlazingOptions = useMemo(() => {
     return (config.glazingOptions || []).filter((g: any) => g.isAvailable !== false && g.isActive !== false);
   }, [config.glazingOptions]);
+
+  const availableInteriorDoorOptions = useMemo(() => {
+    const list =
+      config.interiorDoorOptions && config.interiorDoorOptions.length > 0
+        ? config.interiorDoorOptions
+        : INTERIOR_DOOR_OPTIONS;
+    return list.filter((d: any) => d.isAvailable !== false && d.isActive !== false);
+  }, [config.interiorDoorOptions]);
+
+  const availableBathroomDoorOptions = useMemo(() => {
+    const list =
+      config.bathroomDoorOptions && config.bathroomDoorOptions.length > 0
+        ? config.bathroomDoorOptions
+        : BATHROOM_DOOR_OPTIONS;
+    return list.filter((d: any) => d.isAvailable !== false && d.isActive !== false);
+  }, [config.bathroomDoorOptions]);
 
   const availableFlooringOptions = useMemo(() => {
     return (config.flooringOptions || []).filter((f: any) => f.isAvailable !== false && f.isActive !== false);
@@ -422,22 +888,44 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
       icon: Layers,
       count: availableWallOptions.length + availableInteriorWallOptions.length,
     },
-    { id: 'Glazing & Windows', label: 'Doors & Windows', icon: Grid, count: availableGlazingOptions.length },
+    {
+      id: 'Glazing & Windows',
+      label: 'Doors & Windows',
+      icon: DoorOpen,
+      count:
+        availableGlazingOptions.length +
+        availableInteriorDoorOptions.length +
+        availableBathroomDoorOptions.length,
+    },
     { id: 'Flooring', label: 'Flooring', icon: Grid, count: availableFlooringOptions.length },
     { id: 'Roof & Energy', label: 'Roof & Terraces', icon: SunMedium, count: availableRoofOptions.length },
     { id: 'Smart Living', label: 'Smart Living & AI', icon: Zap, count: availableAddons.filter((a: any) => a.category === 'Smart Living').length },
   ];
 
+  const hiddenCategories: string[] = Array.isArray(config.hiddenCategories)
+    ? config.hiddenCategories
+    : [];
+
   const categories = useMemo(() => {
-    if (isAdvancedMode) return allCategories;
-    return allCategories.filter(
+    const visibleCategories = allCategories.filter((cat) => !hiddenCategories.includes(cat.id));
+    if (isAdvancedMode) return visibleCategories;
+    return visibleCategories.filter(
       (cat) =>
         basicCategoryIds.includes(cat.id) ||
         cat.id === activeCategory ||
         ((cat.id === 'Glazing & Windows' || cat.id === 'Doors & Windows') &&
           (activeCategory === 'Glazing & Windows' || activeCategory === 'Doors & Windows'))
     );
-  }, [isAdvancedMode, allCategories, activeCategory]);
+  }, [isAdvancedMode, allCategories, activeCategory, hiddenCategories]);
+
+  useEffect(() => {
+    if (activeCategory !== 'Tools' && hiddenCategories.includes(activeCategory)) {
+      const fallback = categories[0]?.id || 'Base House';
+      if (fallback !== activeCategory) {
+        onSelectCategory(fallback);
+      }
+    }
+  }, [activeCategory, hiddenCategories, categories, onSelectCategory]);
 
   // Filtered models
   const filteredModels = availableModels.filter((m: any) => {
@@ -491,6 +979,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
   // Filtered windows & doors options
   const filteredGlazingOptions = availableGlazingOptions.filter((g: any) => {
     if (glazingSubFilter === 'all') return true;
+    if (glazingSubFilter === 'Main Entrance') return g.category !== 'Windows';
     return g.category === glazingSubFilter;
   });
 
@@ -502,7 +991,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
       {/* 1. Vertical Icon Menu Rail (Clean, icons-only navigation) */}
       <div className="w-13 sm:w-14 shrink-0 bg-[#F8FAFC] border-r border-gray-200/90 flex flex-col items-center py-2 sm:py-3 gap-1 sm:gap-1.5 z-20 select-none overflow-y-auto scrollbar-none">
         {/* Brand / Prefab Indicator */}
-        <div className="w-8 h-8 rounded-xl bg-orange-500/10 text-orange-600 flex items-center justify-center font-black text-xs mb-1 shrink-0" title="10Apples Home Configurator">
+        <div className="w-8 h-8 rounded-xl bg-orange-500/10 text-orange-600 flex items-center justify-center font-black text-xs mb-1 shrink-0" title="10Apples Home Customizer">
           🍎
         </div>
 
@@ -620,13 +1109,13 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                 </div>
                 <p className="text-[10px] text-gray-500 truncate">
                   {activeCategory === 'Base House' && 'Select prefab modular architecture & dimensions'}
-                  {activeCategory === 'Floor plan' && 'Configure room partitions & interior space layout'}
+                  {activeCategory === 'Floor plan' && 'Customize room partitions & interior space layout'}
                   {activeCategory === 'Wall Panels' && 'Customize exterior cladding & interior bamboo walls'}
                   {(activeCategory === 'Glazing & Windows' || activeCategory === 'Doors & Windows') && 'Double-glazed broken bridge doors & windows'}
                   {(activeCategory === 'Add-ons' || activeCategory === 'Interior Modules') && 'Select furniture suites, bath pod & patio deck'}
                   {activeCategory === 'Flooring' && 'Choose from 24 rigid acoustic SPC floorings'}
-                  {activeCategory === 'Roof & Energy' && 'Configure roof profile, insulation & solar energy'}
-                  {activeCategory === 'Smart Living' && 'Configure smart locks, electric blinds & IoT'}
+                  {activeCategory === 'Roof & Energy' && 'Customize roof profile, insulation & solar energy'}
+                  {activeCategory === 'Smart Living' && 'Customize smart locks, electric blinds & IoT'}
                   {activeCategory === 'Tools' && 'Toggle between Basic Tools and Advanced Studio Tools'}
                 </p>
               </div>
@@ -750,7 +1239,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                           </span>
                           {!isAdvancedMode && <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold">ACTIVE</span>}
                         </div>
-                        <p className="text-[10px] text-gray-500 line-clamp-1">Streamlined default view for swift modular home configuration.</p>
+                        <p className="text-[10px] text-gray-500 line-clamp-1">Streamlined default view for swift modular home customization.</p>
                       </button>
 
                       <button
@@ -1066,7 +1555,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                     </span>
                   </div>
                   <p className="text-[11px] text-gray-500 mt-0.5 leading-snug">
-                    Configure room partitions, baths, and living zones for expandable footprints.
+                    Customize room partitions, baths, and living zones for expandable footprints.
                   </p>
                 </div>
 
@@ -1186,7 +1675,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                           hasKitchenette={Boolean(state.hasKitchenetteModule)}
                           hasBathPod={Boolean(state.hasLuxuryBathPod)}
                           hasTvConsole={Boolean(state.hasTvConsole)}
-                          hasHvacMiniSplit={Boolean(state.hasHvacMiniSplit)}
+                          hasHvacMiniSplit={Boolean(state.hasHvacMiniSplit || state.hasAirConditionerUnit)}
                           showLabels={true}
                           className="w-full h-44 rounded-xl border border-amber-200/80 shadow-2xs"
                         />
@@ -1435,7 +1924,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                             modelName={currentModel?.name}
                             hasWardrobe={Boolean(state.hasWardrobe)}
                             hasTvConsole={Boolean(state.hasTvConsole)}
-                            hasHvacMiniSplit={Boolean(state.hasHvacMiniSplit)}
+                            hasHvacMiniSplit={Boolean(state.hasHvacMiniSplit || state.hasAirConditionerUnit)}
                             hasKitchenette={Boolean(state.hasKitchenetteModule)}
                             hasBathPod={Boolean(state.hasLuxuryBathPod)}
                             showLabels={true}
@@ -2177,155 +2666,529 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
         )}
 
         {/* =========================================================================
-            2. GLAZING, DOORS & WINDOWS (Catalog Page)
+            2. GLAZING, DOORS & WINDOWS (Exterior Windows/Doors + Room & Bathroom Doors)
            ========================================================================= */}
-        {(activeCategory === 'Glazing & Windows' || activeCategory === 'Doors & Windows') && (
-          <div className="space-y-4">
-            <div>
-              <div className="flex items-center justify-between">
-                <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">
-                  3. Windows &amp; Doors Customization
-                </h3>
-                <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                  Included at $0
-                </span>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                The standard house includes an entrance door and perimeter windows. You have full freedom to select any door or window style at no additional cost ($0).
-              </p>
-            </div>
+        {(activeCategory === 'Glazing & Windows' || activeCategory === 'Doors & Windows') && (() => {
+          const windowOptionsOnly = availableGlazingOptions.filter(
+            (g: any) => g.category === 'Windows'
+          );
+          const entranceDoorOptionsOnly = availableGlazingOptions.filter(
+            (g: any) => g.category !== 'Windows'
+          );
 
-            {/* Sub-category Filter: Windows vs Entrance Doors */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-              {[
-                { id: 'all', label: 'All Options' },
-                { id: 'Windows', label: 'Windows (4)' },
-                { id: 'Entrance Doors', label: 'Entrance Doors (5)' },
-              ].map((cat) => {
-                const isSelected = glazingSubFilter === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setGlazingSubFilter(cat.id as any)}
-                    className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
-                      isSelected
-                        ? 'bg-black text-white shadow-xs'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {cat.label}
-                  </button>
-                );
-              })}
-            </div>
+          const isLegacyWindowInGlazing = windowOptionsOnly.some((w: any) => w.id === state.glazing);
+          const selectedWindowId =
+            state.windowStyle ||
+            (isLegacyWindowInGlazing ? state.glazing : windowOptionsOnly[0]?.id || 'sliding-window');
+          const selectedEntranceId = !isLegacyWindowInGlazing
+            ? state.glazing || entranceDoorOptionsOnly[0]?.id || 'broken-bridge-sliding-door'
+            : entranceDoorOptionsOnly[0]?.id || 'broken-bridge-sliding-door';
+          const selectedRoomDoorId =
+            state.interiorDoor || availableInteriorDoorOptions[0]?.id || 'room-solid-flush-oak';
+          const selectedBathDoorId =
+            state.bathroomDoor || availableBathroomDoorOptions[0]?.id || 'bath-wpc-waterproof-white';
 
-            {/* Front Facade Inspection Banner */}
-            <div className="bg-orange-50/90 border border-orange-200/90 p-2.5 rounded-2xl flex items-center justify-between shadow-2xs">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-orange-600 text-white flex items-center justify-center text-sm shadow-xs font-bold">
-                  🚪
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-gray-900">Front Facade Eye-Level Inspection</p>
-                  <p className="text-[10px] text-gray-500">Camera frames the entrance door and wing windows up close</p>
-                </div>
-              </div>
+          const activeWindowOpt =
+            windowOptionsOnly.find((w: any) => w.id === selectedWindowId) || windowOptionsOnly[0];
+          const activeEntranceOpt =
+            entranceDoorOptionsOnly.find((d: any) => d.id === selectedEntranceId) ||
+            entranceDoorOptionsOnly[0];
+          const activeRoomDoorOpt =
+            availableInteriorDoorOptions.find((d: any) => d.id === selectedRoomDoorId) ||
+            availableInteriorDoorOptions[0];
+          const activeBathDoorOpt =
+            availableBathroomDoorOptions.find((d: any) => d.id === selectedBathDoorId) ||
+            availableBathroomDoorOptions[0];
+
+          const windowCost = getItemPriceForModel(activeWindowOpt, state.modelId, config.models);
+          const entranceCost = getItemPriceForModel(activeEntranceOpt, state.modelId, config.models);
+          const roomDoorCost = getItemPriceForModel(activeRoomDoorOpt, state.modelId, config.models);
+          const bathDoorCost = getItemPriceForModel(activeBathDoorOpt, state.modelId, config.models);
+          const totalDoorsWindowsUpgradeCost =
+            (windowCost + entranceCost + roomDoorCost + bathDoorCost) * markupFactor;
+
+          const cycleSelection = (
+            list: any[],
+            currentId: string,
+            direction: -1 | 1,
+            onApply: (nextId: string) => void
+          ) => {
+            if (!list.length) return;
+            const currentIdx = Math.max(
+              0,
+              list.findIndex((item: any) => item.id === currentId)
+            );
+            const nextIdx = (currentIdx + direction + list.length) % list.length;
+            onApply(list[nextIdx].id);
+          };
+
+          const focusCameraForExterior = () => {
+            if (cutawayMode && onCutawayToggle) onCutawayToggle(false);
+            if (onPerspectiveChange) onPerspectiveChange('front-elevation');
+          };
+
+          const focusCameraForInterior = () => {
+            if (!cutawayMode && onCutawayToggle) onCutawayToggle(true);
+            if (onPerspectiveChange) onPerspectiveChange('interior-walkthrough');
+            if (onRoofLiftChange) onRoofLiftChange(50);
+          };
+
+          const renderDoorOptionCard = (
+            opt: any,
+            isSelected: boolean,
+            onSelect: () => void,
+            accent: 'sky' | 'orange' | 'indigo' | 'emerald'
+          ) => {
+            const rawPrice = getItemPriceForModel(opt, state.modelId, config.models);
+            const displayPrice = rawPrice * markupFactor;
+            const ringStyle =
+              accent === 'sky'
+                ? 'border-sky-600 bg-sky-50/25 shadow-xs ring-1 ring-sky-500/20'
+                : accent === 'indigo'
+                ? 'border-indigo-600 bg-indigo-50/25 shadow-xs ring-1 ring-indigo-500/20'
+                : accent === 'emerald'
+                ? 'border-emerald-600 bg-emerald-50/25 shadow-xs ring-1 ring-emerald-500/20'
+                : 'border-orange-600 bg-orange-50/20 shadow-xs ring-1 ring-orange-500/20';
+            const checkBg =
+              accent === 'sky'
+                ? 'bg-sky-600'
+                : accent === 'indigo'
+                ? 'bg-indigo-600'
+                : accent === 'emerald'
+                ? 'bg-emerald-600'
+                : 'bg-orange-600';
+
+            return (
               <button
+                key={opt.id}
                 type="button"
-                onClick={() => {
-                  if (onPerspectiveChange) {
-                    onPerspectiveChange('front-elevation');
-                  }
-                }}
-                className="px-2.5 py-1.5 rounded-lg bg-black hover:bg-gray-800 text-white text-[11px] font-bold shadow-xs transition-colors shrink-0 cursor-pointer"
+                onClick={onSelect}
+                className={`text-left p-3 rounded-2xl border transition-all relative flex flex-col gap-2 cursor-pointer ${
+                  isSelected
+                    ? ringStyle
+                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 bg-white'
+                }`}
               >
-                Focus View
-              </button>
-            </div>
+                <div className="flex gap-2.5 items-start">
+                  {/* Architectural Vector Diagram Thumbnail */}
+                  <div className="w-14 h-12 rounded-xl bg-slate-50 border border-gray-200/90 shrink-0 overflow-hidden p-0.5 shadow-2xs flex items-center justify-center mt-0.5">
+                    <DoorWindowDiagram id={opt.id} />
+                  </div>
 
-            <div className="grid grid-cols-1 gap-2.5">
-              {filteredGlazingOptions.map((opt: any) => {
-                const isSelected = state.glazing === opt.id;
-                const isWindow = opt.category === 'Windows';
-                return (
-                  <button
-                    key={opt.id}
-                    onClick={() =>
-                      onChange((prev) => ({ ...prev, glazing: opt.id }))
-                    }
-                    className={`text-left p-3 rounded-2xl border transition-all relative flex flex-col gap-2 cursor-pointer ${
-                      isSelected
-                        ? 'border-orange-600 bg-orange-50/20 shadow-xs ring-1 ring-orange-500/20'
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 bg-white'
-                    }`}
-                  >
-                    <div className="flex gap-2.5 items-start">
-                      {/* Architectural Vector Diagram Thumbnail */}
-                      <div className="w-14 h-12 rounded-xl bg-slate-50 border border-gray-200/90 shrink-0 overflow-hidden p-0.5 shadow-2xs flex items-center justify-center mt-0.5">
-                        <DoorWindowDiagram id={opt.id} />
+                  {/* Content & Details */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-1.5">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          {opt.color && (
+                            <span
+                              className="w-2.5 h-2.5 rounded-full border border-gray-300 shrink-0 shadow-2xs"
+                              style={{ backgroundColor: opt.color }}
+                            />
+                          )}
+                          <span className="text-xs font-bold text-gray-900 leading-snug">
+                            {opt.name}
+                          </span>
+                        </div>
+                        {opt.badge && (
+                          <span
+                            className={`text-[9px] font-bold px-1.5 py-0.2 rounded mt-0.5 inline-block shrink-0 ${
+                              opt.badge.includes('White') || opt.badge.includes('Included')
+                                ? 'bg-gray-100 text-gray-800 border border-gray-200'
+                                : 'bg-zinc-900 text-white shadow-2xs'
+                            }`}
+                          >
+                            {opt.badge}
+                          </span>
+                        )}
                       </div>
 
-                      {/* Content & Details */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-1.5">
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              {opt.color && (
-                                <span
-                                  className="w-2.5 h-2.5 rounded-full border border-gray-300 shrink-0 shadow-2xs"
-                                  style={{ backgroundColor: opt.color }}
-                                  title={opt.color === '#f8fafc' ? 'White finish' : 'Architectural black finish'}
-                                />
-                              )}
-                              <span className="text-xs font-bold text-gray-900 truncate">
-                                {opt.name}
-                              </span>
-                            </div>
-                            {opt.badge && (
-                              <span
-                                className={`text-[9px] font-bold px-1.5 py-0.2 rounded mt-0.5 inline-block shrink-0 ${
-                                  opt.badge.includes('White')
-                                    ? 'bg-gray-100 text-gray-800 border border-gray-200'
-                                    : 'bg-zinc-900 text-white shadow-2xs'
-                                }`}
-                              >
-                                {opt.badge}
-                              </span>
-                            )}
+                      <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                        <span
+                          className={`text-xs font-bold font-mono whitespace-nowrap ${
+                            rawPrice === 0 ? 'text-emerald-700' : 'text-orange-700'
+                          }`}
+                        >
+                          {rawPrice === 0
+                            ? 'Included'
+                            : formatCurrency(displayPrice, config.currency, {
+                                showPlus: true,
+                                ratesMap: config.exchangeRates,
+                              })}
+                        </span>
+                        {isSelected ? (
+                          <div className={`w-4 h-4 rounded-full ${checkBg} flex items-center justify-center shrink-0`}>
+                            <span className="text-[9px] text-white font-bold">✓</span>
                           </div>
-
-                          <div className="flex items-center gap-1.5 shrink-0 ml-1">
-                            <span className="text-xs font-bold font-mono text-gray-900">
-                              {opt.price === 0 ? 'Included' : formatCurrency(opt.price * markupFactor, config.currency, { showPlus: true, ratesMap: config.exchangeRates })}
-                            </span>
-                            {isSelected ? (
-                              <div className="w-4 h-4 rounded-full bg-orange-600 flex items-center justify-center shrink-0">
-                                <span className="text-[9px] text-white font-bold">✓</span>
-                              </div>
-                            ) : (
-                              <div className="w-4 h-4 rounded-full border border-gray-300 shrink-0" />
-                            )}
-                          </div>
-                        </div>
-
-                        <p className="text-[11px] text-gray-500 leading-snug mt-1 line-clamp-2">
-                          {opt.description}
-                        </p>
+                        ) : (
+                          <div className="w-4 h-4 rounded-full border border-gray-300 shrink-0" />
+                        )}
                       </div>
                     </div>
 
-                    {opt.specDetail && (
-                      <div className="text-[10px] text-gray-500 font-mono bg-gray-100/90 px-2 py-0.5 rounded-md w-fit max-w-full truncate">
-                        Tech Spec: {opt.specDetail}
+                    <p className="text-[11px] text-gray-600 leading-snug mt-1">
+                      {opt.description}
+                    </p>
+                  </div>
+                </div>
+
+                {opt.specDetail && (
+                  <div className="text-[10px] text-gray-600 font-mono bg-gray-100/90 px-2 py-1 rounded-md w-full leading-snug">
+                    Spec: {opt.specDetail}
+                  </div>
+                )}
+              </button>
+            );
+          };
+
+          const quickOpeningCards = [
+            {
+              id: 'Windows' as const,
+              label: 'Windows',
+              activeOpt: activeWindowOpt,
+              cost: windowCost,
+              fallbackName: 'Sliding window',
+              list: windowOptionsOnly,
+              selectedId: selectedWindowId,
+              accentBox:
+                glazingSubFilter === 'Windows'
+                  ? 'bg-sky-50 border-sky-400 ring-1 ring-sky-300'
+                  : 'bg-gray-50/90 border-gray-200 hover:border-sky-300',
+              labelColor: 'text-sky-700',
+              priceColor: 'text-sky-700',
+              onApply: (nextId: string) => {
+                onChange((prev) => ({ ...prev, windowStyle: nextId }));
+                focusCameraForExterior();
+              },
+              onFocus: () => {
+                setGlazingSubFilter('Windows');
+                focusCameraForExterior();
+              },
+            },
+            {
+              id: 'Main Entrance' as const,
+              label: 'Main Entrance',
+              activeOpt: activeEntranceOpt,
+              cost: entranceCost,
+              fallbackName: 'Broken bridge sliding door',
+              list: entranceDoorOptionsOnly,
+              selectedId: selectedEntranceId,
+              accentBox:
+                glazingSubFilter === 'Main Entrance'
+                  ? 'bg-orange-50 border-orange-400 ring-1 ring-orange-300'
+                  : 'bg-gray-50/90 border-gray-200 hover:border-orange-300',
+              labelColor: 'text-orange-700',
+              priceColor: 'text-orange-700',
+              onApply: (nextId: string) => {
+                onChange((prev) => ({ ...prev, glazing: nextId }));
+                focusCameraForExterior();
+              },
+              onFocus: () => {
+                setGlazingSubFilter('Main Entrance');
+                focusCameraForExterior();
+              },
+            },
+            {
+              id: 'Room Doors' as const,
+              label: 'Room Doors',
+              activeOpt: activeRoomDoorOpt,
+              cost: roomDoorCost,
+              fallbackName: 'Nordic Oak Solid-Core',
+              list: availableInteriorDoorOptions,
+              selectedId: selectedRoomDoorId,
+              accentBox:
+                glazingSubFilter === 'Room Doors'
+                  ? 'bg-indigo-50 border-indigo-400 ring-1 ring-indigo-300'
+                  : 'bg-gray-50/90 border-gray-200 hover:border-indigo-300',
+              labelColor: 'text-indigo-700',
+              priceColor: 'text-indigo-700',
+              onApply: (nextId: string) => {
+                onChange((prev) => ({ ...prev, interiorDoor: nextId }));
+                focusCameraForInterior();
+              },
+              onFocus: () => {
+                setGlazingSubFilter('Room Doors');
+                focusCameraForInterior();
+              },
+            },
+            {
+              id: 'Bathroom Doors' as const,
+              label: 'Bathroom Doors',
+              activeOpt: activeBathDoorOpt,
+              cost: bathDoorCost,
+              fallbackName: 'WPC Waterproof White',
+              list: availableBathroomDoorOptions,
+              selectedId: selectedBathDoorId,
+              accentBox:
+                glazingSubFilter === 'Bathroom Doors'
+                  ? 'bg-emerald-50 border-emerald-400 ring-1 ring-emerald-300'
+                  : 'bg-gray-50/90 border-gray-200 hover:border-emerald-300',
+              labelColor: 'text-emerald-700',
+              priceColor: 'text-emerald-700',
+              onApply: (nextId: string) => {
+                onChange((prev) => ({ ...prev, bathroomDoor: nextId }));
+                focusCameraForInterior();
+              },
+              onFocus: () => {
+                setGlazingSubFilter('Bathroom Doors');
+                focusCameraForInterior();
+              },
+            },
+          ];
+
+          return (
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-[0.2em]">
+                    3. Doors &amp; Windows Customization
+                  </h3>
+                  <span
+                    className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border shrink-0 font-mono ${
+                      totalDoorsWindowsUpgradeCost > 0
+                        ? 'text-orange-800 bg-orange-50 border-orange-200'
+                        : 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                    }`}
+                  >
+                    {totalDoorsWindowsUpgradeCost > 0
+                      ? formatCurrency(totalDoorsWindowsUpgradeCost, config.currency, {
+                          showPlus: true,
+                          ratesMap: config.exchangeRates,
+                        })
+                      : 'Standard Included'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Independently switch Perimeter Windows, Main Entrance Door, Interior Room Doors, and Bathroom Doors without overwriting each other.
+                </p>
+              </div>
+
+              {/* 2x2 Independent Opening Quick-Switcher */}
+              <div className="grid grid-cols-2 gap-2">
+                {quickOpeningCards.map((card) => (
+                  <div
+                    key={card.id}
+                    className={`p-2.5 rounded-xl border transition-all flex flex-col gap-1.5 ${card.accentBox}`}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <button
+                        type="button"
+                        onClick={card.onFocus}
+                        className={`text-[9px] font-black uppercase tracking-wider text-left cursor-pointer hover:underline ${card.labelColor}`}
+                      >
+                        {card.label}
+                      </button>
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            cycleSelection(card.list, card.selectedId, -1, card.onApply)
+                          }
+                          className="w-5 h-5 rounded-md bg-white/90 hover:bg-white border border-gray-200 text-gray-700 flex items-center justify-center text-[10px] font-bold cursor-pointer shadow-2xs"
+                          title={`Previous ${card.label} style`}
+                        >
+                          ‹
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            cycleSelection(card.list, card.selectedId, 1, card.onApply)
+                          }
+                          className="w-5 h-5 rounded-md bg-white/90 hover:bg-white border border-gray-200 text-gray-700 flex items-center justify-center text-[10px] font-bold cursor-pointer shadow-2xs"
+                          title={`Next ${card.label} style`}
+                        >
+                          ›
+                        </button>
                       </div>
-                    )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={card.onFocus}
+                      className="text-left cursor-pointer min-w-0"
+                    >
+                      <div className="text-[11px] font-bold text-gray-900 truncate">
+                        {card.activeOpt?.name || card.fallbackName}
+                      </div>
+                      <div className={`text-[10px] font-mono font-bold mt-0.5 ${card.priceColor}`}>
+                        {card.cost === 0
+                          ? 'Included'
+                          : formatCurrency(card.cost * markupFactor, config.currency, {
+                              showPlus: true,
+                              ratesMap: config.exchangeRates,
+                            })}
+                      </div>
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Sub-category Filter Tabs */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                {[
+                  {
+                    id: 'all',
+                    label: `All (${windowOptionsOnly.length + entranceDoorOptionsOnly.length + availableInteriorDoorOptions.length + availableBathroomDoorOptions.length})`,
+                  },
+                  { id: 'Windows', label: `Windows (${windowOptionsOnly.length})` },
+                  { id: 'Main Entrance', label: `Main Entrance (${entranceDoorOptionsOnly.length})` },
+                  { id: 'Room Doors', label: `Room Doors (${availableInteriorDoorOptions.length})` },
+                  { id: 'Bathroom Doors', label: `Bathroom Doors (${availableBathroomDoorOptions.length})` },
+                ].map((cat) => {
+                  const isSelected = glazingSubFilter === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => {
+                        setGlazingSubFilter(cat.id as any);
+                        if (cat.id === 'Room Doors' || cat.id === 'Bathroom Doors') {
+                          focusCameraForInterior();
+                        } else if (cat.id === 'Windows' || cat.id === 'Main Entrance') {
+                          focusCameraForExterior();
+                        }
+                      }}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+                        isSelected
+                          ? 'bg-black text-white shadow-xs'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Dual Camera Quick Inspection Bar: Exterior vs Interior Doors */}
+              <div className="bg-orange-50/90 border border-orange-200/90 p-2.5 rounded-2xl flex items-center justify-between gap-2 shadow-2xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-orange-600 text-white flex items-center justify-center text-sm shadow-xs font-bold shrink-0">
+                    🚪
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-gray-900">Inspect in 3D</p>
+                    <p className="text-[10px] text-gray-500 leading-snug">
+                      Jump between exterior windows/main door and interior room/bath doors
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={focusCameraForExterior}
+                    className="px-2 py-1.5 rounded-lg bg-white hover:bg-gray-100 text-gray-900 border border-gray-300 text-[10px] font-bold shadow-2xs transition-colors cursor-pointer"
+                  >
+                    Front View
                   </button>
-                );
-              })}
+                  <button
+                    type="button"
+                    onClick={focusCameraForInterior}
+                    className="px-2 py-1.5 rounded-lg bg-black hover:bg-gray-800 text-white text-[10px] font-bold shadow-xs transition-colors cursor-pointer"
+                  >
+                    Interior View
+                  </button>
+                </div>
+              </div>
+
+              {/* 1. PERIMETER WINDOWS LIST */}
+              {(glazingSubFilter === 'all' || glazingSubFilter === 'Windows') && (
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-sky-800">
+                      1. Perimeter Windows ({windowOptionsOnly.length})
+                    </span>
+                    <span className="text-[10px] font-semibold text-gray-500">
+                      Front, Side &amp; Rear Windows
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {windowOptionsOnly.map((opt: any) =>
+                      renderDoorOptionCard(
+                        opt,
+                        selectedWindowId === opt.id,
+                        () => onChange((prev) => ({ ...prev, windowStyle: opt.id })),
+                        'sky'
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 2. MAIN ENTRANCE DOORS LIST */}
+              {(glazingSubFilter === 'all' || glazingSubFilter === 'Main Entrance') && (
+                <div className="space-y-2.5 pt-1">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-orange-800">
+                      2. Main Entrance Doors ({entranceDoorOptionsOnly.length})
+                    </span>
+                    <span className="text-[10px] font-semibold text-gray-500">
+                      Front Broken-Bridge Entry
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {entranceDoorOptionsOnly.map((opt: any) =>
+                      renderDoorOptionCard(
+                        opt,
+                        selectedEntranceId === opt.id,
+                        () => onChange((prev) => ({ ...prev, glazing: opt.id })),
+                        'orange'
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 3. INTERIOR ROOM DOORS LIST */}
+              {(glazingSubFilter === 'all' || glazingSubFilter === 'Room Doors') && (
+                <div className="space-y-2.5 pt-1">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-indigo-800">
+                      3. Interior Room Doors ({availableInteriorDoorOptions.length})
+                    </span>
+                    <span className="text-[10px] font-semibold text-gray-500">
+                      Bedrooms &amp; Private Partitions
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {availableInteriorDoorOptions.map((opt: any) =>
+                      renderDoorOptionCard(
+                        opt,
+                        selectedRoomDoorId === opt.id,
+                        () => onChange((prev) => ({ ...prev, interiorDoor: opt.id })),
+                        'indigo'
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 4. BATHROOM DOORS LIST */}
+              {(glazingSubFilter === 'all' || glazingSubFilter === 'Bathroom Doors') && (
+                <div className="space-y-2.5 pt-1">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-emerald-800">
+                      4. Bathroom Doors ({availableBathroomDoorOptions.length})
+                    </span>
+                    <span className="text-[10px] font-semibold text-gray-500">
+                      Waterproof, Louver &amp; Privacy Glass
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {availableBathroomDoorOptions.map((opt: any) =>
+                      renderDoorOptionCard(
+                        opt,
+                        selectedBathDoorId === opt.id,
+                        () => onChange((prev) => ({ ...prev, bathroomDoor: opt.id })),
+                        'emerald'
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* =========================================================================
             3. FLOORING COLLECTIONS (Catalog Page 26) - 6 Collections, 24 Finishes
@@ -2722,524 +3585,723 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
             5. MODULAR ADD-ONS & ACCESSORIES (Page 28, 44, 70)
            ========================================================================= */}
         {(activeCategory === 'Add-ons' || activeCategory === 'Interior Modules' || activeCategory === 'Smart Living') && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* Header with Title and Dashboard Link */}
             <div>
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-orange-600 animate-pulse" />
-                  <h3 className="text-[11px] font-black text-gray-900 uppercase tracking-[0.2em]">
-                    6. Add-ons &amp; Modular Accessories
+              <div className="flex items-center justify-between gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-2 h-2 rounded-full bg-orange-600 animate-pulse shrink-0" />
+                  <h3 className="text-[11px] font-black text-gray-900 uppercase tracking-[0.16em] truncate">
+                    6. Add-ons &amp; Accessories
                   </h3>
                 </div>
                 <a
                   href="/dashboard?tab=addons"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-[11px] font-bold text-orange-800 border border-orange-200 transition-colors shadow-2xs group"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-[10px] font-bold text-orange-800 border border-orange-200 transition-colors shadow-2xs group shrink-0 whitespace-nowrap"
                   title="Manage add-on prices, specs, and availability in the Admin Dashboard"
                 >
-                  <Sliders className="w-3.5 h-3.5 text-orange-600 group-hover:rotate-45 transition-transform" />
-                  <span className="hidden sm:inline">Manage in Dashboard</span>
-                  <span className="sm:hidden">Dashboard</span>
-                  <ExternalLink className="w-3 h-3 text-orange-400" />
+                  <Sliders className="w-3 h-3 text-orange-600 group-hover:rotate-45 transition-transform" />
+                  <span className="hidden sm:inline">Dashboard</span>
+                  <ExternalLink className="w-2.5 h-2.5 text-orange-400" />
                 </a>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Configure turnkey modular kits, HVAC mini-split climate systems, living pods, patio pergola decks, and smart living packages.
+              <p className="text-[11px] text-gray-500 mt-0.5 leading-snug">
+                Select modular add-ons below. Hover any <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-gray-100 border border-gray-300 text-[9px] font-serif italic font-bold text-gray-700 mx-0.5">i</span> button for full specs.
               </p>
             </div>
 
             {/* Quick Status Bar */}
-            <div className="bg-[#FAF8F5] border border-orange-200/60 rounded-2xl p-3 flex items-center justify-between text-xs shadow-2xs">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                <span className="font-bold text-gray-900">
-                  {activeAddonsCount} of {availableAddons.length} Add-ons Selected
+            <div className="bg-[#FAF8F5] border border-orange-200/60 rounded-xl px-3 py-2 flex items-center justify-between gap-2 text-[11px] shadow-2xs min-w-0">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                <span className="font-bold text-gray-900 truncate">
+                  {activeAddonsCount} of {availableAddons.length} Selected
                 </span>
               </div>
-              <span className="text-[11px] font-mono text-gray-500">
-                Turnkey Modular Factory Add-ons
+              <span className="text-[10px] font-mono text-gray-500 shrink-0 whitespace-nowrap">
+                Factory Add-ons
               </span>
             </div>
 
             {/* Standard Core Modules (Bath Pod & Kitchenette) Management */}
-            <div className="bg-gradient-to-br from-emerald-50/70 via-white to-blue-50/60 border border-emerald-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-base">🛁🍳</span>
-                  <div>
-                    <h4 className="text-xs font-black text-gray-950 uppercase tracking-wider flex items-center gap-2">
-                      <span>Standard Core Modules (20ft, 30ft, 40ft)</span>
-                      <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded border border-emerald-200">
-                        Default On
-                      </span>
-                    </h4>
-                    <p className="text-[11px] text-gray-500">
-                      Added on starting by default. You can remove each if you prefer an open, unpartitioned shell.
-                    </p>
-                  </div>
+            {(availableAddons.some((a: any) => a.id === 'hasLuxuryBathPod') ||
+              availableAddons.some((a: any) => a.id === 'hasKitchenetteModule')) && (
+            <div className="bg-gradient-to-br from-emerald-50/70 via-white to-blue-50/60 border border-emerald-200/90 rounded-2xl p-2.5 sm:p-3 shadow-xs space-y-2">
+              <div className="flex items-center justify-between gap-2 min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <span className="text-sm shrink-0">🛁🍳</span>
+                  <h4 className="text-[11px] font-black text-gray-950 uppercase tracking-wider truncate">
+                    Core Modules
+                  </h4>
+                  <AddonInfoButton
+                    title="Standard Core Modules (20ft, 30ft, 40ft)"
+                    badge="Default On"
+                    description="Added on starting by default so the unit arrives move-in ready. You can remove either module if you prefer an open, unpartitioned shell."
+                    footerHint="Toggle each core module independently below."
+                  />
                 </div>
-                <span className="text-[10px] font-mono font-bold bg-white px-2 py-0.5 rounded-full border border-emerald-200 text-emerald-900 shadow-2xs">
+                <span className="text-[10px] font-mono font-bold bg-white px-2 py-0.5 rounded-full border border-emerald-200 text-emerald-900 shadow-2xs shrink-0 whitespace-nowrap">
                   {Number(Boolean(state.hasLuxuryBathPod)) + Number(Boolean(state.hasKitchenetteModule))}/2 Included
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 gap-2.5">
+              <div className="grid grid-cols-1 gap-1.5">
                 {/* Bath Pod Toggle */}
-                <div className={`p-3 rounded-xl border transition-all flex flex-col justify-between gap-2 ${
-                  state.hasLuxuryBathPod
-                    ? 'bg-emerald-50/80 border-emerald-300 ring-1 ring-emerald-400/30'
-                    : 'bg-white border-gray-200 hover:border-gray-300'
-                }`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">🛁</span>
-                      <div>
-                        <div className="text-xs font-bold text-gray-950 flex items-center gap-1.5">
-                          <span>Luxury Bath Pod</span>
-                          {state.hasLuxuryBathPod && (
-                            <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded">
-                              Included
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[10px] text-gray-500">Glass shower, porcelain toilet &amp; vanity</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-gray-100">
-                    <span className="text-xs font-bold font-mono text-gray-900">
-                      {formatCurrency(
-                        getItemPriceForModel(
-                          availableAddons.find((a: any) => a.id === 'hasLuxuryBathPod') || { price: 7800 },
-                          state.modelId,
-                          config.models
-                        ) * markupFactor,
-                        config.currency,
-                        { showPlus: true, ratesMap: config.exchangeRates }
-                      )}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      {onPerspectiveChange && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onPerspectiveChange('interior-walkthrough');
-                          }}
-                          className="text-[10px] font-bold px-2 py-1 rounded-md bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 cursor-pointer"
-                          title="Focus 3D camera on interior walkthrough"
-                        >
-                          👁️ 3D
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onChange((prev) => ({
-                            ...prev,
-                            hasLuxuryBathPod: !prev.hasLuxuryBathPod,
-                          }))
-                        }
-                        className={`text-[10px] font-black px-2.5 py-1 rounded-lg cursor-pointer transition-all ${
-                          state.hasLuxuryBathPod
-                            ? 'bg-emerald-600 hover:bg-red-600 text-white shadow-2xs'
-                            : 'bg-gray-100 hover:bg-emerald-50 hover:text-emerald-700 text-gray-700 border border-gray-200'
-                        }`}
-                        title={state.hasLuxuryBathPod ? 'Click to remove the Bath Pod from the house' : 'Click to add the Bath Pod back'}
-                      >
-                        {state.hasLuxuryBathPod ? '✓ Included (Remove)' : '+ Add Bath Pod'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Kitchenette Toggle */}
-                <div className={`p-3 rounded-xl border transition-all flex flex-col justify-between gap-2 ${
-                  state.hasKitchenetteModule
-                    ? 'bg-emerald-50/80 border-emerald-300 ring-1 ring-emerald-400/30'
-                    : 'bg-white border-gray-200 hover:border-gray-300'
-                }`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">🍳</span>
-                      <div>
-                        <div className="text-xs font-bold text-gray-950 flex items-center gap-1.5">
-                          <span>Modular Kitchenette</span>
-                          {state.hasKitchenetteModule && (
-                            <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded">
-                              Included
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[10px] text-gray-500">Quartz counter, induction cooktop &amp; sink</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-gray-100">
-                    <span className="text-xs font-bold font-mono text-gray-900">
-                      {formatCurrency(
-                        getItemPriceForModel(
-                          availableAddons.find((a: any) => a.id === 'hasKitchenetteModule') || { price: 4800 },
-                          state.modelId,
-                          config.models
-                        ) * markupFactor,
-                        config.currency,
-                        { showPlus: true, ratesMap: config.exchangeRates }
-                      )}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      {onPerspectiveChange && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onPerspectiveChange('living-lounge');
-                          }}
-                          className="text-[10px] font-bold px-2 py-1 rounded-md bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 cursor-pointer"
-                          title="Focus 3D camera on living lounge & kitchenette"
-                        >
-                          👁️ 3D
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onChange((prev) => ({
-                            ...prev,
-                            hasKitchenetteModule: !prev.hasKitchenetteModule,
-                          }))
-                        }
-                        className={`text-[10px] font-black px-2.5 py-1 rounded-lg cursor-pointer transition-all ${
-                          state.hasKitchenetteModule
-                            ? 'bg-emerald-600 hover:bg-red-600 text-white shadow-2xs'
-                            : 'bg-gray-100 hover:bg-emerald-50 hover:text-emerald-700 text-gray-700 border border-gray-200'
-                        }`}
-                        title={state.hasKitchenetteModule ? 'Click to remove the Kitchenette from the house' : 'Click to add the Kitchenette back'}
-                      >
-                        {state.hasKitchenetteModule ? '✓ Included (Remove)' : '+ Add Kitchenette'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Custom Furniture (Bed & Sofa) Self-Addition Module */}
-            <div className="bg-gradient-to-br from-indigo-50/70 via-white to-amber-50/60 border border-indigo-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-base">🛋️🛏️</span>
-                  <div>
-                    <h4 className="text-xs font-black text-gray-950 uppercase tracking-wider">
-                      Self-Add Furniture (20ft, 30ft, 40ft)
-                    </h4>
-                    <p className="text-[11px] text-gray-500">
-                      Beds and sofas are optional — add them when desired with 1 click.
-                    </p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-mono font-bold bg-white px-2 py-0.5 rounded-full border border-indigo-200 text-indigo-900 shadow-2xs">
-                  {Number(Boolean(state.hasLuxuryBedSuite)) + Number(Boolean(state.hasLivingSofa))}/2 Added
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 gap-2.5">
-                {/* Bed Suite Toggle */}
-                <div className={`p-3 rounded-xl border transition-all flex flex-col justify-between gap-2 ${
-                  state.hasLuxuryBedSuite
-                    ? 'bg-indigo-50/80 border-indigo-300 ring-1 ring-indigo-400/30'
-                    : 'bg-white border-gray-200 hover:border-gray-300'
-                }`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">🛏️</span>
-                      <div>
-                        <div className="text-xs font-bold text-gray-950">Architectural Bed Suite</div>
-                        <div className="text-[10px] text-gray-500">Floating platform, mattress &amp; lamps</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-gray-100">
-                    <span className="text-xs font-bold font-mono text-gray-900">
-                      {formatCurrency(
-                        getItemPriceForModel(
-                          availableAddons.find((a: any) => a.id === 'hasLuxuryBedSuite') || { price: 3200 },
-                          state.modelId,
-                          config.models
-                        ) * markupFactor,
-                        config.currency,
-                        { showPlus: true, ratesMap: config.exchangeRates }
-                      )}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      {onPerspectiveChange && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onPerspectiveChange('bedroom-suite');
-                          }}
-                          className="text-[10px] font-bold px-2 py-1 rounded-md bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 cursor-pointer"
-                          title="Focus 3D camera on bedroom"
-                        >
-                          👁️ 3D
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onChange((prev) => ({
-                            ...prev,
-                            hasLuxuryBedSuite: !prev.hasLuxuryBedSuite,
-                          }))
-                        }
-                        className={`text-[10px] font-black px-2.5 py-1 rounded-lg cursor-pointer transition-all ${
-                          state.hasLuxuryBedSuite
-                            ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs'
-                            : 'bg-gray-100 hover:bg-indigo-50 hover:text-indigo-700 text-gray-700 border border-gray-200'
-                        }`}
-                      >
-                        {state.hasLuxuryBedSuite ? '✓ Bed Added' : '+ Add Bed'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Living Room Sofa Toggle */}
-                <div className={`p-3 rounded-xl border transition-all flex flex-col justify-between gap-2 ${
-                  state.hasLivingSofa
-                    ? 'bg-amber-50/80 border-amber-300 ring-1 ring-amber-400/30'
-                    : 'bg-white border-gray-200 hover:border-gray-300'
-                }`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">🛋️</span>
-                      <div>
-                        <div className="text-xs font-bold text-gray-950">Designer Sofa Lounge</div>
-                        <div className="text-[10px] text-gray-500">Modular sofa, travertine table &amp; rug</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-gray-100">
-                    <span className="text-xs font-bold font-mono text-gray-900">
-                      {formatCurrency(
-                        getItemPriceForModel(
-                          availableAddons.find((a: any) => a.id === 'hasLivingSofa') || { price: 1350 },
-                          state.modelId,
-                          config.models
-                        ) * markupFactor,
-                        config.currency,
-                        { showPlus: true, ratesMap: config.exchangeRates }
-                      )}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      {onPerspectiveChange && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onPerspectiveChange('living-lounge');
-                          }}
-                          className="text-[10px] font-bold px-2 py-1 rounded-md bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 cursor-pointer"
-                          title="Focus 3D camera on living lounge"
-                        >
-                          👁️ 3D
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onChange((prev) => ({
-                            ...prev,
-                            hasLivingSofa: !prev.hasLivingSofa,
-                          }))
-                        }
-                        className={`text-[10px] font-black px-2.5 py-1 rounded-lg cursor-pointer transition-all ${
-                          state.hasLivingSofa
-                            ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-2xs'
-                            : 'bg-gray-100 hover:bg-amber-50 hover:text-amber-800 text-gray-700 border border-gray-200'
-                        }`}
-                      >
-                        {state.hasLivingSofa ? '✓ Sofa Added' : '+ Add Sofa'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Sub-Filter Tabs */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-              {[
-                { id: 'all', label: 'All Add-ons', count: availableAddons.length },
-                {
-                  id: 'living',
-                  label: 'Living Pods & Furnishings',
-                  count: availableAddons.filter((a: any) => a.category !== 'Smart Living' && !a.id.includes('Hvac')).length,
-                },
-                {
-                  id: 'climate',
-                  label: 'HVAC & Climate Systems',
-                  count: availableAddons.filter((a: any) => a.id.includes('Hvac') || a.name?.toLowerCase().includes('hvac') || a.name?.toLowerCase().includes('air conditioning')).length,
-                },
-                {
-                  id: 'smart',
-                  label: 'Smart Living & Security',
-                  count: availableAddons.filter((a: any) => (a.category === 'Smart Living' || a.id.includes('Smart') || a.id === 'hasBioDigester') && !a.id.includes('Hvac')).length,
-                },
-              ].map((tab) => {
-                const isCurrent = addonSubFilter === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setAddonSubFilter(tab.id as any)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
-                      isCurrent
-                        ? 'bg-gray-900 text-white shadow-xs font-bold'
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                    }`}
-                  >
-                    <span>{tab.label}</span>
-                    <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${isCurrent ? 'bg-white/20 text-white' : 'bg-white text-gray-500 border border-gray-200'}`}>
-                      {tab.count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Add-ons Cards Grid */}
-            <div className="grid grid-cols-1 gap-2.5">
-              {availableAddons
-                .filter((addon: any) => {
-                  const isHvac = addon.id.includes('Hvac') || addon.name?.toLowerCase().includes('hvac') || addon.name?.toLowerCase().includes('air conditioning');
-                  const isSmart = (addon.category === 'Smart Living' || addon.id.includes('Smart') || addon.id === 'hasBioDigester') && !isHvac;
-                  const isLiving = !isHvac && !isSmart;
-
-                  if (addonSubFilter === 'living') return isLiving;
-                  if (addonSubFilter === 'climate') return isHvac;
-                  if (addonSubFilter === 'smart') return isSmart;
-                  return true;
-                })
-                .map((addon: any) => {
-                  const isChecked = Boolean(state[addon.id]);
-                  const unitPrice = getItemPriceForModel(addon, state.modelId, config.models);
-                  const unitSpec = getItemUnitSpec(addon, state.modelId);
-                  const isHvac = addon.id.includes('Hvac') || addon.name?.toLowerCase().includes('hvac');
-
+                {availableAddons.some((a: any) => a.id === 'hasLuxuryBathPod') && (() => {
+                  const bathAddon = availableAddons.find((a: any) => a.id === 'hasLuxuryBathPod');
+                  const bathPrice = formatCurrency(
+                    getItemPriceForModel(bathAddon || { price: 7800 }, state.modelId, config.models) * markupFactor,
+                    config.currency,
+                    { showPlus: true, ratesMap: config.exchangeRates }
+                  );
                   return (
                     <div
-                      key={addon.id}
-                      className={`text-left p-3.5 sm:p-4 rounded-2xl border transition-all flex flex-col gap-2.5 cursor-pointer ${
-                        isChecked
-                          ? 'border-orange-600 bg-orange-50/25 shadow-xs ring-1 ring-orange-500/20'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 bg-white'
-                      }`}
                       onClick={() =>
                         onChange((prev) => ({
                           ...prev,
-                          [addon.id]: !isChecked,
+                          hasLuxuryBathPod: !prev.hasLuxuryBathPod,
                         }))
                       }
+                      className={`p-2 rounded-xl border transition-all flex flex-col gap-1.5 cursor-pointer min-w-0 ${
+                        state.hasLuxuryBathPod
+                          ? 'bg-emerald-50/80 border-emerald-300 ring-1 ring-emerald-400/30'
+                          : 'bg-white border-gray-200 hover:border-gray-300'
+                      }`}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-3">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              onChange((prev) => ({
-                                ...prev,
-                                [addon.id]: e.target.checked,
-                              }));
-                            }}
-                            className="mt-1 w-4 h-4 rounded text-orange-600 focus:ring-orange-400 border-gray-300 accent-orange-600 shrink-0 cursor-pointer"
-                          />
-                          <div className="space-y-0.5">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-xs sm:text-sm font-bold text-gray-950">
-                                {addon.name}
-                              </span>
-                              {unitSpec.sizeLabel && (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-200/80">
-                                  {unitSpec.sizeLabel}
-                                </span>
-                              )}
-                              {isHvac && (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200/80">
-                                  ❄️🔥 Indoor + Exterior Dual System
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-gray-500 leading-snug line-clamp-2 mt-0.5">
-                              {unitSpec.description || addon.description}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <span className="text-xs sm:text-sm font-bold font-mono text-gray-900 block">
-                            {formatCurrency(unitPrice * markupFactor, config.currency, { showPlus: true, ratesMap: config.exchangeRates })}
-                          </span>
-                          <span
-                            className={`inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors ${
-                              isChecked
-                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                : 'bg-gray-100 text-gray-500 border border-gray-200'
-                            }`}
-                          >
-                            {isChecked ? '✓ Added to Home' : '+ Click to Add'}
+                      <div className="flex items-start justify-between gap-2 min-w-0">
+                        <div className="flex items-start gap-1.5 min-w-0 flex-1">
+                          <span className="text-sm shrink-0">🛁</span>
+                          <span className="text-xs font-bold text-gray-950 leading-snug break-words">Luxury Bath Pod</span>
+                          <span className="shrink-0 mt-0.5">
+                            <AddonInfoButton
+                              title="Luxury Bath Pod"
+                              badge={state.hasLuxuryBathPod ? 'Included' : 'Core Module'}
+                              priceLabel={bathPrice}
+                              description={
+                                bathAddon?.description ||
+                                'Factory-installed wet bathroom pod with tempered glass shower enclosure, porcelain toilet, vanity sink, mirror, and waterproof SPC flooring.'
+                              }
+                              specDetail={bathAddon?.specDetail || 'Glass shower + Porcelain toilet + Vanity + Exhaust fan'}
+                              footerHint="Click card or button to include or remove."
+                            />
                           </span>
                         </div>
+                        <span className="text-xs font-bold font-mono text-gray-900 shrink-0 whitespace-nowrap">
+                          {bathPrice}
+                        </span>
                       </div>
-
-                      {/* Specs and 3D View Shortcut */}
-                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-100/80 text-[10px]">
-                        {(unitSpec.specDetail || addon.specDetail) ? (
-                          <div className="text-gray-600 font-mono bg-orange-50/60 border border-orange-100 px-2 py-0.5 rounded-md truncate max-w-[240px]">
-                            Spec: {unitSpec.specDetail || addon.specDetail}
-                          </div>
-                        ) : <div />}
-
-                        {onPerspectiveChange && (
+                      <div className="flex items-center justify-between gap-2 pl-5 min-w-0">
+                        <span className="text-[10px] text-gray-500 leading-snug">
+                          Glass shower, porcelain toilet &amp; vanity
+                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {onPerspectiveChange && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onPerspectiveChange('interior-walkthrough');
+                              }}
+                              className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 cursor-pointer whitespace-nowrap"
+                              title="Focus 3D camera on interior walkthrough"
+                            >
+                              👁️ 3D
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (isHvac) {
-                                onPerspectiveChange('living-lounge');
-                              } else if (addon.id === 'hasExteriorPergolaDeck') {
-                                if (!isChecked) {
-                                  onChange((prev) => ({ ...prev, hasExteriorPergolaDeck: true }));
-                                }
-                                onPerspectiveChange('exterior-iso');
-                              } else if (addon.id === 'hasLuxuryBathPod') {
-                                onPerspectiveChange('interior-walkthrough');
-                              } else if (addon.id === 'hasKitchenetteModule') {
-                                onPerspectiveChange('living-lounge');
-                              } else if (addon.id === 'hasSmartDoorLock') {
-                                onPerspectiveChange('front-elevation');
-                              } else {
-                                onPerspectiveChange('interior-walkthrough');
-                              }
+                              onChange((prev) => ({
+                                ...prev,
+                                hasLuxuryBathPod: !prev.hasLuxuryBathPod,
+                              }));
                             }}
-                            className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold cursor-pointer transition-colors shrink-0"
-                            title="Focus 3D camera on this modular element"
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full cursor-pointer transition-all whitespace-nowrap ${
+                              state.hasLuxuryBathPod
+                                ? 'bg-emerald-600 hover:bg-red-600 text-white'
+                                : 'bg-gray-100 hover:bg-emerald-50 hover:text-emerald-700 text-gray-700 border border-gray-200'
+                            }`}
+                            title={state.hasLuxuryBathPod ? 'Click to remove the Bath Pod from the house' : 'Click to add the Bath Pod back'}
                           >
-                            <Eye className="w-3 h-3 text-orange-600" />
-                            <span>View in 3D</span>
+                            {state.hasLuxuryBathPod ? '✓ Included' : '+ Add'}
                           </button>
-                        )}
+                        </div>
                       </div>
                     </div>
                   );
-                })}
+                })()}
+
+                {/* Kitchenette Toggle */}
+                {availableAddons.some((a: any) => a.id === 'hasKitchenetteModule') && (() => {
+                  const kitchenAddon = availableAddons.find((a: any) => a.id === 'hasKitchenetteModule');
+                  const kitchenPrice = formatCurrency(
+                    getItemPriceForModel(kitchenAddon || { price: 4800 }, state.modelId, config.models) * markupFactor,
+                    config.currency,
+                    { showPlus: true, ratesMap: config.exchangeRates }
+                  );
+                  return (
+                    <div
+                      onClick={() =>
+                        onChange((prev) => ({
+                          ...prev,
+                          hasKitchenetteModule: !prev.hasKitchenetteModule,
+                        }))
+                      }
+                      className={`p-2 rounded-xl border transition-all flex flex-col gap-1.5 cursor-pointer min-w-0 ${
+                        state.hasKitchenetteModule
+                          ? 'bg-emerald-50/80 border-emerald-300 ring-1 ring-emerald-400/30'
+                          : 'bg-white border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2 min-w-0">
+                        <div className="flex items-start gap-1.5 min-w-0 flex-1">
+                          <span className="text-sm shrink-0">🍳</span>
+                          <span className="text-xs font-bold text-gray-950 leading-snug break-words">Modular Kitchenette</span>
+                          <span className="shrink-0 mt-0.5">
+                            <AddonInfoButton
+                              title="Modular Kitchenette"
+                              badge={state.hasKitchenetteModule ? 'Included' : 'Core Module'}
+                              priceLabel={kitchenPrice}
+                              description={
+                                kitchenAddon?.description ||
+                                'Pre-plumbed and wired architectural kitchenette featuring quartz countertop, induction cooktop, stainless basin, and lower cabinetry.'
+                              }
+                              specDetail={kitchenAddon?.specDetail || 'Quartz counter + Induction cooktop + Basin + Cabinetry'}
+                              footerHint="Click card or button to include or remove."
+                            />
+                          </span>
+                        </div>
+                        <span className="text-xs font-bold font-mono text-gray-900 shrink-0 whitespace-nowrap">
+                          {kitchenPrice}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 pl-5 min-w-0">
+                        <span className="text-[10px] text-gray-500 leading-snug">
+                          Quartz counter, induction cooktop &amp; sink
+                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {onPerspectiveChange && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onPerspectiveChange('living-lounge');
+                              }}
+                              className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 cursor-pointer whitespace-nowrap"
+                              title="Focus 3D camera on living lounge & kitchenette"
+                            >
+                              👁️ 3D
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onChange((prev) => ({
+                                ...prev,
+                                hasKitchenetteModule: !prev.hasKitchenetteModule,
+                              }));
+                            }}
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full cursor-pointer transition-all whitespace-nowrap ${
+                              state.hasKitchenetteModule
+                                ? 'bg-emerald-600 hover:bg-red-600 text-white'
+                                : 'bg-gray-100 hover:bg-emerald-50 hover:text-emerald-700 text-gray-700 border border-gray-200'
+                            }`}
+                            title={state.hasKitchenetteModule ? 'Click to remove the Kitchenette from the house' : 'Click to add the Kitchenette back'}
+                          >
+                            {state.hasKitchenetteModule ? '✓ Included' : '+ Add'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
+            )}
+
+            {/* Custom Furniture (Bed & Sofa) Self-Addition Module */}
+            {(availableAddons.some((a: any) => a.id === 'hasLuxuryBedSuite') ||
+              availableAddons.some((a: any) => a.id === 'hasLivingSofa')) && (
+            <div className="bg-gradient-to-br from-indigo-50/70 via-white to-amber-50/60 border border-indigo-200/90 rounded-2xl p-2.5 sm:p-3 shadow-xs space-y-2">
+              <div className="flex items-center justify-between gap-2 min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <span className="text-sm shrink-0">🛋️🛏️</span>
+                  <h4 className="text-[11px] font-black text-gray-950 uppercase tracking-wider truncate">
+                    Self-Add Furniture
+                  </h4>
+                  <AddonInfoButton
+                    title="Self-Add Furniture (20ft, 30ft, 40ft)"
+                    badge="Optional Suite"
+                    description="Beds and designer sofas are optional turnkey packages — add or remove them in 1 click to stage your floor plan."
+                    footerHint="Click any furniture card to toggle it in the 3D viewer."
+                  />
+                </div>
+                <span className="text-[10px] font-mono font-bold bg-white px-2 py-0.5 rounded-full border border-indigo-200 text-indigo-900 shadow-2xs shrink-0 whitespace-nowrap">
+                  {Number(Boolean(state.hasLuxuryBedSuite)) + Number(Boolean(state.hasLivingSofa))}/2 Added
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-1.5">
+                {/* Bed Suite Toggle */}
+                {availableAddons.some((a: any) => a.id === 'hasLuxuryBedSuite') && (() => {
+                  const bedAddon = availableAddons.find((a: any) => a.id === 'hasLuxuryBedSuite');
+                  const bedPrice = formatCurrency(
+                    getItemPriceForModel(bedAddon || { price: 3200 }, state.modelId, config.models) * markupFactor,
+                    config.currency,
+                    { showPlus: true, ratesMap: config.exchangeRates }
+                  );
+                  return (
+                    <div
+                      onClick={() =>
+                        onChange((prev) => ({
+                          ...prev,
+                          hasLuxuryBedSuite: !prev.hasLuxuryBedSuite,
+                        }))
+                      }
+                      className={`p-2 rounded-xl border transition-all flex flex-col gap-1.5 cursor-pointer min-w-0 ${
+                        state.hasLuxuryBedSuite
+                          ? 'bg-indigo-50/80 border-indigo-300 ring-1 ring-indigo-400/30'
+                          : 'bg-white border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2 min-w-0">
+                        <div className="flex items-start gap-1.5 min-w-0 flex-1">
+                          <span className="text-sm shrink-0">🛏️</span>
+                          <span className="text-xs font-bold text-gray-950 leading-snug break-words">Architectural Bed Suite</span>
+                          <span className="shrink-0 mt-0.5">
+                            <AddonInfoButton
+                              title="Architectural Bed Suite"
+                              badge="Bedroom Furniture"
+                              priceLabel={bedPrice}
+                              description={
+                                bedAddon?.description ||
+                                'Floating walnut platform bed frame with memory-foam mattress, warm dual bedside sconces, and integrated storage.'
+                              }
+                              specDetail={bedAddon?.specDetail || 'Floating platform + Mattress + Dual reading lamps'}
+                              footerHint="Click card or button to toggle in bedroom."
+                            />
+                          </span>
+                        </div>
+                        <span className="text-xs font-bold font-mono text-gray-900 shrink-0 whitespace-nowrap">
+                          {bedPrice}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 pl-5 min-w-0">
+                        <span className="text-[10px] text-gray-500 leading-snug">
+                          Floating platform, mattress &amp; lamps
+                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {onPerspectiveChange && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onPerspectiveChange('bedroom-suite');
+                              }}
+                              className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 cursor-pointer whitespace-nowrap"
+                              title="Focus 3D camera on bedroom"
+                            >
+                              👁️ 3D
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onChange((prev) => ({
+                                ...prev,
+                                hasLuxuryBedSuite: !prev.hasLuxuryBedSuite,
+                              }));
+                            }}
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full cursor-pointer transition-all whitespace-nowrap ${
+                              state.hasLuxuryBedSuite
+                                ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                                : 'bg-gray-100 hover:bg-indigo-50 hover:text-indigo-700 text-gray-700 border border-gray-200'
+                            }`}
+                          >
+                            {state.hasLuxuryBedSuite ? '✓ Added' : '+ Add'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Living Room Sofa Toggle */}
+                {availableAddons.some((a: any) => a.id === 'hasLivingSofa') && (() => {
+                  const sofaAddon = availableAddons.find((a: any) => a.id === 'hasLivingSofa');
+                  const sofaPrice = formatCurrency(
+                    getItemPriceForModel(sofaAddon || { price: 1350 }, state.modelId, config.models) * markupFactor,
+                    config.currency,
+                    { showPlus: true, ratesMap: config.exchangeRates }
+                  );
+                  return (
+                    <div
+                      onClick={() =>
+                        onChange((prev) => ({
+                          ...prev,
+                          hasLivingSofa: !prev.hasLivingSofa,
+                        }))
+                      }
+                      className={`p-2 rounded-xl border transition-all flex flex-col gap-1.5 cursor-pointer min-w-0 ${
+                        state.hasLivingSofa
+                          ? 'bg-amber-50/80 border-amber-300 ring-1 ring-amber-400/30'
+                          : 'bg-white border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2 min-w-0">
+                        <div className="flex items-start gap-1.5 min-w-0 flex-1">
+                          <span className="text-sm shrink-0">🛋️</span>
+                          <span className="text-xs font-bold text-gray-950 leading-snug break-words">Designer Sofa Lounge</span>
+                          <span className="shrink-0 mt-0.5">
+                            <AddonInfoButton
+                              title="Designer Sofa Lounge"
+                              badge="Living Lounge"
+                              priceLabel={sofaPrice}
+                              description={
+                                sofaAddon?.description ||
+                                'Low-profile modular boucle lounge sofa paired with a travertine coffee table and woven area rug.'
+                              }
+                              specDetail={sofaAddon?.specDetail || 'Modular sofa + Travertine table + Woven rug'}
+                              footerHint="Click card or button to toggle in lounge."
+                            />
+                          </span>
+                        </div>
+                        <span className="text-xs font-bold font-mono text-gray-900 shrink-0 whitespace-nowrap">
+                          {sofaPrice}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 pl-5 min-w-0">
+                        <span className="text-[10px] text-gray-500 leading-snug">
+                          Modular sofa, travertine table &amp; rug
+                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {onPerspectiveChange && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onPerspectiveChange('living-lounge');
+                              }}
+                              className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 cursor-pointer whitespace-nowrap"
+                              title="Focus 3D camera on living lounge"
+                            >
+                              👁️ 3D
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onChange((prev) => ({
+                                ...prev,
+                                hasLivingSofa: !prev.hasLivingSofa,
+                              }));
+                            }}
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full cursor-pointer transition-all whitespace-nowrap ${
+                              state.hasLivingSofa
+                                ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                                : 'bg-gray-100 hover:bg-amber-50 hover:text-amber-800 text-gray-700 border border-gray-200'
+                            }`}
+                          >
+                            {state.hasLivingSofa ? '✓ Added' : '+ Add'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+            )}
+
+            {/* Sub-Filter Tabs */}
+            {(() => {
+              const isClimateAddon = (a: any) =>
+                a.category === 'Climate & Comfort' ||
+                a.id.includes('Hvac') ||
+                a.id.includes('AirConditioner') ||
+                a.name?.toLowerCase().includes('hvac') ||
+                a.name?.toLowerCase().includes('air conditioner') ||
+                a.name?.toLowerCase().includes('air conditioning');
+              const isSolarAddon = (a: any) =>
+                a.category === 'Solar & Battery' ||
+                a.id.toLowerCase().includes('solar') ||
+                a.name?.toLowerCase().includes('solar') ||
+                a.name?.toLowerCase().includes('battery');
+              const isSatelliteAddon = (a: any) =>
+                a.id === 'hasSatelliteInternet' ||
+                /satellite|starlink|vsat|dish/i.test(`${a.id || ''} ${a.name || ''}`);
+              const isSmartAddon = (a: any) =>
+                (a.category === 'Smart Living' ||
+                  a.id.includes('Smart') ||
+                  a.id === 'hasBioDigester' ||
+                  isSatelliteAddon(a)) &&
+                !isClimateAddon(a) &&
+                !isSolarAddon(a);
+              const isLivingAddon = (a: any) => !isClimateAddon(a) && !isSolarAddon(a) && !isSmartAddon(a);
+
+              const handleToggleAddon = (targetAddon: any, nextChecked: boolean) => {
+                const targetIsSolar = isSolarAddon(targetAddon);
+                onChange((prev) => {
+                  const nextState: CustomizationState = {
+                    ...prev,
+                    [targetAddon.id]: nextChecked,
+                  };
+                  // When choosing a Solar + Battery tier, replace any other active Solar + Battery tier
+                  if (targetIsSolar && nextChecked) {
+                    availableAddons.forEach((other: any) => {
+                      if (other.id !== targetAddon.id && isSolarAddon(other)) {
+                        nextState[other.id] = false;
+                      }
+                    });
+                  }
+                  return nextState;
+                });
+              };
+
+              return (
+                <>
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                    {[
+                      { id: 'all', label: 'All Add-ons', count: availableAddons.length },
+                      {
+                        id: 'living',
+                        label: 'Living Pods & Furnishings',
+                        count: availableAddons.filter(isLivingAddon).length,
+                      },
+                      {
+                        id: 'climate',
+                        label: 'AC & Climate',
+                        count: availableAddons.filter(isClimateAddon).length,
+                      },
+                      {
+                        id: 'solar',
+                        label: 'Solar & Batteries',
+                        count: availableAddons.filter(isSolarAddon).length,
+                      },
+                      {
+                        id: 'smart',
+                        label: 'Smart Living & Security',
+                        count: availableAddons.filter(isSmartAddon).length,
+                      },
+                    ].map((tab) => {
+                      const isCurrent = addonSubFilter === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setAddonSubFilter(tab.id as any)}
+                          className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                            isCurrent
+                              ? 'bg-gray-900 text-white shadow-xs font-bold'
+                              : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                          }`}
+                        >
+                          <span>{tab.label}</span>
+                          <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${isCurrent ? 'bg-white/20 text-white' : 'bg-white text-gray-500 border border-gray-200'}`}>
+                            {tab.count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Add-ons Cards Grid */}
+                  <div className="grid grid-cols-1 gap-1.5">
+                    {availableAddons
+                      .filter((addon: any) => {
+                        if (addonSubFilter === 'living') return isLivingAddon(addon);
+                        if (addonSubFilter === 'climate') return isClimateAddon(addon);
+                        if (addonSubFilter === 'solar') return isSolarAddon(addon);
+                        if (addonSubFilter === 'smart') return isSmartAddon(addon);
+                        return true;
+                      })
+                      .map((addon: any) => {
+                        const isChecked = Boolean(state[addon.id]);
+                        const unitPrice = getItemPriceForModel(addon, state.modelId, config.models);
+                        const formattedPrice = formatCurrency(unitPrice * markupFactor, config.currency, {
+                          showPlus: true,
+                          ratesMap: config.exchangeRates,
+                        });
+                        const unitSpec = getItemUnitSpec(addon, state.modelId);
+                        const isHvac = addon.id.includes('Hvac') || addon.name?.toLowerCase().includes('hvac');
+                        const isAcUnit = addon.id === 'hasAirConditionerUnit' || addon.name?.toLowerCase().includes('air conditioner');
+                        const isSolar = isSolarAddon(addon);
+                        const isSatellite = isSatelliteAddon(addon);
+                        const resolvedSpecDetail = unitSpec.specDetail || addon.specDetail;
+                        const resolvedDescription = unitSpec.description || addon.description;
+                        const specParts = resolvedSpecDetail
+                          ? resolvedSpecDetail
+                              .split(/\s*(?:\+|·|\||;)\s*/)
+                              .map((part: string) => part.trim())
+                              .filter(Boolean)
+                          : [];
+
+                        const badgeLabel = isHvac
+                          ? '❄️🔥 Indoor + Exterior Dual System'
+                          : isAcUnit && !isHvac
+                          ? '❄️ Dedicated Inverter Cooling AC'
+                          : isSolar
+                          ? '☀️🔋 Solar PV + Battery Storage'
+                          : isSatellite
+                          ? '🛰️ Starlink Phased-Array + Wi-Fi 6'
+                          : addon.category;
+
+                        const shortSubtitle = isHvac
+                          ? 'Climate · Dual HVAC'
+                          : isAcUnit && !isHvac
+                          ? 'Climate · Inverter AC'
+                          : isSolar
+                          ? 'Solar PV + Battery'
+                          : isSatellite
+                          ? 'Starlink Rooftop Dish'
+                          : addon.category || 'Modular Add-on';
+
+                        const infoHighlights = isSatellite
+                          ? [
+                              { label: 'Terminal', value: 'Rectangular Phased Array' },
+                              { label: 'Roof Mount', value: '4-Legged X-Frame Mast' },
+                              { label: 'Connectivity', value: 'Pre-Wired Wi-Fi 6 Hub' },
+                            ]
+                          : specParts.slice(0, 3).map((part: string, idx: number) => ({
+                              label: idx === 0 ? 'Core System' : idx === 1 ? 'Hardware Spec' : 'Integration',
+                              value: part,
+                            }));
+
+                        return (
+                          <div
+                            key={addon.id}
+                            className={`text-left p-2.5 sm:p-3 rounded-xl border transition-all flex flex-col gap-1.5 cursor-pointer min-w-0 ${
+                              isChecked
+                                ? 'border-orange-600 bg-orange-50/30 shadow-xs ring-1 ring-orange-500/20'
+                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 bg-white'
+                            }`}
+                            onClick={() => handleToggleAddon(addon, !isChecked)}
+                          >
+                            {/* Row 1: Checkbox + Complete Name (Uncropped) + Price & Info "i" Button */}
+                            <div className="flex items-start justify-between gap-2 min-w-0">
+                              <div className="flex items-start gap-2 min-w-0 flex-1">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleAddon(addon, e.target.checked);
+                                  }}
+                                  className="mt-0.5 w-3.5 h-3.5 rounded text-orange-600 focus:ring-orange-400 border-gray-300 accent-orange-600 shrink-0 cursor-pointer"
+                                />
+                                <span className="text-xs font-bold text-gray-950 leading-snug break-words">
+                                  {addon.name}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="text-xs font-bold font-mono text-gray-900 whitespace-nowrap">
+                                  {formattedPrice}
+                                </span>
+                                <AddonInfoButton
+                                  title={addon.name}
+                                  badge={badgeLabel}
+                                  sizeLabel={unitSpec.sizeLabel}
+                                  priceLabel={formattedPrice}
+                                  description={resolvedDescription}
+                                  specDetail={resolvedSpecDetail}
+                                  highlights={infoHighlights}
+                                  imageUrl={isSatellite ? '/assets/aistudio/image_f9d7ddd3.png' : undefined}
+                                  imageAlt={
+                                    isSatellite
+                                      ? 'Starlink Rectangular Satellite Dish with X-Frame Mount'
+                                      : undefined
+                                  }
+                                  footerHint={
+                                    isSolar
+                                      ? 'Selecting this tier automatically replaces other solar kits.'
+                                      : 'Click card anywhere to add or remove from your build.'
+                                  }
+                                />
+                              </div>
+                            </div>
+
+                            {/* Row 2: Complete Size, Category & Technical Spec Summary (Never Cropped) */}
+                            <div className="pl-5.5 space-y-1 min-w-0">
+                              <div className="flex items-center gap-1 flex-wrap">
+                                {unitSpec.sizeLabel && (
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-200/80 leading-tight">
+                                    {unitSpec.sizeLabel}
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200/80 leading-tight">
+                                  {badgeLabel || shortSubtitle}
+                                </span>
+                              </div>
+                              {resolvedSpecDetail && (
+                                <p className="text-[10.5px] text-gray-600 leading-snug break-words">
+                                  {resolvedSpecDetail}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Row 3: Action Status Pill | 3D Focus Button */}
+                            <div className="flex items-center justify-between gap-2 pl-5.5 pt-1 border-t border-gray-100/80 min-w-0">
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors whitespace-nowrap ${
+                                  isChecked
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                    : 'bg-gray-100 text-gray-600 border border-gray-200'
+                                }`}
+                              >
+                                {isChecked ? (isSatellite ? '✓ Mounted on Roof' : '✓ Added to Home') : '+ Click to Add'}
+                              </span>
+
+                              {onPerspectiveChange && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (isHvac || isAcUnit) {
+                                      onPerspectiveChange('living-lounge');
+                                    } else if (isSolar || isSatellite) {
+                                      if (!isChecked) {
+                                        handleToggleAddon(addon, true);
+                                      }
+                                      onPerspectiveChange('exterior-iso');
+                                    } else if (addon.id === 'hasExteriorPergolaDeck') {
+                                      if (!isChecked) {
+                                        onChange((prev) => ({ ...prev, hasExteriorPergolaDeck: true }));
+                                      }
+                                      onPerspectiveChange('exterior-iso');
+                                    } else if (addon.id === 'hasLuxuryBathPod') {
+                                      onPerspectiveChange('interior-walkthrough');
+                                    } else if (addon.id === 'hasKitchenetteModule') {
+                                      onPerspectiveChange('living-lounge');
+                                    } else if (addon.id === 'hasSmartDoorLock') {
+                                      onPerspectiveChange('front-elevation');
+                                    } else {
+                                      onPerspectiveChange('interior-walkthrough');
+                                    }
+                                  }}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] font-semibold cursor-pointer transition-colors whitespace-nowrap shrink-0"
+                                  title="Focus 3D camera on this modular element"
+                                >
+                                  <Eye className="w-3 h-3 text-orange-600 shrink-0" />
+                                  <span>View in 3D</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
           )}
         </div>
       </div>

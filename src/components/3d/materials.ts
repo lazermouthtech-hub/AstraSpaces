@@ -1588,6 +1588,68 @@ export function createDarkRoofTexture(): THREE.CanvasTexture {
   return texture;
 }
 
+export function createAcCoilFinsTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(0, 0, 512, 512);
+
+    // Dense horizontal stamped aluminum condenser coil fins
+    for (let y = 0; y < 512; y += 4) {
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillRect(0, y, 512, 2);
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(0, y + 2, 512, 1.5);
+    }
+
+    // Subtle vertical copper tube return pass indentations
+    ctx.fillStyle = 'rgba(30, 41, 59, 0.28)';
+    for (let x = 24; x < 512; x += 48) {
+      ctx.fillRect(x, 0, 3, 512);
+    }
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(2, 2);
+  return texture;
+}
+
+export function createAcBrandBadgeTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, 256, 64);
+
+    // Metallic border
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(4, 4, 248, 56);
+
+    // Accent strip
+    ctx.fillStyle = '#ea580c';
+    ctx.fillRect(14, 14, 8, 36);
+
+    // Spec typography
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillText('INVERTER', 34, 34);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('ECO R32 · AC', 34, 50);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 export interface MaterialLibrary {
   wallMaterial: THREE.MeshPhysicalMaterial;
   chassisMaterial: THREE.MeshStandardMaterial;
@@ -1654,6 +1716,14 @@ export interface MaterialLibrary {
   bambooGrapheneWallMaterial: THREE.MeshStandardMaterial;
   compositeWoodFloorMaterial: THREE.MeshStandardMaterial;
   woodgrainSteelMaterial: THREE.MeshStandardMaterial;
+  acWhiteCasingMaterial: THREE.MeshPhysicalMaterial;
+  acWhiteTrimMaterial: THREE.MeshStandardMaterial;
+  acShroudCavityMaterial: THREE.MeshStandardMaterial;
+  acCoilFinsMaterial: THREE.MeshStandardMaterial;
+  acCopperMaterial: THREE.MeshStandardMaterial;
+  acBrassMaterial: THREE.MeshStandardMaterial;
+  acRubberPadMaterial: THREE.MeshStandardMaterial;
+  acBadgeMaterial: THREE.MeshStandardMaterial;
 }
 
 export function createMaterialLibrary(
@@ -2780,6 +2850,50 @@ export function createMaterialLibrary(
       color: new THREE.Color('#a16207'),
       roughness: 0.45,
       metalness: 0.20,
+    }),
+    acWhiteCasingMaterial: new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color('#f8fafc'), // Powder-coated appliance white outdoor unit cabinet
+      roughness: 0.24,
+      metalness: 0.12,
+      clearcoat: 0.35,
+      clearcoatRoughness: 0.25,
+    }),
+    acWhiteTrimMaterial: new THREE.MeshStandardMaterial({
+      color: new THREE.Color('#ffffff'), // Brilliant white top hood, venturi bezel & mounting brackets
+      roughness: 0.18,
+      metalness: 0.10,
+      side: THREE.DoubleSide,
+    }),
+    acShroudCavityMaterial: new THREE.MeshStandardMaterial({
+      color: new THREE.Color('#0f172a'), // Matte charcoal/black fan shroud pocket
+      roughness: 0.78,
+      metalness: 0.15,
+    }),
+    acCoilFinsMaterial: new THREE.MeshStandardMaterial({
+      map: createAcCoilFinsTexture(),
+      color: new THREE.Color('#e2e8f0'), // Anodized aluminum condenser heat-exchanger fins
+      roughness: 0.34,
+      metalness: 0.85,
+    }),
+    acCopperMaterial: new THREE.MeshStandardMaterial({
+      color: new THREE.Color('#c86d3b'), // Bare flared copper refrigerant tubing
+      roughness: 0.22,
+      metalness: 0.92,
+    }),
+    acBrassMaterial: new THREE.MeshStandardMaterial({
+      color: new THREE.Color('#d4a34a'), // Machined brass refrigerant service valves
+      roughness: 0.20,
+      metalness: 0.90,
+    }),
+    acRubberPadMaterial: new THREE.MeshStandardMaterial({
+      color: new THREE.Color('#18181b'), // EPDM anti-vibration rubber mounts
+      roughness: 0.92,
+      metalness: 0.02,
+    }),
+    acBadgeMaterial: new THREE.MeshStandardMaterial({
+      map: createAcBrandBadgeTexture(),
+      roughness: 0.28,
+      metalness: 0.55,
     }),
   };
 }

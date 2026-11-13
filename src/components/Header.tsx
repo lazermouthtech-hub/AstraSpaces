@@ -2,7 +2,7 @@ import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { HomeModelId } from '../types';
 import { BASE_MODELS } from '../data/models';
-import { FileText, RotateCcw, Share2, DollarSign, Globe, LayoutDashboard, Home, ChevronDown, User, LogIn, Clock, Check, X, Box, Sparkles } from 'lucide-react';
+import { RotateCcw, DollarSign, Globe, LayoutDashboard, Home, ChevronDown, User, LogIn, Clock, Check, X, Box, Sparkles } from 'lucide-react';
 import { useAppConfig } from '../context/AppConfigContext';
 import {
   formatCurrency,
@@ -17,7 +17,7 @@ import { UserAccount } from '../utils/authManager';
 interface HeaderProps {
   selectedModelId: HomeModelId;
   onSelectModel: (id: HomeModelId) => void;
-  onOpenSpecSheet: () => void;
+  onOpenSpecSheet?: () => void;
   onReset: () => void;
   totalPrice: number;
   onOpenReserve?: () => void;
@@ -55,13 +55,6 @@ export const Header: React.FC<HeaderProps> = ({
     BASE_MODELS.find((m) => m.id === selectedModelId) ||
     displayModels[0] ||
     BASE_MODELS[0];
-
-  const handleShare = () => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(window.location.href);
-      alert('Configuration link copied to clipboard!');
-    }
-  };
 
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const modelDropdownRef = useRef<HTMLDivElement>(null);
@@ -338,25 +331,6 @@ export const Header: React.FC<HeaderProps> = ({
           <Home className="w-3.5 h-3.5 text-gray-400" />
           <span>Home</span>
         </Link>
-
-        {/* Specs Modal Trigger - Large Desktop Only */}
-        <button
-          onClick={onOpenSpecSheet}
-          className="hidden lg:flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-900 transition-colors uppercase tracking-wider cursor-pointer"
-          title="View technical specification"
-        >
-          <FileText className="w-3.5 h-3.5 text-gray-400" />
-          <span>Specs</span>
-        </button>
-
-        {/* Share Button - Large Desktop Only */}
-        <button
-          onClick={handleShare}
-          className="hidden xl:flex p-1.5 text-gray-400 hover:text-gray-700 rounded-lg transition-colors cursor-pointer"
-          title="Share Configuration"
-        >
-          <Share2 className="w-4 h-4" />
-        </button>
 
         {/* Reset Button - Large Desktop Only */}
         <button

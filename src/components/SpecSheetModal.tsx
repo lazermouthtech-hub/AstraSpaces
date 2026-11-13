@@ -1,10 +1,13 @@
-import React, { useState, useRef } from 'react';
+import React, { useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CustomizationState } from '../types';
 import { BASE_MODELS } from '../data/models';
 import {
   WALL_CLADDING_OPTIONS,
   INTERIOR_WALL_OPTIONS,
   GLAZING_OPTIONS,
+  INTERIOR_DOOR_OPTIONS,
+  BATHROOM_DOOR_OPTIONS,
   LIGHTING_OPTIONS,
   ELECTRICAL_OPTIONS,
   FLOORING_OPTIONS,
@@ -15,11 +18,10 @@ import {
 import {
   X,
   Printer,
-  Download,
+  Box,
   ShieldCheck,
   Check,
   FileText,
-  Loader2,
   Compass,
   Ruler,
   Layers,
@@ -37,7 +39,6 @@ import { formatCurrency } from '../utils/currency';
 import { getItemPriceForModel, getItemUnitSpec } from '../utils/pricingCalculator';
 import { ProductLineDrawing } from './dashboard/ProductLineDrawing';
 import { FloorPlanDiagram } from './FloorPlanDiagram';
-import { exportElementToPDF } from '../utils/pdfGenerator';
 
 interface SpecSheetModalProps {
   state: CustomizationState;
@@ -50,8 +51,8 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
   onClose,
   totalPrice,
 }) => {
+  const navigate = useNavigate();
   const { config } = useAppConfig();
-  const [isExportingPDF, setIsExportingPDF] = useState(false);
   const specSheetRef = useRef<HTMLDivElement>(null);
   const markupFactor = 1 + (config.markup || 0) / 100;
 
@@ -127,6 +128,24 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
     config.glazingOptions?.find((o: any) => o.id === state.glazing) ||
     config.glazingOptions?.[0] ||
     GLAZING_OPTIONS[0];
+  const winList = (config.glazingOptions || GLAZING_OPTIONS).filter(
+    (g: any) => g.category === 'Windows'
+  );
+  const winOpt =
+    winList.find((o: any) => o.id === (state.windowStyle || state.glazing)) ||
+    winList[0];
+  const intDoorList =
+    config.interiorDoorOptions && config.interiorDoorOptions.length > 0
+      ? config.interiorDoorOptions
+      : INTERIOR_DOOR_OPTIONS;
+  const intDoorOpt =
+    intDoorList.find((o: any) => o.id === state.interiorDoor) || intDoorList[0];
+  const bathDoorList =
+    config.bathroomDoorOptions && config.bathroomDoorOptions.length > 0
+      ? config.bathroomDoorOptions
+      : BATHROOM_DOOR_OPTIONS;
+  const bathDoorOpt =
+    bathDoorList.find((o: any) => o.id === state.bathroomDoor) || bathDoorList[0];
   const lightOpt =
     config.lightingOptions?.find((o: any) => o.id === state.lightingPackage) ||
     config.lightingOptions?.[0] ||
@@ -164,20 +183,10 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
     window.print();
   };
 
-  const handleDownloadPDF = async () => {
-    if (!specSheetRef.current) return;
-    try {
-      setIsExportingPDF(true);
-      const safeModelName = currentModel.name.replace(/[^a-zA-Z0-9]/g, '-').toUpperCase();
-      const safePlanName = (floorPlanOpt?.id || 'STANDARD').toUpperCase();
-      await exportElementToPDF(specSheetRef.current, {
-        filename: `${safeModelName}-${safePlanName}-SPEC-SHEET.pdf`,
-        onSuccess: () => setIsExportingPDF(false),
-        onError: () => setIsExportingPDF(false),
-      });
-    } catch (e) {
-      console.error(e);
-      setIsExportingPDF(false);
+  const handleCustomize = () => {
+    onClose();
+    if (window.location.pathname !== '/configurator') {
+      navigate(`/configurator?model=${encodeURIComponent(state.modelId)}`);
     }
   };
 
@@ -207,22 +216,13 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
 
           <div className="flex items-center gap-2 flex-wrap">
             <button
-              onClick={handleDownloadPDF}
-              disabled={isExportingPDF}
-              className="bg-orange-600 hover:bg-orange-500 text-white text-xs font-black px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
-              title="Download full architectural specification document as PDF"
+              type="button"
+              onClick={handleCustomize}
+              className="bg-orange-600 hover:bg-orange-500 text-white text-xs font-black px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-xs transition-all cursor-pointer"
+              title="Customize this home model in 3D"
             >
-              {isExportingPDF ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Generating PDF...</span>
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4" />
-                  <span>Download Spec Sheet (PDF)</span>
-                </>
-              )}
+              <Box className="w-4 h-4" />
+              <span>Customize</span>
             </button>
             <button
               onClick={handlePrint}
@@ -858,19 +858,69 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
                 </span>
               </div>
 
-              {/* Glazing Envelope */}
+              {/* Main Entrance Door */}
               <div className="py-2.5 flex items-start justify-between">
                 <div>
-                  <div className="font-bold text-gray-900">Doors &amp; Windows: {glassOpt.name}</div>
+                  <div className="font-bold text-gray-900">Main Entrance Door: {glassOpt.name}</div>
                   <div className="text-gray-500">{glassOpt.specDetail || glassOpt.description}</div>
                   <div className="text-[10px] text-emerald-700 font-medium mt-0.5">
-                    Entrance door and perimeter windows included at no additional cost
+                    Broken-bridge thermal aluminum main entrance system
                   </div>
                 </div>
                 <span className="font-mono font-bold text-gray-900 shrink-0 ml-4">
                   {getItemPriceForModel(glassOpt, state.modelId, config.models) === 0
                     ? 'Included'
                     : formatCurrency(getItemPriceForModel(glassOpt, state.modelId, config.models) * markupFactor, config.currency, { showPlus: true })}
+                </span>
+              </div>
+
+              {/* Perimeter Windows */}
+              {winOpt && (
+                <div className="py-2.5 flex items-start justify-between">
+                  <div>
+                    <div className="font-bold text-gray-900">Perimeter Windows: {winOpt.name}</div>
+                    <div className="text-gray-500">{winOpt.specDetail || winOpt.description}</div>
+                    <div className="text-[10px] text-sky-700 font-medium mt-0.5">
+                      Argon-filled Low-E double-glazed perimeter window units
+                    </div>
+                  </div>
+                  <span className="font-mono font-bold text-gray-900 shrink-0 ml-4">
+                    {getItemPriceForModel(winOpt, state.modelId, config.models) === 0
+                      ? 'Included'
+                      : formatCurrency(getItemPriceForModel(winOpt, state.modelId, config.models) * markupFactor, config.currency, { showPlus: true })}
+                  </span>
+                </div>
+              )}
+
+              {/* Interior Room Doors */}
+              <div className="py-2.5 flex items-start justify-between">
+                <div>
+                  <div className="font-bold text-gray-900">Interior Room Doors: {intDoorOpt.name}</div>
+                  <div className="text-gray-500">{intDoorOpt.specDetail || intDoorOpt.description}</div>
+                  <div className="text-[10px] text-indigo-700 font-medium mt-0.5">
+                    Factory pre-hung bedroom &amp; room partition door system
+                  </div>
+                </div>
+                <span className="font-mono font-bold text-gray-900 shrink-0 ml-4">
+                  {getItemPriceForModel(intDoorOpt, state.modelId, config.models) === 0
+                    ? 'Included'
+                    : formatCurrency(getItemPriceForModel(intDoorOpt, state.modelId, config.models) * markupFactor, config.currency, { showPlus: true })}
+                </span>
+              </div>
+
+              {/* Bathroom Doors */}
+              <div className="py-2.5 flex items-start justify-between">
+                <div>
+                  <div className="font-bold text-gray-900">Bathroom Doors: {bathDoorOpt.name}</div>
+                  <div className="text-gray-500">{bathDoorOpt.specDetail || bathDoorOpt.description}</div>
+                  <div className="text-[10px] text-emerald-700 font-medium mt-0.5">
+                    Moisture-rated waterproof restroom door with privacy lockset
+                  </div>
+                </div>
+                <span className="font-mono font-bold text-gray-900 shrink-0 ml-4">
+                  {getItemPriceForModel(bathDoorOpt, state.modelId, config.models) === 0
+                    ? 'Included'
+                    : formatCurrency(getItemPriceForModel(bathDoorOpt, state.modelId, config.models) * markupFactor, config.currency, { showPlus: true })}
                 </span>
               </div>
 
@@ -1034,7 +1084,7 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
             <div className="p-5 bg-[#F8F9FB] border border-gray-200 rounded-2xl space-y-4">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
-                  <div className="text-xs text-gray-500 font-medium">Total Configured Factory Price</div>
+                  <div className="text-xs text-gray-500 font-medium">Total Customized Factory Price</div>
                   <div className="text-[11px] text-orange-600 font-bold">
                     Transparent Pricing • 100% Pre-Fabricated, Utility Tested &amp; Warranted
                   </div>
@@ -1058,7 +1108,7 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
                 <div>
                   <span className="text-[10px] text-gray-400 block uppercase font-bold">Refundable Deposit</span>
                   <span className="font-bold text-emerald-700 font-mono">
-                    {formatCurrency(config.branding.reservationFee || 250, config.currency, { ratesMap: config.exchangeRates })}
+                    {formatCurrency(config.branding.reservationFee ?? 250, config.currency, { ratesMap: config.exchangeRates })}
                   </span>
                 </div>
                 <div>
@@ -1125,21 +1175,13 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
               Close
             </button>
             <button
-              onClick={handleDownloadPDF}
-              disabled={isExportingPDF}
-              className="px-4 py-2.5 text-xs font-bold bg-orange-600 hover:bg-orange-500 text-white rounded-xl shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50 transition-all"
+              type="button"
+              onClick={handleCustomize}
+              className="px-4 py-2.5 text-xs font-bold bg-orange-600 hover:bg-orange-500 text-white rounded-xl shadow-xs flex items-center gap-2 cursor-pointer transition-all"
+              title="Customize this home model in 3D"
             >
-              {isExportingPDF ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Generating PDF...</span>
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4" />
-                  <span>Download Spec Sheet (PDF)</span>
-                </>
-              )}
+              <Box className="w-4 h-4" />
+              <span>Customize</span>
             </button>
           </div>
         </div>

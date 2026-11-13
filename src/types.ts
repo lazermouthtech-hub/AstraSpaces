@@ -106,6 +106,30 @@ export type GlazingId =
   | 'floor-ceiling-curtain'
   | string;
 
+export type InteriorDoorId =
+  | 'room-solid-flush-oak'
+  | 'room-modern-grooved-white'
+  | 'room-matte-black-shaker'
+  | 'room-walnut-vertical-slat'
+  | 'room-steel-wood-armored'
+  | 'room-glass-inlay-loft'
+  | 'room-pocket-sliding-oak'
+  | 'room-barn-sliding-black'
+  | 'room-invisible-flush-wall'
+  | 'room-solid-hardwood-teak'
+  | string;
+
+export type BathroomDoorId =
+  | 'bath-wpc-waterproof-white'
+  | 'bath-alu-frosted-glass'
+  | 'bath-wpc-louver-vent'
+  | 'bath-titanium-magnesium-alloy'
+  | 'bath-recessed-morandi-grey'
+  | 'bath-fluted-reeded-glass'
+  | 'bath-pocket-sliding-wetroom'
+  | 'bath-pdlc-smart-privacy'
+  | string;
+
 export type LightingPackageId =
   | 'standard-recessed'
   | 'halo-strip-ambient'
@@ -268,6 +292,9 @@ export interface CustomizationState {
   interiorWall?: InteriorWallId; // Indoor / Interior Wall Panels
   floorPlan?: FloorPlanId; // Double Wing Expandable Exclusive Floor Plan Layout
   glazing: GlazingId;
+  windowStyle?: GlazingId;
+  interiorDoor?: InteriorDoorId;
+  bathroomDoor?: BathroomDoorId;
   lightingPackage: LightingPackageId;
   electricalTier: ElectricalTierId;
   flooring: FlooringId;
@@ -278,10 +305,15 @@ export interface CustomizationState {
   hasLuxuryBathPod: boolean;
   hasLuxuryBedSuite: boolean;
   hasHvacMiniSplit: boolean;
+  hasAirConditionerUnit?: boolean;
+  hasSolarBattery3kw?: boolean;
+  hasSolarBattery6kw?: boolean;
+  hasSolarBattery10kw?: boolean;
   hasExteriorPergolaDeck: boolean;
   hasBioDigester: boolean;
   hasSmartDoorLock: boolean;
   hasElectricBlinds: boolean;
+  hasSatelliteInternet?: boolean;
   // Wanhai Smart Living & Home Furnishings
   hasSmartControlPanel?: boolean;
   hasSoundSystem?: boolean;
@@ -319,10 +351,15 @@ export interface AddonOptionItem {
     | 'hasLuxuryBathPod'
     | 'hasLuxuryBedSuite'
     | 'hasHvacMiniSplit'
+    | 'hasAirConditionerUnit'
+    | 'hasSolarBattery3kw'
+    | 'hasSolarBattery6kw'
+    | 'hasSolarBattery10kw'
     | 'hasExteriorPergolaDeck'
     | 'hasBioDigester'
     | 'hasSmartDoorLock'
     | 'hasElectricBlinds'
+    | 'hasSatelliteInternet'
     | 'hasSmartControlPanel'
     | 'hasSoundSystem'
     | 'hasBreakfastBar'
@@ -392,6 +429,9 @@ export interface OrderItemCustomization {
   wallCladdingName: string;
   wallCladdingColor?: string;
   glazingName: string;
+  windowName?: string;
+  interiorDoorName?: string;
+  bathroomDoorName?: string;
   lightingName: string;
   electricalName: string;
   flooringName: string;
@@ -430,6 +470,42 @@ export interface PaymentMilestoneItem {
   status: 'paid' | 'due_now' | 'upcoming';
 }
 
+export type LogisticsFeeCategory =
+  | 'international_freight'
+  | 'local_logistics'
+  | 'customs'
+  | 'insurance'
+  | 'site_prep'
+  | 'permits'
+  | 'tax'
+  | 'other';
+
+export interface LogisticsLineItem {
+  id: string;
+  name: string;
+  category: LogisticsFeeCategory;
+  pricingType: 'fixed' | 'percent';
+  amount: number; // USD when pricingType === 'fixed', percentage (e.g. 2.5) when pricingType === 'percent'
+  enabled: boolean;
+  description?: string;
+}
+
+export interface LogisticsConfig {
+  freightCost: number;
+  sitePrepCost: number;
+  taxRate: number;
+  lineItems?: LogisticsLineItem[];
+}
+
+export interface OrderLogisticsItemSnapshot {
+  id: string;
+  name: string;
+  category: LogisticsFeeCategory;
+  pricingType: 'fixed' | 'percent';
+  rateOrUsdAmount: number;
+  calculatedUsdAmount: number;
+}
+
 export interface OrderPricing {
   basePrice: number;
   optionsTotal: number;
@@ -445,6 +521,7 @@ export interface OrderPricing {
   paymentOption?: PaymentOptionType;
   paymentMilestones?: PaymentMilestoneItem[];
   financingDetails?: OrderFinancingDetails;
+  logisticsItems?: OrderLogisticsItemSnapshot[];
 }
 
 export interface OrderInternalNote {

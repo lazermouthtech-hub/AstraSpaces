@@ -233,6 +233,52 @@ export function getItemUnitSpec(
     };
   }
 
+  if (item.id === 'hasAirConditionerUnit') {
+    if (sizeCat === '40ft') {
+      return {
+        sizeLabel: '40FT Dual-Zone (24,000 BTU)',
+        specDetail: 'Dual-Zone Split Inverter Air Conditioner (24,000 BTU total) with living room & master bedroom evaporators',
+      };
+    }
+    if (sizeCat === '30ft') {
+      return {
+        sizeLabel: '30FT High-Output (18,000 BTU)',
+        specDetail: 'Split Inverter Air Conditioner Unit (18,000 BTU cooling capacity, R32 refrigerant, smart remote & Wi-Fi)',
+      };
+    }
+    if (sizeCat === '10ft') {
+      return {
+        sizeLabel: '10FT Compact (9,000 BTU)',
+        specDetail: 'Compact Split Inverter Air Conditioner Unit (9,000 BTU cooling, ultra-quiet indoor blower)',
+      };
+    }
+    return {
+      sizeLabel: '20FT Standard (12,000 BTU)',
+      specDetail: 'Split Inverter Air Conditioner Unit (12,000 BTU rapid cooling, dehumidifier mode, weatherproof condenser)',
+    };
+  }
+
+  if (item.id === 'hasSolarBattery3kw') {
+    return {
+      sizeLabel: '3kW Solar + 5kWh LFP',
+      specDetail: '3kW Roof PV Array (6×500W panels) + 5kWh 48V LiFePO4 Battery + 3kW Hybrid MPPT Inverter',
+    };
+  }
+
+  if (item.id === 'hasSolarBattery6kw') {
+    return {
+      sizeLabel: '6kW Solar + 10kWh LFP',
+      specDetail: '6kW Roof PV Array (12×500W panels) + 10kWh LiFePO4 Battery Bank + 6kW Hybrid Pure-Sine Inverter',
+    };
+  }
+
+  if (item.id === 'hasSolarBattery10kw') {
+    return {
+      sizeLabel: '10kW Solar + 20kWh LFP',
+      specDetail: '10kW Bifacial PV Array + Dual 20kWh LiFePO4 Battery Wall + 10kW Off-Grid Split-Phase Inverter',
+    };
+  }
+
   if (item.id === 'hasElectricBlinds') {
     if (sizeCat === '40ft') {
       return {
@@ -268,6 +314,54 @@ export function getItemUnitSpec(
     return {
       sizeLabel: '20FT Walkable Deck (409 sq ft)',
       specDetail: '20ft walkable rooftop observation terrace deck with fold-up ladder and perimeter safety railings',
+    };
+  }
+
+  const isSatelliteLike =
+    item.id === 'hasSatelliteInternet' ||
+    /satellite|starlink|vsat|dish/i.test(`${item.id || ''} ${item.name || ''}`);
+
+  if (isSatelliteLike) {
+    const hasCustomDesc =
+      item.description &&
+      item.description.trim() !== '' &&
+      item.description !== 'Factory-tested modular unit installed on assembly line prior to delivery.';
+    const hasCustomSpec =
+      item.specDetail &&
+      item.specDetail.trim() !== '' &&
+      item.specDetail !== 'Pre-plumbed and pre-wired plug & play connection';
+
+    const sizeSpecMap: Record<string, { sizeLabel: string; specDetail: string; description: string }> = {
+      '10ft': {
+        sizeLabel: '10FT Roof Kit · Starlink + Wi-Fi 6',
+        specDetail: 'IP67 Rectangular Phased-Array Dish + 4-Legged X-Frame Mast + Roof Gland + Dual-Band Wi-Fi 6 Hub',
+        description:
+          'Roof-mounted Starlink rectangular phased-array dish on an anchored 4-legged X-frame mast with weatherproof coaxial roof pass-through and indoor Wi-Fi 6 router.',
+      },
+      '20ft': {
+        sizeLabel: '20FT Roof Kit · Starlink + Wi-Fi 6',
+        specDetail: 'IP67 Rectangular Phased-Array Dish + 4-Legged X-Frame Mast + Roof Gland + Dual-Band Wi-Fi 6 Hub',
+        description:
+          'Roof-mounted Starlink rectangular phased-array dish on an anchored 4-legged X-frame mast with IP67 waterproof roof entry gland and pre-wired indoor Wi-Fi 6 mesh hub.',
+      },
+      '30ft': {
+        sizeLabel: '30FT Roof Kit · Starlink Mesh Wi-Fi 6',
+        specDetail: 'IP67 Rectangular Phased-Array Dish + 4-Legged X-Frame Mast + Roof Gland + Dual-Node Wi-Fi 6 Mesh',
+        description:
+          'High-speed Starlink rectangular phased-array terminal on a 4-legged X-frame roof mast, paired with shielded PoE cabling and dual-node Wi-Fi 6 mesh coverage across 624 sq ft.',
+      },
+      '40ft': {
+        sizeLabel: '40FT Flagship · Whole-Home Mesh',
+        specDetail: 'IP67 Rectangular Phased-Array Dish + Heavy-Duty X-Frame Mast + Roof Gland + Tri-Node Wi-Fi 6 Mesh',
+        description:
+          'Whole-home Starlink rectangular phased-array rooftop terminal on a heavy-duty 4-legged X-frame mast with surge-protected roof entry gland and tri-node Wi-Fi 6 mesh system.',
+      },
+    };
+    const preset = sizeSpecMap[sizeCat] || sizeSpecMap['20ft'];
+    return {
+      sizeLabel: preset.sizeLabel,
+      specDetail: hasCustomSpec ? item.specDetail : preset.specDetail,
+      description: hasCustomDesc ? item.description : preset.description,
     };
   }
 

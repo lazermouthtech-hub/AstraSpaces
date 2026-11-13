@@ -2,9 +2,15 @@ import React, { useState } from 'react';
 import { CustomizationState, FloorPlanId } from '../types';
 import { useAppConfig } from '../context/AppConfigContext';
 import { BASE_MODELS } from '../data/models';
-import { FLOOR_PLAN_OPTIONS, GLAZING_OPTIONS } from '../data/options';
+import {
+  FLOOR_PLAN_OPTIONS,
+  GLAZING_OPTIONS,
+  INTERIOR_DOOR_OPTIONS,
+  BATHROOM_DOOR_OPTIONS,
+} from '../data/options';
 import { formatCurrency as formatCurrencyUtil } from '../utils/currency';
 import { getItemPriceForModel, getItemUnitSpec } from '../utils/pricingCalculator';
+import { computeLogisticsBreakdown, getLogisticsPreset } from '../utils/logisticsPricing';
 import { DoorWindowDiagram } from './ConfiguratorPanel';
 import {
   DollarSign,
@@ -56,7 +62,9 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
   const [isPaymentRevealed, setIsPaymentRevealed] = useState(false);
 
   const [showDoorFeaturesModal, setShowDoorFeaturesModal] = useState(false);
-  const [doorModalSubFilter, setDoorModalSubFilter] = useState<'all' | 'Entrance Doors' | 'Windows'>('all');
+  const [doorModalSubFilter, setDoorModalSubFilter] = useState<
+    'all' | 'Room Doors' | 'Bathroom Doors' | 'Entrance Doors' | 'Windows'
+  >('all');
   const { config } = useAppConfig();
 
   const currentModel =
@@ -74,6 +82,33 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
     (config.interiorWallOptions || [])[0];
   const glassOpt =
     config.glazingOptions.find((o: any) => o.id === state.glazing) || config.glazingOptions[0];
+  const windowList = (config.glazingOptions || GLAZING_OPTIONS).filter(
+    (g: any) => g.category === 'Windows'
+  );
+  const entranceList = (config.glazingOptions || GLAZING_OPTIONS).filter(
+    (g: any) => g.category !== 'Windows'
+  );
+  const isLegacyWindowSelected = windowList.some((w: any) => w.id === state.glazing);
+  const resolvedWindowId =
+    state.windowStyle || (isLegacyWindowSelected ? state.glazing : 'sliding-window');
+  const resolvedEntranceId = !isLegacyWindowSelected
+    ? state.glazing || 'broken-bridge-sliding-door'
+    : 'broken-bridge-sliding-door';
+  const winOpt = windowList.find((o: any) => o.id === resolvedWindowId) || windowList[0];
+  const entranceOpt =
+    entranceList.find((o: any) => o.id === resolvedEntranceId) || entranceList[0] || glassOpt;
+  const intDoorList =
+    config.interiorDoorOptions && config.interiorDoorOptions.length > 0
+      ? config.interiorDoorOptions
+      : INTERIOR_DOOR_OPTIONS;
+  const intDoorOpt =
+    intDoorList.find((o: any) => o.id === state.interiorDoor) || intDoorList[0];
+  const bathDoorList =
+    config.bathroomDoorOptions && config.bathroomDoorOptions.length > 0
+      ? config.bathroomDoorOptions
+      : BATHROOM_DOOR_OPTIONS;
+  const bathDoorOpt =
+    bathDoorList.find((o: any) => o.id === state.bathroomDoor) || bathDoorList[0];
   const lightOpt =
     config.lightingOptions.find((o: any) => o.id === state.lightingPackage) ||
     config.lightingOptions[0];
@@ -104,12 +139,20 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
     : null;
   const floorPlanPrice = floorPlanOpt ? getItemPriceForModel(floorPlanOpt, state.modelId, config.models) : 0;
 
+  const intDoorPrice = getItemPriceForModel(intDoorOpt, state.modelId, config.models);
+  const bathDoorPrice = getItemPriceForModel(bathDoorOpt, state.modelId, config.models);
+  const winPrice = getItemPriceForModel(winOpt, state.modelId, config.models);
+  const entrancePrice = getItemPriceForModel(entranceOpt, state.modelId, config.models);
+
   // Calculate Subtotal & Total
   const upgradesTotal =
     getItemPriceForModel(wallOpt, state.modelId, config.models) +
     getItemPriceForModel(intWallOpt, state.modelId, config.models) +
     floorPlanPrice +
-    getItemPriceForModel(glassOpt, state.modelId, config.models) +
+    entrancePrice +
+    (winOpt && entranceOpt && winOpt.id !== entranceOpt.id ? winPrice : 0) +
+    intDoorPrice +
+    bathDoorPrice +
     getItemPriceForModel(lightOpt, state.modelId, config.models) +
     getItemPriceForModel(elecOpt, state.modelId, config.models) +
     getItemPriceForModel(floorOpt, state.modelId, config.models) +
@@ -121,16 +164,17 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
   const markupFactor = 1 + ((config.markup || 0) / 100);
   const homeTotalWithMarkup = homeFactoryTotal * markupFactor;
 
-  const taxRate = config.logistics?.taxRate || 0;
-  const taxAmount = homeTotalWithMarkup * (taxRate / 100);
-  
-  const grandTotal = homeTotalWithMarkup + (taxRate > 0 ? taxAmount : 0);
+  const logisticsBreakdown = computeLogisticsBreakdown(config.logistics, homeTotalWithMarkup);
+  const taxRate = logisticsBreakdown.effectiveTaxPercent;
+  const taxAmount = logisticsBreakdown.taxTotalUsd;
 
-  // Milestone Logistics & Installation breakdown
-  const freightCost = config.logistics?.freightCost || 4500;
-  const sitePrepCost = config.logistics?.sitePrepCost || 5500;
-  const clearingTransportCost = Math.round(sitePrepCost * 0.51); // Port clearing & local site transport
-  const installationCost = sitePrepCost - clearingTransportCost; // Certified on-site installation & hookup
+  const grandTotal = homeTotalWithMarkup + taxAmount;
+
+  // Itemized Milestone Logistics & Installation breakdown
+  const freightCost = logisticsBreakdown.freightStageUsd;
+  const clearingTransportCost = logisticsBreakdown.clearingTransportStageUsd;
+  const installationCost = logisticsBreakdown.installationPermitsStageUsd;
+  const sitePrepCost = clearingTransportCost + installationCost;
   const turnkeyTotal = grandTotal + freightCost + sitePrepCost;
 
   const formatCurrency = (val: number, opts?: { showPlus?: boolean }) => {
@@ -197,7 +241,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-[11px] font-black text-gray-950 uppercase tracking-wider truncate">
-                  {config.branding?.brandName || '10Apples'} Configurator
+                  {config.branding?.brandName || '10Apples'} Home Customizer
                 </span>
                 <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded-md bg-orange-200/70 text-orange-900 border border-orange-300 shrink-0">
                   Direct
@@ -216,7 +260,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
         {/* Total Price Bento Card */}
         <div className="bg-[#F8F9FB] rounded-2xl p-3.5 sm:p-4 border border-gray-200 relative overflow-hidden">
           <div className="flex items-center justify-between gap-2 text-xs text-gray-500">
-            <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 truncate">Total Configured Cost</span>
+            <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 truncate">Total Customized Cost</span>
             <span className="font-mono text-orange-700 font-bold text-[10px] flex items-center gap-1 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200 shrink-0">
               <Clock className="w-3 h-3" /> {currentModel.leadTime || '10-12 Weeks'}
             </span>
@@ -360,14 +404,49 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
               </div>
             )}
 
-            {/* Standard Entrance Door & Windows (Included at no other cost) */}
+            {/* Perimeter Windows */}
             <div
               onClick={() => {
+                setDoorModalSubFilter('Windows');
+                setShowDoorFeaturesModal(true);
+                if (onSelectCategory) onSelectCategory('Glazing & Windows');
+              }}
+              className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-gray-200 hover:border-sky-300 hover:bg-sky-50/40 transition-all cursor-pointer group"
+              title="Click to customize perimeter windows"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-6 h-6 rounded-lg bg-sky-100 flex items-center justify-center shrink-0 text-xs group-hover:scale-105 transition-transform">
+                  🪟
+                </div>
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-900 leading-tight truncate">
+                    {winOpt?.name || 'Sliding window'}
+                  </div>
+                  <div className="text-[10px] text-gray-500 font-medium truncate flex items-center gap-1 mt-0.5">
+                    <span>Perimeter Windows</span>
+                    <span className="text-sky-600 font-semibold group-hover:underline">· Change</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 text-[10px]">
+                  {winPrice === 0 ? 'Included ($0)' : `+${formatCurrency(winPrice * markupFactor)}`}
+                </span>
+                {onSelectCategory && (
+                  <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-sky-600 group-hover:translate-x-0.5 transition-transform" />
+                )}
+              </div>
+            </div>
+
+            {/* Main Entrance Door */}
+            <div
+              onClick={() => {
+                setDoorModalSubFilter('Entrance Doors');
                 setShowDoorFeaturesModal(true);
                 if (onSelectCategory) onSelectCategory('Glazing & Windows');
               }}
               className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-gray-200 hover:border-orange-300 hover:bg-orange-50/40 transition-all cursor-pointer group"
-              title="Click to view door or window features and select style"
+              title="Click to view or change Main Entrance Door style"
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 <div className="w-6 h-6 rounded-lg bg-orange-100 flex items-center justify-center shrink-0 text-xs group-hover:scale-105 transition-transform">
@@ -375,20 +454,128 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                 </div>
                 <div className="min-w-0">
                   <div className="font-semibold text-gray-900 leading-tight truncate">
-                    {glassOpt?.name || 'Entrance Door & Windows'}
+                    {entranceOpt?.name || 'Broken bridge aluminum sliding door'}
                   </div>
                   <div className="text-[10px] text-gray-500 font-medium truncate flex items-center gap-1 mt-0.5">
-                    <span>Door &amp; Window System</span>
-                    <span className="text-orange-600 font-semibold group-hover:underline">· View Options</span>
+                    <span>Main Entrance Door</span>
+                    <span className="text-orange-600 font-semibold group-hover:underline">· Change</span>
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 text-[10px]">
-                  Included ($0)
+                  {entrancePrice === 0 ? 'Included ($0)' : `+${formatCurrency(entrancePrice * markupFactor)}`}
                 </span>
                 {onSelectCategory && (
                   <ChevronRight className="w-3.5 h-3.5 text-gray-400 group-hover:text-orange-600 group-hover:translate-x-0.5 transition-transform" />
+                )}
+              </div>
+            </div>
+
+            {/* Interior Room Doors */}
+            <div
+              onClick={() => {
+                setDoorModalSubFilter('Room Doors');
+                setShowDoorFeaturesModal(true);
+                if (onSelectCategory) onSelectCategory('Glazing & Windows');
+              }}
+              className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/40 transition-all cursor-pointer group"
+              title="Click to customize interior bedroom & partition doors"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span
+                  className="w-4 h-4 rounded-md border border-gray-300 shrink-0"
+                  style={{ backgroundColor: intDoorOpt?.color || '#c89f72' }}
+                />
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-900 leading-tight truncate">
+                    {intDoorOpt?.name || 'Nordic Oak Solid-Core Flush Door'}
+                  </div>
+                  <div className="text-[10px] text-gray-500 font-medium truncate flex items-center gap-1 mt-0.5">
+                    <span>Interior Room Doors</span>
+                    <span className="text-indigo-600 font-semibold group-hover:underline">· Customize</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {intDoorPrice === 0 ? (
+                  <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 text-[10px]">
+                    Included
+                  </span>
+                ) : (
+                  <>
+                    <span className="font-mono font-bold text-gray-900">
+                      +{formatCurrency(intDoorPrice * markupFactor)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onStateChange((prev) => ({
+                          ...prev,
+                          interiorDoor: 'room-solid-flush-oak',
+                        }));
+                      }}
+                      className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors cursor-pointer shrink-0"
+                      title="Revert to standard Nordic Oak door"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Bathroom Doors */}
+            <div
+              onClick={() => {
+                setDoorModalSubFilter('Bathroom Doors');
+                setShowDoorFeaturesModal(true);
+                if (onSelectCategory) onSelectCategory('Glazing & Windows');
+              }}
+              className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/40 transition-all cursor-pointer group"
+              title="Click to customize waterproof bathroom doors"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span
+                  className="w-4 h-4 rounded-md border border-gray-300 shrink-0"
+                  style={{ backgroundColor: bathDoorOpt?.color || '#f8fafc' }}
+                />
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-900 leading-tight truncate">
+                    {bathDoorOpt?.name || 'WPC Waterproof Matte White Restroom Door'}
+                  </div>
+                  <div className="text-[10px] text-gray-500 font-medium truncate flex items-center gap-1 mt-0.5">
+                    <span>Bathroom Door</span>
+                    <span className="text-emerald-600 font-semibold group-hover:underline">· Customize</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {bathDoorPrice === 0 ? (
+                  <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 text-[10px]">
+                    Included
+                  </span>
+                ) : (
+                  <>
+                    <span className="font-mono font-bold text-gray-900">
+                      +{formatCurrency(bathDoorPrice * markupFactor)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onStateChange((prev) => ({
+                          ...prev,
+                          bathroomDoor: 'bath-wpc-waterproof-white',
+                        }));
+                      }}
+                      className="text-gray-400 hover:text-red-500 p-1 rounded hover:bg-red-50 transition-colors cursor-pointer shrink-0"
+                      title="Revert to standard WPC waterproof white door"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -621,12 +808,41 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
           </div>
         </div>
 
-        {/* Estimated Taxes if applicable */}
-        {config.logistics?.taxRate > 0 && (
-          <div className="pt-2 border-t border-gray-100 text-xs">
-            <div className="flex items-center justify-between gap-2 p-2.5 sm:p-3 rounded-2xl border border-gray-200 bg-white">
-              <div className="font-semibold text-gray-900 truncate">Estimated Taxes ({config.logistics.taxRate}%)</div>
-              <span className="font-mono font-bold text-gray-900 shrink-0">+{formatCurrency(taxAmount)}</span>
+        {/* Itemized Logistics, Duties, Permits & Tax Rates */}
+        {logisticsBreakdown.enabledItems.length > 0 && (
+          <div className="pt-2 border-t border-gray-100 space-y-2 text-xs">
+            <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-gray-400">
+              <span>Logistics, Duties, Permits &amp; Taxes</span>
+              <span className="font-mono text-gray-600">
+                +{formatCurrency(logisticsBreakdown.totalLogisticsAndTaxesUsd)}
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {logisticsBreakdown.enabledItems.map((fee) => (
+                <div
+                  key={fee.id}
+                  className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-gray-200 bg-white"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-semibold text-gray-900 truncate">{fee.name}</span>
+                      <span
+                        className={`text-[9px] font-bold px-1.5 py-0.2 rounded border shrink-0 ${getLogisticsPreset(fee.category).badgeClass}`}
+                      >
+                        {fee.pricingType === 'percent'
+                          ? `${fee.amount}%`
+                          : getLogisticsPreset(fee.category).shortLabel}
+                      </span>
+                    </div>
+                    {fee.description && (
+                      <div className="text-[10px] text-gray-400 truncate mt-0.5">{fee.description}</div>
+                    )}
+                  </div>
+                  <span className="font-mono font-bold text-gray-900 shrink-0">
+                    +{formatCurrency(fee.calculatedUsd)}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -652,7 +868,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
             </div>
             <div className="flex items-start gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-              <span>{formatCurrency(config.branding.reservationFee || 250)} Fully Refundable Queue Slot</span>
+              <span>{formatCurrency(config.branding.reservationFee ?? 250)} Fully Refundable Queue Slot</span>
             </div>
           </div>
           {config.branding.supportEmail && (
@@ -755,7 +971,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between gap-1">
-                    <span className="text-gray-700 font-semibold truncate">2. 🚢 Int'l Freight:</span>
+                    <span className="text-gray-700 font-semibold truncate">2. 🚢 Int'l Freight &amp; Insurance:</span>
                     <span className="font-mono font-bold text-gray-950 shrink-0">{formatCurrency(freightCost)}</span>
                   </div>
                   <div className="text-[10px] text-gray-400 pl-4 pb-0.5">
@@ -763,7 +979,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between gap-1">
-                    <span className="text-gray-700 font-semibold truncate">3. 🚚 Port Clearing &amp; Transport:</span>
+                    <span className="text-gray-700 font-semibold truncate">3. 🚚 Customs &amp; Local Logistics:</span>
                     <span className="font-mono font-bold text-gray-950 shrink-0">{formatCurrency(clearingTransportCost)}</span>
                   </div>
                   <div className="text-[10px] text-gray-400 pl-4 pb-0.5">
@@ -771,7 +987,7 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between gap-1">
-                    <span className="text-gray-700 font-semibold truncate">4. 🏗️ On-Site Installation:</span>
+                    <span className="text-gray-700 font-semibold truncate">4. 🏗️ Site Prep, Permits &amp; Install:</span>
                     <span className="font-mono font-bold text-gray-950 shrink-0">{formatCurrency(installationCost)}</span>
                   </div>
                   <div className="text-[10px] text-gray-400 pl-4 pb-0.5">
@@ -794,11 +1010,11 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                 </div>
                 <div className="space-y-1 text-[11px]">
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-600">House Build Subtotal:</span>
+                    <span className="text-gray-600">House Build{taxAmount > 0 ? ` + Taxes (${taxRate}%)` : ''}:</span>
                     <span className="font-mono font-bold text-gray-950">{formatCurrency(grandTotal)}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Freight, Clearing &amp; Installation:</span>
+                    <span className="text-gray-600">Logistics, Customs, Permits &amp; Install:</span>
                     <span className="font-mono font-bold text-gray-950">{formatCurrency(freightCost + sitePrepCost)}</span>
                   </div>
                 </div>
@@ -830,8 +1046,8 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
           <CreditCard className="w-4 h-4" />
           <span>
             {paymentOption === 'milestone'
-              ? `Proceed with Milestone Plan (${formatCurrency(config.branding.reservationFee || 250)} Deposit)`
-              : `Proceed with Full Payment (${formatCurrency(config.branding.reservationFee || 250)} Deposit)`}
+              ? `Proceed with Milestone Plan (${formatCurrency(config.branding.reservationFee ?? 250)} Deposit)`
+              : `Proceed with Full Payment (${formatCurrency(config.branding.reservationFee ?? 250)} Deposit)`}
           </span>
         </button>
 
@@ -844,80 +1060,138 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
         )}
       </div>
       {/* Interactive Door & Window Features Modal */}
-      {showDoorFeaturesModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
-          onClick={() => setShowDoorFeaturesModal(false)}
-        >
+      {showDoorFeaturesModal && (() => {
+        const roomDoorChoices = (
+          config.interiorDoorOptions && config.interiorDoorOptions.length > 0
+            ? config.interiorDoorOptions
+            : INTERIOR_DOOR_OPTIONS
+        )
+          .filter((o: any) => o.isAvailable !== false && o.isActive !== false)
+          .map((o: any) => ({ ...o, _kind: 'room' as const }));
+
+        const bathDoorChoices = (
+          config.bathroomDoorOptions && config.bathroomDoorOptions.length > 0
+            ? config.bathroomDoorOptions
+            : BATHROOM_DOOR_OPTIONS
+        )
+          .filter((o: any) => o.isAvailable !== false && o.isActive !== false)
+          .map((o: any) => ({ ...o, _kind: 'bath' as const }));
+
+        const glazingChoices = (
+          config.glazingOptions && config.glazingOptions.length > 0
+            ? config.glazingOptions
+            : GLAZING_OPTIONS
+        )
+          .filter((o: any) => o.isAvailable !== false && o.isActive !== false);
+
+        const entranceChoices = glazingChoices
+          .filter((o: any) => o.category !== 'Windows')
+          .map((o: any) => ({ ...o, _kind: 'entrance' as const }));
+        const windowChoices = glazingChoices
+          .filter((o: any) => o.category === 'Windows')
+          .map((o: any) => ({ ...o, _kind: 'window' as const }));
+
+        const visibleChoices =
+          doorModalSubFilter === 'Room Doors'
+            ? roomDoorChoices
+            : doorModalSubFilter === 'Bathroom Doors'
+            ? bathDoorChoices
+            : doorModalSubFilter === 'Entrance Doors'
+            ? entranceChoices
+            : doorModalSubFilter === 'Windows'
+            ? windowChoices
+            : [...windowChoices, ...entranceChoices, ...roomDoorChoices, ...bathDoorChoices];
+
+        return (
           <div
-            className="bg-white rounded-3xl shadow-2xl border border-gray-200 max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+            onClick={() => setShowDoorFeaturesModal(false)}
           >
-            {/* Header */}
-            <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between bg-[#FAFAFC]">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center text-lg font-bold shadow-2xs">
-                  🚪
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-extrabold text-gray-900 text-base sm:text-lg">
-                      Door &amp; Window Features
-                    </h3>
-                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
-                      All Included at $0
-                    </span>
+            <div
+              className="bg-white rounded-3xl shadow-2xl border border-gray-200 max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between bg-[#FAFAFC]">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center text-lg font-bold shadow-2xs">
+                    🚪
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Select any architectural entrance door or perimeter window system at no extra cost.
-                  </p>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-extrabold text-gray-900 text-base sm:text-lg">
+                        Doors &amp; Window Systems
+                      </h3>
+                      <span className="text-[10px] font-bold text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
+                        4 Independent Systems
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Independently change Perimeter Windows, Main Entrance Door, Room Doors, and Bathroom Doors.
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowDoorFeaturesModal(false)}
-                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Filter Tabs */}
-            <div className="flex items-center gap-2 px-5 pt-3 pb-2 border-b border-gray-100 bg-white">
-              {[
-                { id: 'all', label: 'All Options (9)' },
-                { id: 'Entrance Doors', label: 'Entrance Doors (5)' },
-                { id: 'Windows', label: 'Windows (4)' },
-              ].map((tab) => (
                 <button
-                  key={tab.id}
                   type="button"
-                  onClick={() => setDoorModalSubFilter(tab.id as any)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    doorModalSubFilter === tab.id
-                      ? 'bg-zinc-900 text-white shadow-xs'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
+                  onClick={() => setShowDoorFeaturesModal(false)}
+                  className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-900 transition-colors cursor-pointer"
                 >
-                  {tab.label}
+                  <X className="w-4 h-4" />
                 </button>
-              ))}
-            </div>
+              </div>
 
-            {/* Modal List Body */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3">
-              {((config.glazingOptions && config.glazingOptions.length ? config.glazingOptions : GLAZING_OPTIONS) as any[])
-                .filter((opt) => {
-                  if (doorModalSubFilter === 'all') return true;
-                  return opt.category === doorModalSubFilter;
-                })
-                .map((opt) => {
-                  const isSelected = state.glazing === opt.id;
+              {/* Filter Tabs */}
+              <div className="flex items-center gap-1.5 px-5 pt-3 pb-2 border-b border-gray-100 bg-white overflow-x-auto scrollbar-none">
+                {[
+                  {
+                    id: 'all',
+                    label: `All (${windowChoices.length + entranceChoices.length + roomDoorChoices.length + bathDoorChoices.length})`,
+                  },
+                  { id: 'Windows', label: `Windows (${windowChoices.length})` },
+                  { id: 'Entrance Doors', label: `Main Entrance (${entranceChoices.length})` },
+                  { id: 'Room Doors', label: `Room Doors (${roomDoorChoices.length})` },
+                  { id: 'Bathroom Doors', label: `Bathroom Doors (${bathDoorChoices.length})` },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setDoorModalSubFilter(tab.id as any)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      doorModalSubFilter === tab.id
+                        ? 'bg-zinc-900 text-white shadow-xs'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Modal List Body */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3">
+                {visibleChoices.map((opt: any) => {
+                  const isSelected =
+                    opt._kind === 'room'
+                      ? (state.interiorDoor || 'room-solid-flush-oak') === opt.id
+                      : opt._kind === 'bath'
+                      ? (state.bathroomDoor || 'bath-wpc-waterproof-white') === opt.id
+                      : opt._kind === 'window'
+                      ? resolvedWindowId === opt.id
+                      : resolvedEntranceId === opt.id;
+
+                  const rawPrice = getItemPriceForModel(opt, state.modelId, config.models);
+                  const displayPrice = rawPrice * markupFactor;
+
                   return (
                     <div
-                      key={opt.id}
+                      key={`${opt._kind}-${opt.id}`}
                       onClick={() => {
-                        onStateChange((prev) => ({ ...prev, glazing: opt.id }));
+                        onStateChange((prev) => {
+                          if (opt._kind === 'room') return { ...prev, interiorDoor: opt.id };
+                          if (opt._kind === 'bath') return { ...prev, bathroomDoor: opt.id };
+                          if (opt._kind === 'window') return { ...prev, windowStyle: opt.id };
+                          return { ...prev, glazing: opt.id };
+                        });
                         if (onSelectCategory) onSelectCategory('Glazing & Windows');
                       }}
                       className={`p-3.5 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 cursor-pointer ${
@@ -938,11 +1212,17 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                                 {opt.badge}
                               </span>
                             )}
-                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                              Included ($0)
+                            <span
+                              className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded border ${
+                                rawPrice === 0
+                                  ? 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                                  : 'text-orange-800 bg-orange-50 border-orange-200'
+                              }`}
+                            >
+                              {rawPrice === 0 ? 'Included ($0)' : formatCurrency(displayPrice, { showPlus: true })}
                             </span>
                           </div>
-                          <p className="text-xs text-gray-600 mt-1 line-clamp-2 leading-relaxed">
+                          <p className="text-xs text-gray-600 mt-1 leading-relaxed">
                             {opt.description}
                           </p>
                           {opt.specDetail && (
@@ -971,24 +1251,25 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
                     </div>
                   );
                 })}
-            </div>
+              </div>
 
-            {/* Footer */}
-            <div className="p-4 border-t border-gray-100 bg-[#FAFAFC] flex items-center justify-between">
-              <span className="text-xs text-gray-500">
-                Doors &amp; windows are factory installed in architectural black broken-bridge aluminum.
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowDoorFeaturesModal(false)}
-                className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs transition-colors cursor-pointer shadow-xs"
-              >
-                Done
-              </button>
+              {/* Footer */}
+              <div className="p-4 border-t border-gray-100 bg-[#FAFAFC] flex items-center justify-between gap-3">
+                <span className="text-xs text-gray-500">
+                  Changes immediately update your 3D interior &amp; exterior model and factory build price.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowDoorFeaturesModal(false)}
+                  className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs transition-colors cursor-pointer shadow-xs shrink-0"
+                >
+                  Done
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </aside>
   );
 };

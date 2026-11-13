@@ -225,7 +225,7 @@ export const ConfiguratorAuthModal: React.FC<ConfiguratorAuthModalProps> = ({
               </h2>
               <p className="text-xs sm:text-sm text-gray-300 mt-1 max-w-md">
                 {currentUser
-                  ? `Signed in as ${currentUser.fullName}. Your custom configurations are backed up to Firebase.`
+                  ? `Signed in as ${currentUser.fullName}. Your custom home designs are backed up to Firebase.`
                   : "You've been designing for 4 minutes! Register or sign in via Firebase to save your floor plan, finishes, and live pricing breakdown."}
               </p>
             </div>
@@ -273,7 +273,7 @@ export const ConfiguratorAuthModal: React.FC<ConfiguratorAuthModalProps> = ({
             <div className="border border-gray-200 rounded-2xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                  Active Configurator Model
+                  Selected Home Model
                 </span>
                 <span className="font-mono text-sm font-black text-gray-900">
                   {formatCurrency(totalPrice, config.currency)}
@@ -291,7 +291,7 @@ export const ConfiguratorAuthModal: React.FC<ConfiguratorAuthModalProps> = ({
                 className="w-full py-2.5 px-4 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 <FolderHeart className="w-4 h-4" />
-                <span>{isSubmitting ? 'Saving to Firebase...' : 'Save Current Build Configuration'}</span>
+                <span>{isSubmitting ? 'Saving to Firebase...' : 'Save Current Home Design'}</span>
               </button>
             </div>
 
@@ -598,7 +598,7 @@ export const ConfiguratorAuthModal: React.FC<ConfiguratorAuthModalProps> = ({
                     className="w-4 h-4 rounded text-orange-600 focus:ring-orange-500 border-gray-300 cursor-pointer"
                   />
                   <span className="text-xs text-gray-600 select-none">
-                    Link current configuration to my account
+                    Link current home design to my account
                   </span>
                 </label>
 

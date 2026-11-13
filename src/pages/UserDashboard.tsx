@@ -38,6 +38,7 @@ import {
   Ship,
   Wrench,
   ClipboardList,
+  Share2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAppConfig } from '../context/AppConfigContext';
@@ -71,6 +72,31 @@ export default function UserDashboard() {
   const [houseSeriesFilter, setHouseSeriesFilter] = useState<'all' | 'expandable' | 'apple-cabin' | 'space-capsule' | 'folding'>('all');
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [activeSpecSheetData, setActiveSpecSheetData] = useState<{ state: CustomizationState; totalPrice: number } | null>(null);
+  const [copiedShareKey, setCopiedShareKey] = useState<string | null>(null);
+
+  const handleShareConfiguration = (key: string, relativePath: string) => {
+    const shareUrl = `${window.location.origin}${relativePath}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(shareUrl);
+    }
+    setCopiedShareKey(key);
+    setTimeout(() => {
+      setCopiedShareKey((prev) => (prev === key ? null : prev));
+    }, 2500);
+  };
+
+  const handleOpenPrimarySpecs = () => {
+    if (projects.length > 0) {
+      setActiveSpecSheetData({
+        state: projects[0].state,
+        totalPrice: projects[0].totalPrice,
+      });
+    } else if (orders.length > 0) {
+      handleDownloadOrderBlueprint(orders[0]);
+    } else if (availableHouseModels.length > 0) {
+      handleOpenSpecSheetForModel(availableHouseModels[0]);
+    }
+  };
 
   const availableHouseModels = React.useMemo(() => {
     const list = config.models && config.models.length > 0 ? config.models : BASE_MODELS;
@@ -183,6 +209,9 @@ export default function UserDashboard() {
       modelId: order.customization.modelId,
       wallCladding: 'wood-grain-embossed',
       glazing: 'broken-bridge-sliding-door',
+      windowStyle: 'sliding-window',
+      interiorDoor: 'room-solid-flush-oak',
+      bathroomDoor: 'bath-wpc-waterproof-white',
       lightingPackage: 'standard-recessed',
       electricalTier: 'smart-iot-200a',
       flooring: 'wood-nordic-pale-oak',
@@ -209,6 +238,9 @@ export default function UserDashboard() {
       modelId: model.id,
       wallCladding: 'wood-grain-embossed',
       glazing: 'broken-bridge-sliding-door',
+      windowStyle: 'sliding-window',
+      interiorDoor: 'room-solid-flush-oak',
+      bathroomDoor: 'bath-wpc-waterproof-white',
       lightingPackage: 'standard-recessed',
       electricalTier: 'smart-iot-200a',
       flooring: 'wood-nordic-pale-oak',
@@ -346,10 +378,10 @@ export default function UserDashboard() {
             <Link
               to="/configurator"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold transition-all shadow-xs hover:shadow-md cursor-pointer"
-              title="Open 3D House Configurator"
+              title="Customize Home in 3D"
             >
               <Box className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Open 3D Configurator</span>
+              <span className="hidden sm:inline">Customize Home</span>
             </Link>
 
             {currentUser && (
@@ -532,7 +564,7 @@ export default function UserDashboard() {
                     <Link
                       to="/configurator"
                       className="p-1 rounded-lg border border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-colors"
-                      title="Open 3D Configurator"
+                      title="Customize Home in 3D"
                     >
                       <Box className="w-3.5 h-3.5 text-orange-600" />
                     </Link>
@@ -704,7 +736,7 @@ export default function UserDashboard() {
                     className="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold transition-all shadow-xs hover:shadow-md cursor-pointer"
                   >
                     <Box className="w-4 h-4" />
-                    <span>Launch 3D Configurator</span>
+                    <span>Customize Home in 3D</span>
                   </Link>
 
                   {orders.length > 0 && (
@@ -718,6 +750,45 @@ export default function UserDashboard() {
                       <span>Download Blueprint (PDF)</span>
                     </button>
                   )}
+
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleOpenPrimarySpecs}
+                      className="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl bg-gray-50 hover:bg-orange-50 text-gray-800 hover:text-orange-900 border border-gray-200 hover:border-orange-200 text-xs font-bold transition-colors cursor-pointer"
+                      title="View technical specifications & CAD breakdown"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-orange-600" />
+                      <span>Specs</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetPath =
+                          projects.length > 0
+                            ? `/configurator?projectId=${projects[0].id}&model=${projects[0].modelId}`
+                            : orders.length > 0
+                            ? `/configurator?model=${orders[0].customization.modelId}`
+                            : '/configurator';
+                        handleShareConfiguration('sidebar-share', targetPath);
+                      }}
+                      className="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl bg-gray-50 hover:bg-orange-50 text-gray-800 hover:text-orange-900 border border-gray-200 hover:border-orange-200 text-xs font-bold transition-colors cursor-pointer"
+                      title="Copy shareable home design link"
+                    >
+                      {copiedShareKey === 'sidebar-share' ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700">Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Share2 className="w-3.5 h-3.5 text-gray-500" />
+                          <span>Share</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -773,6 +844,43 @@ export default function UserDashboard() {
                   </div>
 
                   <div className="flex items-center gap-2 self-start sm:self-auto shrink-0 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handleOpenPrimarySpecs}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-950 font-bold text-xs transition-all cursor-pointer"
+                      title="Inspect full technical specifications"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-orange-600" />
+                      <span>Specs</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetPath =
+                          projects.length > 0
+                            ? `/configurator?projectId=${projects[0].id}&model=${projects[0].modelId}`
+                            : orders.length > 0
+                            ? `/configurator?model=${orders[0].customization.modelId}`
+                            : '/configurator';
+                        handleShareConfiguration('banner-share', targetPath);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 hover:text-gray-950 font-bold text-xs transition-all cursor-pointer"
+                      title="Share home design link"
+                    >
+                      {copiedShareKey === 'banner-share' ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700">Link Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Share2 className="w-3.5 h-3.5 text-gray-500" />
+                          <span>Share</span>
+                        </>
+                      )}
+                    </button>
+
                     <Link
                       to="/configurator"
                       className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs transition-all shadow-xs cursor-pointer"
@@ -857,7 +965,7 @@ export default function UserDashboard() {
                     className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs sm:text-sm transition-all shadow-xs cursor-pointer shrink-0"
                   >
                     <Box className="w-4 h-4" />
-                    <span>Launch 3D Configurator</span>
+                    <span>Customize Home in 3D</span>
                   </Link>
                 </div>
 
@@ -1010,21 +1118,34 @@ export default function UserDashboard() {
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5">
                               <button
                                 type="button"
                                 onClick={() => handleOpenSpecSheetForModel(model)}
-                                className="p-2 rounded-xl border border-gray-200 hover:bg-gray-100 text-gray-700 transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl border border-gray-200 hover:bg-gray-100 text-gray-700 text-xs font-bold transition-colors cursor-pointer"
                                 title="View technical spec sheet and CAD layout"
                               >
-                                <FileText className="w-4 h-4 text-gray-600" />
+                                <FileText className="w-3.5 h-3.5 text-gray-600" />
+                                <span>Specs</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleShareConfiguration(`model-${model.id}`, `/configurator?model=${model.id}`)}
+                                className="p-2 rounded-xl border border-gray-200 hover:bg-gray-100 text-gray-700 transition-colors cursor-pointer"
+                                title="Share this home model link"
+                              >
+                                {copiedShareKey === `model-${model.id}` ? (
+                                  <Check className="w-4 h-4 text-emerald-600" />
+                                ) : (
+                                  <Share2 className="w-4 h-4 text-gray-600" />
+                                )}
                               </button>
                               <Link
                                 to={`/configurator?model=${model.id}`}
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs transition-colors shadow-2xs cursor-pointer"
+                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs transition-colors shadow-2xs cursor-pointer"
                               >
                                 <Box className="w-3.5 h-3.5" />
-                                <span>Customize 3D</span>
+                                <span>Customize</span>
                               </Link>
                             </div>
                           </div>
@@ -1078,7 +1199,7 @@ export default function UserDashboard() {
                       <p className="text-xs text-gray-500 max-w-md mx-auto mt-1">
                         {searchQuery || modelFilter !== 'all'
                           ? 'No saved projects match your search criteria. Try resetting filters.'
-                          : 'You haven’t saved any custom modular builds yet. Launch the 3D configurator to design your first house!'}
+                          : 'You haven’t saved any custom modular builds yet. Start customizing in 3D to design your first house!'}
                       </p>
                     </div>
                     <Link
@@ -1262,6 +1383,33 @@ export default function UserDashboard() {
 
                             <button
                               type="button"
+                              onClick={() => setActiveSpecSheetData({ state: project.state, totalPrice: project.totalPrice })}
+                              className="p-2 text-gray-600 hover:text-orange-700 hover:bg-orange-50 rounded-xl transition-colors cursor-pointer"
+                              title="View Technical Specs"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleShareConfiguration(
+                                  `project-${project.id}`,
+                                  `/configurator?projectId=${project.id}&model=${project.modelId}`
+                                )
+                              }
+                              className="p-2 text-gray-600 hover:text-orange-700 hover:bg-orange-50 rounded-xl transition-colors cursor-pointer"
+                              title="Share Saved Design Link"
+                            >
+                              {copiedShareKey === `project-${project.id}` ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              ) : (
+                                <Share2 className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+
+                            <button
+                              type="button"
                               onClick={() => {
                                 setActiveTab('progress');
                               }}
@@ -1339,7 +1487,7 @@ export default function UserDashboard() {
                     <div>
                       <h3 className="text-base font-bold text-gray-900">No Active Reservations</h3>
                       <p className="text-xs text-gray-500 max-w-md mx-auto mt-1">
-                        When you reserve a factory production slot from the 3D configurator, your order status,
+                        When you reserve a factory production slot after customizing your home, your order status,
                         engineering checks, and estimated dispatch dates will appear here.
                       </p>
                     </div>
@@ -1460,13 +1608,47 @@ export default function UserDashboard() {
                                 <Activity className="w-3.5 h-3.5 text-white" />
                                 <span>Track Progress ({order.progress?.progressPercent ?? 25}%)</span>
                               </button>
-                              <Link
-                                to={`/configurator?model=${order.customization.modelId}`}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-800 font-bold text-xs transition-colors cursor-pointer"
-                              >
-                                <Box className="w-3.5 h-3.5 text-orange-600" />
-                                <span>Inspect Model in 3D</span>
-                              </Link>
+                              <div className="flex items-center gap-1.5 flex-wrap md:justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadOrderBlueprint(order)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-800 font-bold text-xs transition-colors cursor-pointer"
+                                  title="View full technical specs"
+                                >
+                                  <FileText className="w-3.5 h-3.5 text-orange-600" />
+                                  <span>Specs</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleShareConfiguration(
+                                      `order-${order.id}`,
+                                      `/configurator?model=${order.customization.modelId}`
+                                    )
+                                  }
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-800 font-bold text-xs transition-colors cursor-pointer"
+                                  title="Copy shareable link for this configuration"
+                                >
+                                  {copiedShareKey === `order-${order.id}` ? (
+                                    <>
+                                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                      <span className="text-emerald-700">Copied</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Share2 className="w-3.5 h-3.5 text-gray-500" />
+                                      <span>Share</span>
+                                    </>
+                                  )}
+                                </button>
+                                <Link
+                                  to={`/configurator?model=${order.customization.modelId}`}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-50 text-gray-800 font-bold text-xs transition-colors cursor-pointer"
+                                >
+                                  <Box className="w-3.5 h-3.5 text-orange-600" />
+                                  <span>Inspect Model in 3D</span>
+                                </Link>
+                              </div>
                             </div>
                           </div>
 

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { BASE_MODELS } from '../data/models';
 import {
-  WALL_CLADDING_OPTIONS, INTERIOR_WALL_OPTIONS, GLAZING_OPTIONS, LIGHTING_OPTIONS, ELECTRICAL_OPTIONS,
+  WALL_CLADDING_OPTIONS, INTERIOR_WALL_OPTIONS, GLAZING_OPTIONS, INTERIOR_DOOR_OPTIONS, BATHROOM_DOOR_OPTIONS, LIGHTING_OPTIONS, ELECTRICAL_OPTIONS,
   FLOORING_OPTIONS, ROOF_OPTIONS, CABINETRY_OPTIONS, MODULAR_ADDONS
 } from '../data/options';
 import {
@@ -11,6 +11,11 @@ import {
   getStoredExchangeRates,
 } from '../utils/currency';
 import { syncOrdersCurrency } from '../utils/orderManager';
+import {
+  createDefaultLogisticsLineItems,
+  getLogisticsLineItems,
+  syncLogisticsFromLineItems,
+} from '../utils/logisticsPricing';
 
 export const AppConfigContext = createContext<any>(null);
 
@@ -31,12 +36,15 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
       wallOptions: WALL_CLADDING_OPTIONS,
       interiorWallOptions: INTERIOR_WALL_OPTIONS,
       glazingOptions: GLAZING_OPTIONS,
+      interiorDoorOptions: INTERIOR_DOOR_OPTIONS,
+      bathroomDoorOptions: BATHROOM_DOOR_OPTIONS,
       lightingOptions: LIGHTING_OPTIONS,
       electricalOptions: ELECTRICAL_OPTIONS,
       flooringOptions: FLOORING_OPTIONS,
       roofOptions: ROOF_OPTIONS,
       cabinetryOptions: CABINETRY_OPTIONS,
       addons: MODULAR_ADDONS,
+      hiddenCategories: [] as string[],
       currency: 'USD',
       exchangeRates: { ...DEFAULT_EXCHANGE_RATES, ...getStoredExchangeRates() },
       markup: 0,
@@ -58,6 +66,11 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
         freightCost: 4500,
         sitePrepCost: 5500,
         taxRate: 0,
+        lineItems: createDefaultLogisticsLineItems({
+          freightCost: 4500,
+          sitePrepCost: 5500,
+          taxRate: 0,
+        }),
       }
     };
 
@@ -116,17 +129,17 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
           if (parsedArr.length === 0) return []; // User deleted all items or cleared list
           const result = parsedArr.map((p: any) => {
             const defOpt = defaultArr.find((d: any) => d.id === p.id);
-            const baseName = defOpt?.name || p.name || '';
-            const baseDesc = defOpt?.description || p.description || '';
+            const baseName = p.name || defOpt?.name || '';
+            const baseDesc = p.description || defOpt?.description || '';
             return {
               ...(defOpt || {}),
               ...p,
-              name: cleanText(baseName),
-              color: defOpt?.color || p.color,
-              badge: defOpt?.badge || p.badge,
-              category: defOpt?.category || p.category,
-              specDetail: defOpt?.specDetail || p.specDetail,
-              description: cleanText(baseDesc),
+              name: cleanText(baseName) || cleanText(defOpt?.name || ''),
+              color: p.color || defOpt?.color,
+              badge: p.badge || defOpt?.badge,
+              category: p.category || defOpt?.category,
+              specDetail: p.specDetail !== undefined ? p.specDetail : defOpt?.specDetail,
+              description: cleanText(baseDesc) || cleanText(defOpt?.description || ''),
               isAvailable: p.isAvailable !== undefined ? Boolean(p.isAvailable) : true,
               isActive: p.isActive !== undefined ? Boolean(p.isActive) : true,
               priceByModel: (() => {
@@ -162,6 +175,13 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
             };
           });
           defaultArr.forEach((defOpt: any) => {
+            if (defOpt.id === 'hasSatelliteInternet') {
+              const hasCustomSatellite = result.some((r: any) =>
+                r.id === 'hasSatelliteInternet' ||
+                /satellite|starlink|vsat|dish/i.test(`${r.name || ''} ${r.id || ''}`)
+              );
+              if (hasCustomSatellite) return;
+            }
             if (!result.some((r: any) => r.id === defOpt.id)) {
               result.push({ ...defOpt, isAvailable: true, isActive: true });
             }
@@ -187,6 +207,8 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
             price: 0,
             priceByModel: {},
           })),
+          interiorDoorOptions: mergeOptions(parsed.interiorDoorOptions, defaults.interiorDoorOptions),
+          bathroomDoorOptions: mergeOptions(parsed.bathroomDoorOptions, defaults.bathroomDoorOptions),
           lightingOptions: mergeOptions(parsed.lightingOptions, defaults.lightingOptions),
           electricalOptions: mergeOptions(parsed.electricalOptions, defaults.electricalOptions),
           flooringOptions: mergeOptions(parsed.flooringOptions, defaults.flooringOptions),
@@ -222,7 +244,11 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
             USD: 1.0,
           },
           currency: parsed.currency || 'USD',
-          logistics: { ...defaults.logistics, ...(parsed.logistics || {}) },
+          logistics: (() => {
+            const mergedRaw = { ...defaults.logistics, ...(parsed.logistics || {}) };
+            const items = getLogisticsLineItems(parsed.logistics || defaults.logistics);
+            return syncLogisticsFromLineItems(mergedRaw, items);
+          })(),
         };
       } catch (e) {}
     }

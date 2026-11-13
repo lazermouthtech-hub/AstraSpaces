@@ -310,8 +310,8 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
     const canvas = canvasRef.current;
     if (!container || !canvas) return;
 
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    const width = Math.max(container.clientWidth, 1);
+    const height = Math.max(container.clientHeight, 1);
 
     // Scene
     const scene = new THREE.Scene();
@@ -443,6 +443,7 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
       if (!container || !renderer || !camera) return;
       const w = container.clientWidth;
       const h = container.clientHeight;
+      if (w <= 0 || h <= 0) return;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
@@ -450,6 +451,7 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
 
     const resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(container);
+    const initialResizeRaf = requestAnimationFrame(handleResize);
 
     const handlePointerDown = () => {
       isTransitioningRef.current = false;
@@ -457,11 +459,17 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
     canvas.addEventListener('pointerdown', handlePointerDown);
 
     return () => {
+      cancelAnimationFrame(initialResizeRaf);
       if (reqIdRef.current) cancelAnimationFrame(reqIdRef.current);
       resizeObserver.disconnect();
       canvas.removeEventListener('pointerdown', handlePointerDown);
       controls.dispose();
       renderer.dispose();
+      sceneRef.current = null;
+      cameraRef.current = null;
+      rendererRef.current = null;
+      controlsRef.current = null;
+      homeModelRef.current = null;
     };
   }, []);
 
@@ -530,7 +538,23 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
       BASE_MODELS.find((m) => m.id === state.modelId) ||
       BASE_MODELS[0];
 
-    const homeModel = buildHomeModel(state, materials, lightingMode, currentModelSpec);
+    const hasActiveSatelliteAddon = Boolean(
+      state.hasSatelliteInternet ||
+        (config?.addons || []).some(
+          (a: any) =>
+            a.isAvailable !== false &&
+            a.isActive !== false &&
+            /satellite|starlink|vsat|dish/i.test(`${a.id || ''} ${a.name || ''}`) &&
+            Boolean(state[a.id])
+        )
+    );
+
+    const modelState: CustomizationState = {
+      ...state,
+      hasSatelliteInternet: hasActiveSatelliteAddon,
+    };
+
+    const homeModel = buildHomeModel(modelState, materials, lightingMode, currentModelSpec);
     // Apply current roof and cutaway states immediately upon building
     homeModel.roofGroup.visible = !isRoofRemoved;
     homeModel.roofGroup.traverse((child) => {
@@ -1230,7 +1254,7 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
               {activeVerticalMenu === 'addons' && (
                 <div className="space-y-2.5">
                   <p className="text-xs text-gray-600 font-medium">
-                    Configure interior furniture & outdoor modules:
+                    Customize interior furniture & outdoor modules:
                   </p>
 
                   <div className="space-y-1.5">

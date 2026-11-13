@@ -283,7 +283,7 @@ export const SpecialModelRequestModal: React.FC<SpecialModelRequestModalProps> =
                   onClick={handleResetAndClose}
                   className="px-6 py-2.5 rounded-xl bg-gray-900 hover:bg-black text-white text-xs font-bold shadow-md transition-all cursor-pointer"
                 >
-                  Return to 3D Configurator
+                  Return to Home Customizer
                 </button>
               </div>
             </div>

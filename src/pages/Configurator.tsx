@@ -3,16 +3,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAppConfig, getActivePublicModelId } from '../context/AppConfigContext';
 import { BASE_MODELS } from '../data/models';
-import { FLOOR_PLAN_OPTIONS } from '../data/options';
+import {
+  FLOOR_PLAN_OPTIONS,
+  WALL_CLADDING_OPTIONS,
+  INTERIOR_DOOR_OPTIONS,
+  BATHROOM_DOOR_OPTIONS,
+} from '../data/options';
 import {
   CustomizationState,
   HomeModelId,
   LightingMode,
   ViewPerspective,
+  WallCladdingId,
 } from '../types';
 import { getItemPriceForModel } from '../utils/pricingCalculator';
 import { Header } from '../components/Header';
@@ -30,7 +36,14 @@ import {
   UserAccount,
 } from '../utils/authManager';
 import { getOrders } from '../utils/orderManager';
-import { Sliders, DollarSign, Box, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { Sliders, DollarSign, Box, ChevronLeft, Sparkles } from 'lucide-react';
+
+const parseBoolParam = (val: string | null): boolean | undefined => {
+  if (val === '1' || val === 'true') return true;
+  if (val === '0' || val === 'false') return false;
+  return undefined;
+};
+
 
 const INITIAL_STATE: CustomizationState = {
   modelId: 'expandable-20ft',
@@ -39,6 +52,9 @@ const INITIAL_STATE: CustomizationState = {
   floorPlan: '2-bed-1-bath',
   bedroomLayout: '2-bedroom',
   glazing: 'broken-bridge-sliding-door',
+  windowStyle: 'sliding-window',
+  interiorDoor: 'room-solid-flush-oak',
+  bathroomDoor: 'bath-wpc-waterproof-white',
   lightingPackage: 'standard-recessed',
   electricalTier: 'standard-100a',
   flooring: 'spc-nordic-oak',
@@ -49,10 +65,15 @@ const INITIAL_STATE: CustomizationState = {
   hasLuxuryBedSuite: false,    // User adds bed suite by themselves if desired
   hasLivingSofa: false,        // User adds living sofa by themselves if desired
   hasHvacMiniSplit: false,
+  hasAirConditionerUnit: false,
+  hasSolarBattery3kw: false,
+  hasSolarBattery6kw: false,
+  hasSolarBattery10kw: false,
   hasExteriorPergolaDeck: false,
   hasBioDigester: false,
   hasSmartDoorLock: false,     // Added by user if desired
   hasElectricBlinds: false,
+  hasSatelliteInternet: false,
   hasWardrobe: false,
   hasTvConsole: false,
 };
@@ -60,19 +81,72 @@ const INITIAL_STATE: CustomizationState = {
 export default function Configurator() {
   const { config } = useAppConfig();
   const [searchParams, setSearchParams] = useSearchParams();
-  
+
+  // Ensure viewport starts at the top when navigating from sections lower down on Home
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  const prevUrlParamsRef = useRef<{
+    model: string | null;
+    wall: string | null;
+    bath: string | null;
+    kitchen: string | null;
+    hvac: string | null;
+    deck: string | null;
+  }>({
+    model: null,
+    wall: null,
+    bath: null,
+    kitchen: null,
+    hvac: null,
+    deck: null,
+  });
+
   const [state, setState] = useState<CustomizationState>(() => {
-    const urlModel = new URLSearchParams(window.location.search).get('model');
+    const params = new URLSearchParams(window.location.search);
+    const urlModel = params.get('model');
+    const urlWall = params.get('wall');
+    const urlBath = params.get('bath');
+    const urlKitchen = params.get('kitchen');
+    const urlHvac = params.get('hvac');
+    const urlDeck = params.get('deck');
+
+    prevUrlParamsRef.current = {
+      model: urlModel,
+      wall: urlWall,
+      bath: urlBath,
+      kitchen: urlKitchen,
+      hvac: urlHvac,
+      deck: urlDeck,
+    };
+
     const allKnown = [...(config.models || []), ...BASE_MODELS];
     const defaultModel = (getActivePublicModelId(allKnown, config.defaultModelId) as HomeModelId) || 'expandable-20ft';
     const initialModel = (urlModel && allKnown.some(m => m.id === urlModel))
       ? (urlModel as HomeModelId)
       : defaultModel;
+
+    const allKnownWalls = [...(config.wallOptions || []), ...WALL_CLADDING_OPTIONS];
+    const initialWall = (urlWall && allKnownWalls.some((w: any) => w.id === urlWall))
+      ? (urlWall as WallCladdingId)
+      : INITIAL_STATE.wallCladding;
+
+    const parsedBath = parseBoolParam(urlBath);
+    const parsedKitchen = parseBoolParam(urlKitchen);
+    const parsedHvac = parseBoolParam(urlHvac);
+    const parsedDeck = parseBoolParam(urlDeck);
+
     return {
       ...INITIAL_STATE,
       modelId: initialModel,
+      wallCladding: initialWall,
       floorPlan: initialModel === 'expandable-10ft' ? '10ft-1bed' : INITIAL_STATE.floorPlan,
       bedroomLayout: initialModel === 'expandable-10ft' ? '1-bedroom' : INITIAL_STATE.bedroomLayout,
+      ...(parsedBath !== undefined ? { hasLuxuryBathPod: parsedBath } : {}),
+      ...(parsedKitchen !== undefined ? { hasKitchenetteModule: parsedKitchen } : {}),
+      ...(parsedHvac !== undefined ? { hasHvacMiniSplit: parsedHvac } : {}),
+      ...(parsedDeck !== undefined ? { hasExteriorPergolaDeck: parsedDeck } : {}),
     };
   });
 
@@ -89,17 +163,57 @@ export default function Configurator() {
     }
 
     const modelParam = searchParams.get('model');
-    if (!modelParam) return;
+    const wallParam = searchParams.get('wall');
+    const bathParam = searchParams.get('bath');
+    const kitchenParam = searchParams.get('kitchen');
+    const hvacParam = searchParams.get('hvac');
+    const deckParam = searchParams.get('deck');
+
+    const prev = prevUrlParamsRef.current;
+    const patch: Partial<CustomizationState> = {};
     const allKnown = [...(config.models || []), ...BASE_MODELS];
-    if (allKnown.some((m: any) => m.id === modelParam)) {
-      setState((prev) => {
-        if (prev.modelId !== modelParam) {
-          return { ...prev, modelId: modelParam as HomeModelId };
-        }
-        return prev;
-      });
+    const allKnownWalls = [...(config.wallOptions || []), ...WALL_CLADDING_OPTIONS];
+
+    if (modelParam && modelParam !== prev.model && allKnown.some((m: any) => m.id === modelParam)) {
+      patch.modelId = modelParam as HomeModelId;
+      if (modelParam === 'expandable-10ft') {
+        patch.floorPlan = '10ft-1bed';
+        patch.bedroomLayout = '1-bedroom';
+      }
     }
-  }, [searchParams, config.models]);
+    if (wallParam && wallParam !== prev.wall && allKnownWalls.some((w: any) => w.id === wallParam)) {
+      patch.wallCladding = wallParam as WallCladdingId;
+    }
+    if (bathParam !== prev.bath) {
+      const val = parseBoolParam(bathParam);
+      if (val !== undefined) patch.hasLuxuryBathPod = val;
+    }
+    if (kitchenParam !== prev.kitchen) {
+      const val = parseBoolParam(kitchenParam);
+      if (val !== undefined) patch.hasKitchenetteModule = val;
+    }
+    if (hvacParam !== prev.hvac) {
+      const val = parseBoolParam(hvacParam);
+      if (val !== undefined) patch.hasHvacMiniSplit = val;
+    }
+    if (deckParam !== prev.deck) {
+      const val = parseBoolParam(deckParam);
+      if (val !== undefined) patch.hasExteriorPergolaDeck = val;
+    }
+
+    prevUrlParamsRef.current = {
+      model: modelParam,
+      wall: wallParam,
+      bath: bathParam,
+      kitchen: kitchenParam,
+      hvac: hvacParam,
+      deck: deckParam,
+    };
+
+    if (Object.keys(patch).length > 0) {
+      setState((current) => ({ ...current, ...patch }));
+    }
+  }, [searchParams, config.models, config.wallOptions]);
 
   // Ensure active model is a valid model across all known base models; fallback only if completely unknown
   useEffect(() => {
@@ -116,7 +230,7 @@ export default function Configurator() {
     }
   }, [state.modelId, config.models, config.defaultModelId, setSearchParams]);
 
-  const [lightingMode, setLightingMode] = useState<LightingMode>(config.viewerControls?.defaultLighting === 'night' ? 'night' : 'daylight');
+  const [lightingMode, setLightingMode] = useState<LightingMode>('daylight');
   const [roofLiftPercent, setRoofLiftPercent] = useState<number>(0);
   const [roofRemoved, setRoofRemoved] = useState<boolean>(false);
   const [cutawayMode, setCutawayMode] = useState<boolean>(config.viewerControls?.defaultCutaway || false);
@@ -127,7 +241,6 @@ export default function Configurator() {
   // Sync to config changes if dashboard changes them
   useEffect(() => {
     if (config.viewerControls) {
-       setLightingMode(config.viewerControls.defaultLighting === 'night' ? 'night' : 'daylight');
        setCutawayMode(config.viewerControls.defaultCutaway);
     }
   }, [config.viewerControls]);
@@ -287,6 +400,21 @@ export default function Configurator() {
     const glassOpt =
       config.glazingOptions.find((o: any) => o.id === state.glazing) ||
       config.glazingOptions[0];
+    const windowOpt = state.windowStyle
+      ? config.glazingOptions.find((o: any) => o.id === state.windowStyle)
+      : null;
+    const intDoorList =
+      config.interiorDoorOptions && config.interiorDoorOptions.length > 0
+        ? config.interiorDoorOptions
+        : INTERIOR_DOOR_OPTIONS;
+    const intDoorOpt =
+      intDoorList.find((o: any) => o.id === state.interiorDoor) || intDoorList[0];
+    const bathDoorList =
+      config.bathroomDoorOptions && config.bathroomDoorOptions.length > 0
+        ? config.bathroomDoorOptions
+        : BATHROOM_DOOR_OPTIONS;
+    const bathDoorOpt =
+      bathDoorList.find((o: any) => o.id === state.bathroomDoor) || bathDoorList[0];
     const lightOpt =
       config.lightingOptions.find((o: any) => o.id === state.lightingPackage) ||
       config.lightingOptions[0];
@@ -321,6 +449,11 @@ export default function Configurator() {
       getItemPriceForModel(intWallOpt, state.modelId, config.models) +
       floorPlanPrice +
       getItemPriceForModel(glassOpt, state.modelId, config.models) +
+      (windowOpt && windowOpt.id !== glassOpt?.id
+        ? getItemPriceForModel(windowOpt, state.modelId, config.models)
+        : 0) +
+      getItemPriceForModel(intDoorOpt, state.modelId, config.models) +
+      getItemPriceForModel(bathDoorOpt, state.modelId, config.models) +
       getItemPriceForModel(lightOpt, state.modelId, config.models) +
       getItemPriceForModel(elecOpt, state.modelId, config.models) +
       getItemPriceForModel(floorOpt, state.modelId, config.models) +
@@ -435,7 +568,13 @@ export default function Configurator() {
       <Header
         selectedModelId={state.modelId}
         onSelectModel={handleSelectModel}
-        onOpenSpecSheet={() => setShowSpecSheet(true)}
+        onOpenSpecSheet={() => {
+          if (!currentUser) {
+            setShowAuthModal(true);
+            return;
+          }
+          setShowSpecSheet(true);
+        }}
         onReset={handleReset}
         totalPrice={totalPrice}
         showInvestmentBreakdown={showInvestmentBreakdown}
@@ -461,7 +600,7 @@ export default function Configurator() {
             <p className="text-xs text-gray-600 truncate hidden lg:block">
               {isAdvancedMode
                 ? 'Full access to all 8 architectural suites, 3D cutaways, continuous roof lift slider, 24 SPC swatches, and smart IoT systems.'
-                : 'Clean, distraction-free space for rapid configuration. Use "Advanced Tools" anytime for full architectural engineering access.'}
+                : 'Clean, distraction-free space for rapid home customization. Use "Advanced Tools" anytime for full architectural engineering access.'}
             </p>
           </div>
 
@@ -600,7 +739,13 @@ export default function Configurator() {
                 if (plan) setSelectedPaymentOption(plan);
                 setShowReserve(true);
               }}
-              onOpenSpecSheet={() => setShowSpecSheet(true)}
+              onOpenSpecSheet={() => {
+                if (!currentUser) {
+                  setShowAuthModal(true);
+                  return;
+                }
+                setShowSpecSheet(true);
+              }}
               onToggleCollapse={() => setShowInvestmentBreakdown(false)}
               isReserved={isProjectReserved}
               onSelectCategory={handleSelectCategoryFromCostPanel}
@@ -655,8 +800,8 @@ export default function Configurator() {
         </button>
       </div>
 
-      {/* Technical Spec Sheet Modal */}
-      {showSpecSheet && (
+      {/* Technical Spec Sheet Modal (Logged-in users only) */}
+      {showSpecSheet && currentUser && (
         <SpecSheetModal
           state={state}
           onClose={() => setShowSpecSheet(false)}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppConfig, getActivePublicModelId } from '../context/AppConfigContext';
 import { useAuth } from '../context/AuthContext';
@@ -47,6 +47,9 @@ const DEFAULT_SPEC_STATE: CustomizationState = {
   modelId: 'expandable-20ft',
   wallCladding: 'fluoro-white',
   glazing: 'broken-bridge-sliding-door',
+  windowStyle: 'sliding-window',
+  interiorDoor: 'room-solid-flush-oak',
+  bathroomDoor: 'bath-wpc-waterproof-white',
   lightingPackage: 'standard-recessed',
   electricalTier: 'standard-100a',
   flooring: 'spc-nordic-oak',
@@ -57,10 +60,15 @@ const DEFAULT_SPEC_STATE: CustomizationState = {
   hasLuxuryBedSuite: false,
   hasLivingSofa: false,
   hasHvacMiniSplit: false,
+  hasAirConditionerUnit: false,
+  hasSolarBattery3kw: false,
+  hasSolarBattery6kw: false,
+  hasSolarBattery10kw: false,
   hasExteriorPergolaDeck: false,
   hasBioDigester: false,
   hasSmartDoorLock: false,
   hasElectricBlinds: false,
+  hasSatelliteInternet: false,
   hasWardrobe: false,
   hasTvConsole: false,
 };
@@ -175,6 +183,72 @@ export default function Home() {
     });
   }, [publicModels, homeModelFilter]);
 
+  // Horizontal slider state & controls for Model Lineup (#models)
+  const modelsTrackRef = useRef<HTMLDivElement | null>(null);
+  const [canSlidePrev, setCanSlidePrev] = useState<boolean>(false);
+  const [canSlideNext, setCanSlideNext] = useState<boolean>(true);
+  const [activeModelIndex, setActiveModelIndex] = useState<number>(0);
+
+  const updateModelsScrollState = useCallback(() => {
+    const track = modelsTrackRef.current;
+    if (!track) return;
+    const maxScroll = Math.max(0, track.scrollWidth - track.clientWidth);
+    setCanSlidePrev(track.scrollLeft > 8);
+    setCanSlideNext(track.scrollLeft < maxScroll - 8);
+
+    const children = Array.from(track.children) as HTMLElement[];
+    if (children.length > 0) {
+      let closestIdx = 0;
+      let minDiff = Infinity;
+      children.forEach((child, idx) => {
+        const diff = Math.abs(child.offsetLeft - track.scrollLeft);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestIdx = idx;
+        }
+      });
+      setActiveModelIndex(closestIdx);
+    }
+  }, []);
+
+  useEffect(() => {
+    const track = modelsTrackRef.current;
+    if (track) {
+      track.scrollTo({ left: 0, behavior: 'auto' });
+    }
+    const frameId = requestAnimationFrame(updateModelsScrollState);
+    window.addEventListener('resize', updateModelsScrollState);
+    return () => {
+      cancelAnimationFrame(frameId);
+      window.removeEventListener('resize', updateModelsScrollState);
+    };
+  }, [filteredHomeModels, updateModelsScrollState]);
+
+  const handleSlideModels = useCallback((direction: 'prev' | 'next') => {
+    const track = modelsTrackRef.current;
+    if (!track) return;
+    const firstCard = track.firstElementChild as HTMLElement | null;
+    const computedStyle = window.getComputedStyle(track);
+    const gap = parseFloat(computedStyle.columnGap || computedStyle.gap || '24') || 24;
+    const step = firstCard ? firstCard.getBoundingClientRect().width + gap : track.clientWidth * 0.85;
+    track.scrollBy({
+      left: direction === 'next' ? step : -step,
+      behavior: 'smooth',
+    });
+  }, []);
+
+  const handleSlideToModelIndex = useCallback((index: number) => {
+    const track = modelsTrackRef.current;
+    if (!track) return;
+    const target = track.children[index] as HTMLElement | undefined;
+    if (target) {
+      track.scrollTo({
+        left: target.offsetLeft,
+        behavior: 'smooth',
+      });
+    }
+  }, []);
+
   // Turnkey Estimator Calculation
   const estimatorTotal = useMemo(() => {
     const selectedModel =
@@ -206,6 +280,17 @@ export default function Home() {
     return total;
   }, [config, estimatorModelId, estimatorWall, estimatorBath, estimatorKitchen, estimatorHvac, estimatorDeck]);
 
+  const estimatorConfiguratorUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (estimatorModelId) params.set('model', estimatorModelId);
+    if (estimatorWall) params.set('wall', estimatorWall);
+    params.set('bath', estimatorBath ? '1' : '0');
+    params.set('kitchen', estimatorKitchen ? '1' : '0');
+    params.set('hvac', estimatorHvac ? '1' : '0');
+    params.set('deck', estimatorDeck ? '1' : '0');
+    return `/configurator?${params.toString()}`;
+  }, [estimatorModelId, estimatorWall, estimatorBath, estimatorKitchen, estimatorHvac, estimatorDeck]);
+
   const faqs = [
     {
       q: 'What site foundations are required for the modular units?',
@@ -221,7 +306,7 @@ export default function Home() {
     },
     {
       q: 'Can I export a detailed line drawing and work order to give directly to my builder?',
-      a: 'Yes! The 3D Configurator includes a comprehensive Spec Sheet and Work Order generator with high-resolution orthogonal line drawings, millimeter dimensions, electrical schedules, and bill of materials. You can download and print this PDF immediately to begin site prep and permitting.'
+      a: 'Yes! The 3D Home Customizer includes a comprehensive Spec Sheet and Work Order generator with high-resolution orthogonal line drawings, millimeter dimensions, electrical schedules, and bill of materials. You can download and print this PDF immediately to begin site prep and permitting.'
     },
     {
       q: 'What is the manufacturing lead time and can models be expanded or connected?',
@@ -485,32 +570,74 @@ export default function Home() {
           </div>
 
           {/* 7. Key Architectural Metric Badges */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-4xl mx-auto w-full">
-            <div className="p-3.5 sm:p-4 bg-gray-50/80 rounded-2xl border border-gray-200/80 text-center flex flex-col items-center justify-center">
-              <div className="text-xl sm:text-2xl font-black text-gray-950 font-mono">409 sq ft</div>
-              <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">
-                Expanded Footprint
+          {(() => {
+            const sqfts = publicModels
+              .map((m: any) => Number(m.sqft))
+              .filter((n: number) => Number.isFinite(n) && n > 0);
+            const minSqft = sqfts.length > 0 ? Math.min(...sqfts) : 140;
+            const maxSqft = sqfts.length > 0 ? Math.max(...sqfts) : 807;
+            const footprintLabel =
+              minSqft === maxSqft ? `${minSqft} sq ft` : `${minSqft}–${maxSqft} sq ft`;
+            const leadTimes = Array.from(
+              new Set<string>(
+                publicModels
+                  .map((m: any) => String(m.leadTime || '').trim())
+                  .filter(Boolean)
+              )
+            );
+            const leadLabel = String(leadTimes.length === 1 ? leadTimes[0] : '10-12 Weeks')
+              .replace(/weeks?/i, 'Wks')
+              .replace(/-/g, '–');
+
+            return (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-4xl mx-auto w-full">
+                <div className="p-3.5 sm:p-4 bg-gray-50/80 rounded-2xl border border-gray-200/80 text-center flex flex-col items-center justify-center">
+                  <div className="text-base sm:text-xl font-black text-gray-950 font-mono whitespace-nowrap">
+                    {footprintLabel}
+                  </div>
+                  <div className="text-[11px] font-bold text-gray-700 uppercase tracking-wider mt-1">
+                    4 Modular Series
+                  </div>
+                  <div className="text-[10px] font-medium text-gray-500 mt-0.5">
+                    10FT–40FT · Studio to 4-Bed
+                  </div>
+                </div>
+                <div className="p-3.5 sm:p-4 bg-gray-50/80 rounded-2xl border border-gray-200/80 text-center flex flex-col items-center justify-center">
+                  <div className="text-base sm:text-xl font-black text-gray-950 font-mono whitespace-nowrap">
+                    {leadLabel}
+                  </div>
+                  <div className="text-[11px] font-bold text-gray-700 uppercase tracking-wider mt-1">
+                    Factory Production
+                  </div>
+                  <div className="text-[10px] font-medium text-gray-500 mt-0.5">
+                    Pre-Built &amp; Pre-Wired
+                  </div>
+                </div>
+                <div className="p-3.5 sm:p-4 bg-gray-50/80 rounded-2xl border border-gray-200/80 text-center flex flex-col items-center justify-center">
+                  <div className="text-base sm:text-xl font-black text-orange-600 font-mono whitespace-nowrap">
+                    15–30 Min
+                  </div>
+                  <div className="text-[11px] font-bold text-gray-700 uppercase tracking-wider mt-1">
+                    On-Site Setup
+                  </div>
+                  <div className="text-[10px] font-medium text-gray-500 mt-0.5">
+                    &lt; 2 Hrs Utility Hookup
+                  </div>
+                </div>
+                <div className="p-3.5 sm:p-4 bg-gray-50/80 rounded-2xl border border-gray-200/80 text-center flex flex-col items-center justify-center">
+                  <div className="text-base sm:text-xl font-black text-gray-950 font-mono whitespace-nowrap">
+                    100% Turnkey
+                  </div>
+                  <div className="text-[11px] font-bold text-gray-700 uppercase tracking-wider mt-1">
+                    Solar · AC · Starlink
+                  </div>
+                  <div className="text-[10px] font-medium text-gray-500 mt-0.5">
+                    Q235 Steel · Bath &amp; Kitchen
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="p-3.5 sm:p-4 bg-gray-50/80 rounded-2xl border border-gray-200/80 text-center flex flex-col items-center justify-center">
-              <div className="text-xl sm:text-2xl font-black text-gray-950 font-mono">3-6 Wks</div>
-              <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">
-                Factory Delivery
-              </div>
-            </div>
-            <div className="p-3.5 sm:p-4 bg-gray-50/80 rounded-2xl border border-gray-200/80 text-center flex flex-col items-center justify-center">
-              <div className="text-xl sm:text-2xl font-black text-orange-600 font-mono">100%</div>
-              <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">
-                Plug &amp; Play Utilities
-              </div>
-            </div>
-            <div className="p-3.5 sm:p-4 bg-gray-50/80 rounded-2xl border border-gray-200/80 text-center flex flex-col items-center justify-center">
-              <div className="text-xl sm:text-2xl font-black text-gray-950 font-mono">Q235</div>
-              <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mt-0.5">
-                Galvanized Steel
-              </div>
-            </div>
-          </div>
+            );
+          })()}
         </div>
       </section>
 
@@ -557,111 +684,203 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Model Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredHomeModels.map((model: any) => {
-              return (
-                <div
-                  key={model.id}
-                  className="bg-white rounded-3xl border border-gray-200 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between overflow-hidden group"
+          {/* Model Cards Single-Row Slider */}
+          <div className="relative">
+            {/* Top Slider Status & Prev/Next Controls */}
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div className="text-xs font-bold text-gray-500">
+                Showing <span className="text-gray-950 font-mono">{filteredHomeModels.length}</span>{' '}
+                {filteredHomeModels.length === 1 ? 'model' : 'models'} · Slide horizontally to compare
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleSlideModels('prev')}
+                  disabled={!canSlidePrev}
+                  aria-label="Previous model"
+                  className={`inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-extrabold border transition-all ${
+                    canSlidePrev
+                      ? 'bg-white text-gray-900 border-gray-300 hover:bg-black hover:text-white hover:border-black shadow-xs cursor-pointer active:scale-95'
+                      : 'bg-gray-100 text-gray-300 border-gray-200 cursor-not-allowed'
+                  }`}
                 >
-                  <div className="p-6 sm:p-7 space-y-5">
-                    {/* Model Header */}
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="text-[10px] font-mono uppercase font-black tracking-wider text-orange-600 bg-orange-50 px-2 py-0.5 rounded-md">
-                          {model.leadTime || '10-12 Weeks'} Lead
-                        </span>
-                        <h3 className="text-xl font-black text-gray-950 tracking-tight mt-2">
-                          {model.name}
-                        </h3>
-                        <p className="text-xs font-semibold text-gray-500 mt-0.5">
-                          {model.tagline}
+                  <ChevronLeft className="w-4 h-4" />
+                  <span className="hidden sm:inline">Prev</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSlideModels('next')}
+                  disabled={!canSlideNext}
+                  aria-label="Next model"
+                  className={`inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-extrabold border transition-all ${
+                    canSlideNext
+                      ? 'bg-white text-gray-900 border-gray-300 hover:bg-black hover:text-white hover:border-black shadow-xs cursor-pointer active:scale-95'
+                      : 'bg-gray-100 text-gray-300 border-gray-200 cursor-not-allowed'
+                  }`}
+                >
+                  <span className="hidden sm:inline">Next</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Carousel Track & Edge Arrows */}
+            <div className="relative group/slider">
+              {canSlidePrev && (
+                <button
+                  type="button"
+                  onClick={() => handleSlideModels('prev')}
+                  aria-label="Slide to previous model"
+                  className="hidden md:flex absolute -left-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full bg-white/95 backdrop-blur-sm border border-gray-200 shadow-lg items-center justify-center text-gray-900 hover:bg-black hover:text-white hover:border-black transition-all cursor-pointer active:scale-95"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+              )}
+
+              {canSlideNext && (
+                <button
+                  type="button"
+                  onClick={() => handleSlideModels('next')}
+                  aria-label="Slide to next model"
+                  className="hidden md:flex absolute -right-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full bg-white/95 backdrop-blur-sm border border-gray-200 shadow-lg items-center justify-center text-gray-900 hover:bg-black hover:text-white hover:border-black transition-all cursor-pointer active:scale-95"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              )}
+
+              <div
+                ref={modelsTrackRef}
+                onScroll={updateModelsScrollState}
+                className="flex flex-nowrap items-stretch gap-6 overflow-x-auto scroll-smooth snap-x snap-mandatory py-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+              >
+                {filteredHomeModels.map((model: any) => {
+                  return (
+                    <div
+                      key={model.id}
+                      className="w-[86vw] sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] shrink-0 snap-start bg-white rounded-3xl border border-gray-200 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between overflow-hidden group"
+                    >
+                      <div className="p-6 sm:p-7 space-y-5">
+                        {/* Model Header */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <span className="text-[10px] font-mono uppercase font-black tracking-wider text-orange-600 bg-orange-50 px-2 py-0.5 rounded-md">
+                              {model.leadTime || '10-12 Weeks'} Lead
+                            </span>
+                            <h3 className="text-xl font-black text-gray-950 tracking-tight mt-2">
+                              {model.name}
+                            </h3>
+                            <p className="text-xs font-semibold text-gray-500 mt-0.5">
+                              {model.tagline}
+                            </p>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <div className="text-2xl font-black text-gray-950 font-mono">
+                              {model.sqft}
+                            </div>
+                            <div className="text-[10px] uppercase font-bold text-gray-400">
+                              Square Feet
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Dimensions & Specifications */}
+                        <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-100 space-y-2">
+                          <div className="flex items-center justify-between text-xs gap-2">
+                            <span className="text-gray-500 font-medium shrink-0">Dimensions:</span>
+                            <span className="font-mono font-bold text-gray-900 text-right">
+                              {model.dimensions?.lengthFt}′ × {model.dimensions?.widthFt}′ × {model.dimensions?.heightFt}′
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs gap-2">
+                            <span className="text-gray-500 font-medium shrink-0">Metric Footprint:</span>
+                            <span className="font-mono text-gray-700 text-[11px] text-right truncate">
+                              {model.dimensions?.metricStr}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-xs gap-2">
+                            <span className="text-gray-500 font-medium shrink-0">Bedrooms / Baths:</span>
+                            <span className="font-bold text-gray-900 text-right">
+                              {model.bedrooms} Bed · {model.bathrooms} Bath
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Description */}
+                        <p className="text-xs text-gray-600 leading-relaxed">
+                          {model.description}
                         </p>
-                      </div>
 
-                      <div className="text-right">
-                        <div className="text-2xl font-black text-gray-950 font-mono">
-                          {model.sqft}
+                        {/* Included Features Bullet Points */}
+                        <div className="space-y-2 pt-2 border-t border-gray-100">
+                          <div className="text-[10px] uppercase font-extrabold tracking-wider text-gray-400">
+                            Included Standard Engineering:
+                          </div>
+                          {model.includedFeatures?.slice(0, 4).map((feat: string, idx: number) => (
+                            <div key={idx} className="flex items-center gap-2 text-xs text-gray-700">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                              <span className="truncate">{feat}</span>
+                            </div>
+                          ))}
                         </div>
-                        <div className="text-[10px] uppercase font-bold text-gray-400">
-                          Square Feet
+                      </div>
+
+                      {/* Card Footer: Price & Direct Actions */}
+                      <div className="p-6 bg-gray-50/80 border-t border-gray-100 flex flex-col gap-3">
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-xs font-semibold text-gray-500">Base Investment:</span>
+                          <span className="text-2xl font-black text-gray-950 font-mono">
+                            {formatCurrency(model.basePrice, config.currency)}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setSpecModalModelId(model.id)}
+                            className="w-full py-2.5 px-3 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-700 hover:bg-gray-100 hover:text-gray-950 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-gray-400" />
+                            <span>Specs &amp; PDF</span>
+                          </button>
+
+                          <Link
+                            to={`/configurator?model=${model.id}`}
+                            className="w-full py-2.5 px-3 rounded-xl bg-black text-white text-xs font-extrabold hover:bg-neutral-800 transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                          >
+                            <span>Customize Home</span>
+                            <ChevronRight className="w-3.5 h-3.5 text-orange-400" />
+                          </Link>
                         </div>
                       </div>
                     </div>
+                  );
+                })}
+              </div>
+            </div>
 
-                    {/* Dimensions & Specifications */}
-                    <div className="p-3.5 bg-gray-50 rounded-2xl border border-gray-100 space-y-2">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-gray-500 font-medium">Dimensions:</span>
-                        <span className="font-mono font-bold text-gray-900">
-                          {model.dimensions?.lengthFt}′ × {model.dimensions?.widthFt}′ × {model.dimensions?.heightFt}′
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-gray-500 font-medium">Metric Footprint:</span>
-                        <span className="font-mono text-gray-700 text-[11px]">
-                          {model.dimensions?.metricStr}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-gray-500 font-medium">Bedrooms / Baths:</span>
-                        <span className="font-bold text-gray-900">
-                          {model.bedrooms} Bed · {model.bathrooms} Bath
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Description */}
-                    <p className="text-xs text-gray-600 leading-relaxed">
-                      {model.description}
-                    </p>
-
-                    {/* Included Features Bullet Points */}
-                    <div className="space-y-2 pt-2 border-t border-gray-100">
-                      <div className="text-[10px] uppercase font-extrabold tracking-wider text-gray-400">
-                        Included Standard Engineering:
-                      </div>
-                      {model.includedFeatures?.slice(0, 4).map((feat: string, idx: number) => (
-                        <div key={idx} className="flex items-center gap-2 text-xs text-gray-700">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                          <span className="truncate">{feat}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Card Footer: Price & Direct Actions */}
-                  <div className="p-6 bg-gray-50/80 border-t border-gray-100 flex flex-col gap-3">
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-xs font-semibold text-gray-500">Base Investment:</span>
-                      <span className="text-2xl font-black text-gray-950 font-mono">
-                        {formatCurrency(model.basePrice, config.currency)}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => setSpecModalModelId(model.id)}
-                        className="w-full py-2.5 px-3 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-700 hover:bg-gray-100 hover:text-gray-950 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                      >
-                        <FileText className="w-3.5 h-3.5 text-gray-400" />
-                        <span>Specs &amp; PDF</span>
-                      </button>
-
-                      <Link
-                        to={`/configurator?model=${model.id}`}
-                        className="w-full py-2.5 px-3 rounded-xl bg-black text-white text-xs font-extrabold hover:bg-neutral-800 transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
-                      >
-                        <span>Configure 3D</span>
-                        <ChevronRight className="w-3.5 h-3.5 text-orange-400" />
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {/* Slide Indicator Dots */}
+            {filteredHomeModels.length > 1 && (
+              <div className="flex items-center justify-center gap-1.5 mt-5">
+                {filteredHomeModels.map((model: any, idx: number) => {
+                  const isActive = idx === activeModelIndex;
+                  return (
+                    <button
+                      key={model.id}
+                      type="button"
+                      onClick={() => handleSlideToModelIndex(idx)}
+                      aria-label={`Jump to ${model.name}`}
+                      title={model.name}
+                      className={`h-2 rounded-full transition-all cursor-pointer ${
+                        isActive
+                          ? 'w-6 bg-orange-600'
+                          : 'w-2 bg-gray-300 hover:bg-gray-400'
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -675,7 +894,7 @@ export default function Home() {
             <div className="lg:col-span-5 space-y-6">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 border border-orange-200 text-orange-800 text-xs font-extrabold tracking-wide uppercase">
                 <Sliders className="w-3.5 h-3.5 text-orange-600" />
-                <span>Infinite Modular Configurations</span>
+                <span>Infinite Modular Customizations</span>
               </div>
 
               <h2 className="text-3xl sm:text-4xl font-black text-gray-950 tracking-tight">
@@ -683,7 +902,7 @@ export default function Home() {
               </h2>
 
               <p className="text-base text-gray-600 leading-relaxed">
-                Our proprietary 3D browser configurator gives homeowners, architects, and developers immediate control over every finish, fixture, and mechanical system with zero guesswork.
+                Our interactive 3D browser customizer gives homeowners, architects, and developers immediate control over every finish, fixture, and mechanical system with zero guesswork.
               </p>
 
               {/* Feature Points */}
@@ -737,7 +956,7 @@ export default function Home() {
                   to="/configurator"
                   className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full text-sm font-extrabold text-white bg-black hover:bg-neutral-800 transition-all shadow-md active:scale-95 cursor-pointer uppercase tracking-wider"
                 >
-                  <span>Open Configurator Experience</span>
+                  <span>Customize Your Home in 3D</span>
                   <ArrowRight className="w-4 h-4 text-orange-400" />
                 </Link>
               </div>
@@ -1008,7 +1227,10 @@ export default function Home() {
                   2. Exterior Wall Cladding
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  {config.wallOptions?.slice(0, 4).map((wall: any) => {
+                  {(config.wallOptions || [])
+                    .filter((w: any) => w.isAvailable !== false && w.isActive !== false)
+                    .slice(0, 4)
+                    .map((wall: any) => {
                     const isSelected = wall.id === estimatorWall;
                     return (
                       <button
@@ -1125,11 +1347,11 @@ export default function Home() {
                 </div>
 
                 <Link
-                  to={`/configurator?model=${estimatorModelId}`}
+                  to={estimatorConfiguratorUrl}
                   className="w-full sm:w-auto px-7 py-3.5 rounded-full text-xs sm:text-sm font-extrabold text-white bg-black hover:bg-neutral-800 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 uppercase tracking-wider cursor-pointer"
                 >
                   <Box className="w-4 h-4 text-orange-400" />
-                  <span>Transfer Choices into 3D Configurator</span>
+                  <span>Customize These Choices in 3D</span>
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
@@ -1200,7 +1422,7 @@ export default function Home() {
           </h2>
 
           <p className="text-base sm:text-lg text-gray-400 max-w-2xl mx-auto">
-            Open the 3D Configurator right now. Inspect every room, customize materials, simulate lighting, and generate factory-ready blueprints with zero obligation.
+            Open the 3D Home Customizer right now. Inspect every room, customize materials, simulate lighting, and generate factory-ready blueprints with zero obligation.
           </p>
 
           <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -1209,7 +1431,7 @@ export default function Home() {
               className="w-full sm:w-auto px-8 py-4 rounded-full text-base font-extrabold text-white bg-orange-600 hover:bg-orange-700 transition-all shadow-xl hover:shadow-orange-600/20 active:scale-95 flex items-center justify-center gap-2.5 uppercase tracking-wider cursor-pointer"
             >
               <Box className="w-5 h-5" />
-              <span>Launch 3D Configurator</span>
+              <span>Customize Home in 3D</span>
               <ArrowRight className="w-5 h-5" />
             </Link>
 
@@ -1241,7 +1463,7 @@ export default function Home() {
 
           <div className="flex flex-wrap items-center gap-6 font-semibold">
             <Link to="/configurator" className="hover:text-gray-900 transition-colors">
-              3D Configurator
+              Customize Home
             </Link>
             <a href="#models" className="hover:text-gray-900 transition-colors">
               Models

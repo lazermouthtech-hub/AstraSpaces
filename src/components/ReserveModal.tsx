@@ -39,6 +39,7 @@ import {
 import { useAppConfig } from '../context/AppConfigContext';
 import { formatCurrency, normalizeCurrency } from '../utils/currency';
 import { getItemUnitSpec } from '../utils/pricingCalculator';
+import { computeLogisticsBreakdown } from '../utils/logisticsPricing';
 import { addOrder } from '../utils/orderManager';
 import { getCurrentUser } from '../utils/authManager';
 import {
@@ -189,16 +190,18 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
     if (externalSetIncludeSitePrep) externalSetIncludeSitePrep(checked);
   };
 
-  const freightAmount = config.logistics?.freightCost || 4500;
-  const sitePrepAmount = config.logistics?.sitePrepCost || 5500;
-  const clearingTransportAmount = Math.round(sitePrepAmount * 0.51); // Port clearing & local site transport ($2,800)
-  const installationAmount = sitePrepAmount - clearingTransportAmount; // On-site crane, installation & hookup ($2,700)
+  const logisticsBreakdown = computeLogisticsBreakdown(config.logistics, totalPrice);
+  const freightAmount = logisticsBreakdown.freightStageUsd;
+  const clearingTransportAmount = logisticsBreakdown.clearingTransportStageUsd;
+  const installationAmount = logisticsBreakdown.installationPermitsStageUsd;
+  const sitePrepAmount = clearingTransportAmount + installationAmount;
+  const taxAmount = logisticsBreakdown.taxTotalUsd;
 
   const activeFreightCost = includeFreight ? freightAmount : 0;
   const activeClearingCost = includeSitePrep ? clearingTransportAmount : 0;
   const activeInstallationCost = includeSitePrep ? installationAmount : 0;
   const activeSitePrepCost = activeClearingCost + activeInstallationCost;
-  const checkoutTotal = totalPrice + activeFreightCost + activeSitePrepCost;
+  const checkoutTotal = totalPrice + taxAmount + activeFreightCost + activeSitePrepCost;
 
   // The 4 Milestone Tranches (Stage-by-stage transparent triggers)
   const generatedMilestones: PaymentMilestoneItem[] = [
@@ -422,7 +425,7 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
     setCustomDistrict('');
   };
 
-  const reservationFee = config.branding?.reservationFee || 250;
+  const reservationFee = config.branding?.reservationFee ?? 250;
   const primaryColor = config.branding?.primaryColor || '#ea580c';
 
   const currentModel =
@@ -454,6 +457,9 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
     // Calculate options details
     const wallOpt = config.wallOptions?.find((w: any) => w.id === state.wallCladding);
     const glazingOpt = config.glazingOptions?.find((g: any) => g.id === state.glazing);
+    const windowOpt = config.glazingOptions?.find((g: any) => g.id === (state.windowStyle || 'sliding-window'));
+    const intDoorOpt = config.interiorDoorOptions?.find((d: any) => d.id === state.interiorDoor);
+    const bathDoorOpt = config.bathroomDoorOptions?.find((d: any) => d.id === state.bathroomDoor);
     const lightingOpt = config.lightingOptions?.find((l: any) => l.id === state.lightingPackage);
     const electricalOpt = config.electricalOptions?.find((el: any) => el.id === state.electricalTier);
     const flooringOpt = config.flooringOptions?.find((f: any) => f.id === state.flooring);
@@ -523,7 +529,10 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
         modelName: currentModel.name,
         wallCladdingName: wallOpt?.name || 'Standard Wall Cladding',
         wallCladdingColor: wallOpt?.color || '#334155',
-        glazingName: glazingOpt?.name || 'Panoramic Low-E Clear Glass',
+        glazingName: glazingOpt?.name || 'Broken bridge aluminum sliding door',
+        windowName: windowOpt?.name || 'Sliding window',
+        interiorDoorName: intDoorOpt?.name || 'Nordic Oak Solid-Core Flush Door',
+        bathroomDoorName: bathDoorOpt?.name || 'WPC Waterproof Matte White Restroom Door',
         lightingName: lightingOpt?.name || 'Architectural Lighting Suite',
         electricalName: electricalOpt?.name || 'Standard Pre-Wired Electrical',
         flooringName: flooringOpt?.name || 'Rigid Core SPC Flooring',
@@ -539,7 +548,7 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
         sitePrepCost: activeSitePrepCost,
         clearingTransportCost: activeClearingCost,
         installationCost: activeInstallationCost,
-        taxAmount: 0,
+        taxAmount,
         totalPrice: checkoutTotal,
         depositDue: reservationFee,
         depositPaid: true,
@@ -547,6 +556,22 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
         paymentOption,
         paymentMilestones: generatedMilestones,
         financingDetails,
+        logisticsItems: logisticsBreakdown.snapshots.filter((item) => {
+          if (!includeFreight && (item.category === 'international_freight' || item.category === 'insurance')) {
+            return false;
+          }
+          if (
+            !includeSitePrep &&
+            (item.category === 'local_logistics' ||
+              item.category === 'customs' ||
+              item.category === 'site_prep' ||
+              item.category === 'permits' ||
+              item.category === 'other')
+          ) {
+            return false;
+          }
+          return true;
+        }),
       },
       estimatedDeliveryDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 35).toISOString().split('T')[0],
       initialNote: `${initialFundingNote} Deposit of ${formatCurrency(reservationFee, config.currency, { ratesMap: config.exchangeRates })} authorized online. Destination: ${resolvedDistrict}, ${subdivisionName}, ${selectedCountry.name}.`,
@@ -1168,7 +1193,7 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5">
                             <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-black flex items-center justify-center shrink-0">2</span>
-                            <span className="font-bold text-gray-900 text-xs">International Ocean Freight</span>
+                            <span className="font-bold text-gray-900 text-xs">International Freight &amp; Insurance</span>
                           </div>
                           <span className="font-mono font-bold text-gray-950 text-xs">
                             {formatCurrency(activeFreightCost, config.currency, { ratesMap: config.exchangeRates })}
@@ -1178,7 +1203,7 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
                           ⏰ Due after the factory has finished manufacturing the house
                         </div>
                         <p className="text-[10px] text-gray-500 pl-6 leading-relaxed">
-                          Sealed 40HQ container ocean freight shipping from the international factory port to arrival seaport.
+                          Sealed 40HQ container ocean freight shipping &amp; transit cargo coverage from the factory port to arrival seaport.
                         </p>
                       </div>
 
@@ -1187,7 +1212,7 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5">
                             <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-black flex items-center justify-center shrink-0">3</span>
-                            <span className="font-bold text-gray-900 text-xs">Port Clearing &amp; Local Site Transportation</span>
+                            <span className="font-bold text-gray-900 text-xs">Customs Clearing &amp; Local Logistics</span>
                           </div>
                           <span className="font-mono font-bold text-gray-950 text-xs">
                             {formatCurrency(activeClearingCost, config.currency, { ratesMap: config.exchangeRates })}
@@ -1197,7 +1222,7 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
                           ⏰ Due when your container arrives at the destination port
                         </div>
                         <p className="text-[10px] text-gray-500 pl-6 leading-relaxed">
-                          Port customs clearance, terminal cargo handling, duty documentation, and heavy-duty flatbed transport of the container to your site locally.
+                          Port customs clearance, terminal cargo handling, duty documentation, and domestic flatbed transport of the container to your site.
                         </p>
                       </div>
 
@@ -1206,7 +1231,7 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5">
                             <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black flex items-center justify-center shrink-0">4</span>
-                            <span className="font-bold text-gray-900 text-xs">On-Site Installation &amp; Setup</span>
+                            <span className="font-bold text-gray-900 text-xs">Site Preparation, Permits &amp; Installation</span>
                           </div>
                           <span className="font-mono font-bold text-gray-950 text-xs">
                             {formatCurrency(activeInstallationCost, config.currency, { ratesMap: config.exchangeRates })}
@@ -1216,7 +1241,7 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
                           ⏰ Due upon container arrival on site for installation
                         </div>
                         <p className="text-[10px] text-gray-500 pl-6 leading-relaxed">
-                          Certified crane placement, mechanical unfolding/expansion of living wings, foundation tie-downs, and utility connections.
+                          Certified crane placement, local municipal permission fees, foundation tie-downs, wing expansion, and utility connections.
                         </p>
                       </div>
                     </div>
@@ -1230,8 +1255,14 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
                       <span>House Base &amp; Custom Options:</span>
                       <span className="font-mono font-bold text-gray-900">{formatCurrency(totalPrice, config.currency, { ratesMap: config.exchangeRates })}</span>
                     </div>
+                    {taxAmount > 0 && (
+                      <div className="flex justify-between text-gray-600">
+                        <span>Taxes &amp; Statutory Levies:</span>
+                        <span className="font-mono font-bold text-gray-900">{formatCurrency(taxAmount, config.currency, { ratesMap: config.exchangeRates })}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-gray-600">
-                      <span>Turnkey Freight, Logistics &amp; Installation:</span>
+                      <span>Freight, Customs, Permits &amp; Site Prep:</span>
                       <span className="font-mono font-bold text-gray-900">{formatCurrency(activeFreightCost + activeSitePrepCost, config.currency, { ratesMap: config.exchangeRates })}</span>
                     </div>
                     <div className="flex justify-between text-gray-950 font-bold pt-2 border-t border-gray-200 text-sm">
@@ -1546,7 +1577,7 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
                       <span>Review Contract &amp; Lock Production Slot</span>
                     </h4>
                     <p className="text-[11px] text-gray-500 mt-0.5">
-                      Verify turnkey services, configuration summary, and risk-free deposit.
+                      Verify turnkey services, home customization summary, and risk-free deposit.
                     </p>
                   </div>
                   <span className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200">
@@ -1564,22 +1595,22 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
                     <span className="text-[10px] text-gray-500 font-medium">Uncheck if self-managing</span>
                   </div>
 
-                  {/* Flatbed Freight Transport */}
+                  {/* International Freight & Transit Insurance */}
                   <label className={`flex items-start justify-between p-3 rounded-2xl border transition-all cursor-pointer ${
                     includeFreight
                       ? 'border-orange-500 bg-orange-50/20 ring-1 ring-orange-500/20 shadow-2xs'
                       : 'border-gray-200 bg-gray-50/70 hover:bg-gray-100 opacity-80'
                   }`}>
-                    <div className="flex items-start gap-2.5">
+                    <div className="flex items-start gap-2.5 flex-1 min-w-0">
                       <input
                         type="checkbox"
                         checked={includeFreight}
                         onChange={(e) => handleToggleFreight(e.target.checked)}
                         className="mt-1 w-4 h-4 rounded text-orange-600 focus:ring-orange-500/30 border-gray-300 accent-orange-600 cursor-pointer"
                       />
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-gray-900 text-xs">Flatbed Freight Transport</span>
+                          <span className="font-bold text-gray-900 text-xs">International Freight &amp; Insurance</span>
                           <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
                             includeFreight ? 'text-orange-700 bg-orange-100' : 'text-gray-600 bg-gray-200'
                           }`}>
@@ -1587,8 +1618,20 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
                           </span>
                         </div>
                         <p className="text-[10px] text-gray-500 mt-0.5">
-                          Certified flatbed direct transport from staging hub ({selectedCountry.logisticsHub}) to destination.
+                          Shipping from factory port to staging hub ({selectedCountry.logisticsHub}).
                         </p>
+                        {logisticsBreakdown.freightStageItems.length > 0 && (
+                          <div className="mt-1.5 space-y-0.5 border-t border-gray-200/70 pt-1.5">
+                            {logisticsBreakdown.freightStageItems.map((fi) => (
+                              <div key={fi.id} className="flex items-center justify-between text-[10px] text-gray-600">
+                                <span className="truncate pr-2">• {fi.name}{fi.pricingType === 'percent' ? ` (${fi.amount}%)` : ''}</span>
+                                <span className="font-mono font-semibold shrink-0">
+                                  {formatCurrency(fi.calculatedUsd, config.currency, { ratesMap: config.exchangeRates })}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="text-right shrink-0 ml-3">
@@ -1601,22 +1644,22 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
                     </div>
                   </label>
 
-                  {/* Foundation & Utility Hookup */}
+                  {/* Local Logistics, Customs, Permits & Site Preparation */}
                   <label className={`flex items-start justify-between p-3 rounded-2xl border transition-all cursor-pointer ${
                     includeSitePrep
                       ? 'border-orange-500 bg-orange-50/20 ring-1 ring-orange-500/20 shadow-2xs'
                       : 'border-gray-200 bg-gray-50/70 hover:bg-gray-100 opacity-80'
                   }`}>
-                    <div className="flex items-start gap-2.5">
+                    <div className="flex items-start gap-2.5 flex-1 min-w-0">
                       <input
                         type="checkbox"
                         checked={includeSitePrep}
                         onChange={(e) => handleToggleSitePrep(e.target.checked)}
                         className="mt-1 w-4 h-4 rounded text-orange-600 focus:ring-orange-500/30 border-gray-300 accent-orange-600 cursor-pointer"
                       />
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-gray-900 text-xs">Foundation &amp; Utility Hookup</span>
+                          <span className="font-bold text-gray-900 text-xs">Local Logistics, Customs, Permits &amp; Site Prep</span>
                           <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
                             includeSitePrep ? 'text-orange-700 bg-orange-100' : 'text-gray-600 bg-gray-200'
                           }`}>
@@ -1624,8 +1667,20 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
                           </span>
                         </div>
                         <p className="text-[10px] text-gray-500 mt-0.5">
-                          Certified local installation crew, ground leveling, foundation tie-downs, and plumbing/electrical hookups.
+                          Port clearing, domestic transport, municipal permits, ground leveling &amp; certified installation.
                         </p>
+                        {(logisticsBreakdown.clearingStageItems.length > 0 || logisticsBreakdown.sitePrepStageItems.length > 0) && (
+                          <div className="mt-1.5 space-y-0.5 border-t border-gray-200/70 pt-1.5">
+                            {[...logisticsBreakdown.clearingStageItems, ...logisticsBreakdown.sitePrepStageItems].map((si) => (
+                              <div key={si.id} className="flex items-center justify-between text-[10px] text-gray-600">
+                                <span className="truncate pr-2">• {si.name}{si.pricingType === 'percent' ? ` (${si.amount}%)` : ''}</span>
+                                <span className="font-mono font-semibold shrink-0">
+                                  {formatCurrency(si.calculatedUsd, config.currency, { ratesMap: config.exchangeRates })}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="text-right shrink-0 ml-3">
@@ -1637,6 +1692,21 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
                       )}
                     </div>
                   </label>
+
+                  {/* Applicable Local Taxes / Levies */}
+                  {taxAmount > 0 && (
+                    <div className="flex items-center justify-between p-3 rounded-2xl border border-gray-200 bg-gray-50/70 text-xs">
+                      <div>
+                        <span className="font-bold text-gray-900">Taxes &amp; Statutory Levies</span>
+                        <div className="text-[10px] text-gray-500">
+                          {logisticsBreakdown.taxItems.map((t) => `${t.name} (${t.amount}%)`).join(' + ')}
+                        </div>
+                      </div>
+                      <span className="font-mono font-bold text-gray-900">
+                        +{formatCurrency(taxAmount, config.currency, { ratesMap: config.exchangeRates })}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Dynamic Savings Notification */}
                   {(!includeFreight || !includeSitePrep) && (
@@ -2009,7 +2079,7 @@ export const ReserveModal: React.FC<ReserveModalProps> = ({
                 onClick={onClose}
                 className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold rounded-2xl text-xs transition-colors cursor-pointer"
               >
-                Return to Configurator
+                Return to Home Customizer
               </button>
             </div>
           </div>
