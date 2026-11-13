@@ -70,9 +70,27 @@
     display: block !important;
   }
   .mobile-landscape-rail {
-    max-height: calc(100dvh - 28px) !important;
+    max-height: calc(100dvh - 140px) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
     padding: 3px !important;
     gap: 3px !important;
+  }
+  .mobile-landscape-flyout {
+    max-height: calc(100dvh - 140px) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mobile-landscape-dropdown {
+    max-height: calc(100dvh - 176px) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
   }
   .mobile-landscape-rail button {
     width: 28px !important;

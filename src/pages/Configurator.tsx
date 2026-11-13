@@ -563,7 +563,7 @@ export default function Configurator() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#F4F4F7] font-sans select-none">
+    <div className="flex flex-col h-dvh w-screen overflow-hidden bg-[#F4F4F7] font-sans select-none">
       {/* 10Apples Top Brand Navigation Bar */}
       <Header
         selectedModelId={state.modelId}

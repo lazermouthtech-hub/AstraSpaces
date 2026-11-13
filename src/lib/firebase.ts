@@ -2,26 +2,17 @@ import { initializeApp } from 'firebase/app';
 import {
   getAuth,
   GoogleAuthProvider,
-  signInWithPopup,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  updateProfile,
-  signOut,
-  onAuthStateChanged,
   User as FirebaseUser,
 } from 'firebase/auth';
 import {
   getFirestore,
-  initializeFirestore,
   doc,
-  getDoc,
   setDoc,
   deleteDoc,
   updateDoc,
   getDocFromServer,
   collection,
   getDocs,
-  onSnapshot,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { UserAccount, UserSavedProject, CustomizationState, HomeModelId } from '../types';
@@ -29,22 +20,9 @@ import { UserAccount, UserSavedProject, CustomizationState, HomeModelId } from '
 // Initialize Firebase SDK
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firestore with experimentalForceLongPolling to ensure reliable HTTPS connectivity in iframe/sandbox environments
-let firestoreDb;
-try {
-  firestoreDb = initializeFirestore(
-    app,
-    {
-      experimentalForceLongPolling: true,
-    },
-    firebaseConfig.firestoreDatabaseId
-  );
-} catch {
-  firestoreDb = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-}
-
-// CRITICAL: The app will break without specifying the firestoreDatabaseId
-export const db = firestoreDb;
+// CRITICAL: Specify firestoreDatabaseId so Firestore connects to the provisioned named database
+// Uses Firebase default WebChannel + experimentalAutoDetectLongPolling instead of forcing long polling
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
@@ -105,17 +83,35 @@ export function handleFirestoreError(
 async function testConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const code = (error as { code?: string })?.code;
     // If the server responded with permission-denied, the connection is confirmed and active
-    if (error?.code === 'permission-denied') {
+    if (code === 'permission-denied') {
       return;
     }
     if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn('Firebase client operating in offline mode.');
+      console.error('Please check your Firebase configuration.');
     }
   }
 }
 testConnection();
+
+// Strip undefined properties recursively so Firestore setDoc/updateDoc never rejects optional fields
+function stripUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripUndefined(item)) as unknown as T;
+  }
+  if (value !== null && typeof value === 'object') {
+    const cleaned: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v !== undefined) {
+        cleaned[k] = stripUndefined(v);
+      }
+    }
+    return cleaned as T;
+  }
+  return value;
+}
 
 // Convert Firebase User to App UserAccount
 export const mapFirebaseUserToAccount = (
@@ -138,23 +134,34 @@ export async function syncUserProfileToFirestore(
   profileData?: { fullName?: string; phone?: string }
 ): Promise<UserAccount> {
   const userPath = `users/${fbUser.uid}`;
-  const fullName = profileData?.fullName || fbUser.displayName || fbUser.email?.split('@')[0] || '10Apples Customer';
-  const email = fbUser.email || '';
+  const fullName = (
+    profileData?.fullName ||
+    fbUser.displayName ||
+    fbUser.email?.split('@')[0] ||
+    '10Apples Customer'
+  )
+    .trim()
+    .slice(0, 128) || '10Apples Customer';
+  const email = (fbUser.email || '').trim().slice(0, 256);
+  const phone = profileData?.phone?.trim().slice(0, 32);
 
   const docPayload = {
     id: fbUser.uid,
     fullName,
     email,
-    ...(profileData?.phone ? { phone: profileData.phone } : {}),
+    ...(phone ? { phone } : {}),
     role: 'customer',
-    createdAt: fbUser.metadata.creationTime || new Date().toISOString(),
+    createdAt: (fbUser.metadata.creationTime || new Date().toISOString()).slice(0, 64),
     updatedAt: new Date().toISOString(),
   };
 
   try {
     const userDocRef = doc(db, 'users', fbUser.uid);
     await setDoc(userDocRef, docPayload, { merge: true });
-  } catch (error) {
+  } catch (error: unknown) {
+    if ((error as { code?: string })?.code === 'permission-denied') {
+      handleFirestoreError(error, OperationType.WRITE, userPath);
+    }
     console.warn('Could not sync user profile to Firestore (may be offline):', error);
   }
 
@@ -162,7 +169,7 @@ export async function syncUserProfileToFirestore(
   const projects = await fetchUserProjectsFromFirestore(fbUser.uid);
   return mapFirebaseUserToAccount(fbUser, {
     fullName,
-    phone: profileData?.phone,
+    phone,
     projects,
   });
 }
@@ -188,7 +195,10 @@ export async function fetchUserProjectsFromFirestore(userId: string): Promise<Us
       });
     });
     return list;
-  } catch (error) {
+  } catch (error: unknown) {
+    if ((error as { code?: string })?.code === 'permission-denied') {
+      handleFirestoreError(error, OperationType.LIST, projectsPath);
+    }
     console.warn('Could not fetch user projects from Firestore:', error);
     return [];
   }
@@ -208,28 +218,29 @@ export async function saveProjectDocumentToFirestore(
   const projectId = `proj-${Date.now()}`;
   const projectsPath = `users/${userId}/projects/${projectId}`;
   const now = new Date().toISOString();
+  const cleanedState = stripUndefined(project.state);
 
   const savedItem: UserSavedProject = {
     id: projectId,
-    name: `${project.modelName} Custom Build`,
+    name: `${project.modelName} Custom Build`.slice(0, 128),
     modelId: project.modelId,
-    modelName: project.modelName,
-    totalPrice: project.totalPrice,
-    currency: project.currency,
+    modelName: project.modelName.slice(0, 128),
+    totalPrice: Math.max(0, Number(project.totalPrice) || 0),
+    currency: (project.currency || 'USD').slice(0, 10),
     savedAt: now,
-    state: project.state,
+    state: cleanedState,
   };
 
   const firestoreData = {
     id: projectId,
     userId,
     name: savedItem.name,
-    modelId: savedItem.modelId,
+    modelId: String(savedItem.modelId).slice(0, 64),
     modelName: savedItem.modelName,
     totalPrice: savedItem.totalPrice,
     currency: savedItem.currency,
     savedAt: now,
-    state: savedItem.state,
+    state: cleanedState,
   };
 
   try {
@@ -263,11 +274,11 @@ export async function updateProjectDocumentInFirestore(
   updates: Partial<UserSavedProject>
 ): Promise<void> {
   const projectsPath = `users/${userId}/projects/${projectId}`;
+  const cleanedUpdates = stripUndefined(updates);
   try {
     const projectRef = doc(db, 'users', userId, 'projects', projectId);
-    await updateDoc(projectRef, updates as any);
+    await updateDoc(projectRef, cleanedUpdates as Record<string, unknown>);
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, projectsPath);
   }
 }
-

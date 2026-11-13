@@ -641,7 +641,7 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
 
         <div className="relative pointer-events-auto flex items-start gap-2">
           {/* Vertical Icon Rail */}
-          <div className="mobile-landscape-rail bg-white/95 backdrop-blur-md p-1 sm:p-1.5 landscape:p-1 rounded-2xl border border-gray-200/90 shadow-lg flex flex-col items-center gap-1 sm:gap-1.5 landscape:gap-1 ring-1 ring-black/5 z-30 lg:hidden max-h-[calc(100dvh-75px)] landscape:max-h-[calc(100dvh-25px)] overflow-y-auto overscroll-contain touch-pan-y [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className={`${!isFullscreen ? 'mobile-landscape-rail ' : ''}bg-white/95 backdrop-blur-md p-1 sm:p-1.5 landscape:p-1 rounded-2xl border border-gray-200/90 shadow-lg flex flex-col items-center gap-1 sm:gap-1.5 landscape:gap-1 ring-1 ring-black/5 z-30 lg:hidden max-h-[calc(100dvh-200px)] overflow-y-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}>
             {/* 0. Quick House Controls (All Essential Features in One Place) */}
             <button
               type="button"
@@ -785,7 +785,7 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
 
           {/* Reveal Words & Options Flyout Card when any icon is selected */}
           {activeVerticalMenu && (
-            <div className="z-30 w-[calc(100vw-64px)] max-w-xs sm:w-80 landscape:w-72 bg-white/95 backdrop-blur-md rounded-2xl border border-gray-200/90 shadow-2xl p-3 sm:p-3.5 landscape:p-2.5 space-y-3 landscape:space-y-2 animate-in fade-in slide-in-from-left-2 duration-150 ring-1 ring-black/5 pointer-events-auto max-h-[calc(100dvh-135px)] sm:max-h-[75vh] landscape:max-h-[calc(100dvh-25px)] flex flex-col overflow-y-auto">
+            <div className={`${!isFullscreen ? 'mobile-landscape-flyout ' : ''}z-30 w-[calc(100vw-64px)] max-w-xs sm:w-80 landscape:w-72 bg-white/95 backdrop-blur-md rounded-2xl border border-gray-200/90 shadow-2xl p-3 sm:p-3.5 landscape:p-2.5 space-y-3 landscape:space-y-2 animate-in fade-in slide-in-from-left-2 duration-150 ring-1 ring-black/5 pointer-events-auto max-h-[calc(100dvh-200px)] sm:max-h-[75vh] ${isFullscreen ? 'landscape:max-h-[calc(100dvh-24px)]' : ''} flex flex-col overflow-y-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch]`}>
               {/* Header with Title and Close Button */}
               <div className="flex items-center justify-between pb-2 border-b border-gray-100 shrink-0">
                 <span className="text-[11px] font-black uppercase tracking-wider text-gray-500">
@@ -1366,7 +1366,7 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
                     Quick-focus camera and inspect architectural components:
                   </p>
                   
-                  <div className="space-y-1.5 max-h-[50vh] overflow-y-auto pr-1 scrollbar-thin">
+                  <div className="space-y-1.5 max-h-[50vh] overflow-y-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch] pr-1 scrollbar-thin">
                     {/* 1. Exterior Walls */}
                     <button
                       type="button"
@@ -1818,7 +1818,7 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
 
           {/* The Unified Dropdown Menu (Drops Downwards cleanly into open canvas viewport) */}
           {isControlsDropdownOpen && (
-            <div className="absolute top-full right-0 mt-2 w-80 sm:w-96 landscape:w-80 bg-white/98 backdrop-blur-md rounded-2xl border border-gray-200/90 shadow-2xl p-3 sm:p-3.5 landscape:p-2.5 space-y-3 landscape:space-y-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 ring-1 ring-black/5 select-none max-h-[calc(100vh-140px)] sm:max-h-[520px] landscape:max-h-[calc(100dvh-40px)] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200">
+            <div className={`${!isFullscreen ? 'mobile-landscape-dropdown ' : ''}absolute top-full right-0 mt-2 w-80 max-w-[calc(100vw-24px)] sm:w-96 landscape:w-80 bg-white/98 backdrop-blur-md rounded-2xl border border-gray-200/90 shadow-2xl p-3 sm:p-3.5 landscape:p-2.5 space-y-3 landscape:space-y-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 ring-1 ring-black/5 select-none pointer-events-auto ${isFullscreen ? 'max-h-[calc(100dvh-64px)]' : 'max-h-[calc(100dvh-230px)] sm:max-h-[calc(100dvh-220px)] lg:max-h-[min(540px,calc(100dvh-185px))]'} overflow-y-auto overscroll-contain touch-pan-y [-webkit-overflow-scrolling:touch] scrollbar-thin scrollbar-thumb-gray-200`}>
               {/* Header with Title and Close button */}
               <div className="flex items-center justify-between pb-2 border-b border-gray-100">
                 <div className="flex items-center gap-2">
