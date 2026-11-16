@@ -842,10 +842,27 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
     state.modelId.includes('40ft') ||
     currentModel?.series === 'expandable';
 
+  const allFloorPlans = useMemo(() => {
+    const rawList =
+      config.floorPlanOptions && config.floorPlanOptions.length > 0
+        ? config.floorPlanOptions
+        : FLOOR_PLAN_OPTIONS;
+    return rawList.filter((p: any) => p.isAvailable !== false && p.isActive !== false);
+  }, [config.floorPlanOptions]);
+
+  const modelFloorPlans = useMemo(() => {
+    return allFloorPlans.filter((p: any) => {
+      if (p.id === '10ft-1bed') return false;
+      if (Array.isArray(p.availableModels)) {
+        return p.availableModels.includes(state.modelId);
+      }
+      return true;
+    });
+  }, [allFloorPlans, state.modelId]);
+
   // Filtered floor plan options (exclusive to expandable houses)
   const filteredFloorPlans = useMemo(() => {
-    return FLOOR_PLAN_OPTIONS.filter((p) => {
-      if (p.id === '10ft-1bed') return false; // Handled in dedicated 10FT layout view
+    return modelFloorPlans.filter((p: any) => {
       if (floorPlanFilter === 'all') return true;
       if (floorPlanFilter === '1-bed') return p.bedrooms === 1;
       if (floorPlanFilter === '2-bed') return p.bedrooms === 2;
@@ -853,7 +870,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
       if (floorPlanFilter === '4-bed') return p.bedrooms === 4;
       return true;
     });
-  }, [floorPlanFilter]);
+  }, [floorPlanFilter, modelFloorPlans]);
 
   const basicCategoryIds = [
     'Base House',
@@ -872,7 +889,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
             id: 'Floor plan',
             label: state.modelId === 'expandable-10ft' ? 'Floor plan (Fixed 1-Bed)' : 'Floor plan',
             icon: LayoutGrid,
-            count: state.modelId === 'expandable-10ft' ? 1 : FLOOR_PLAN_OPTIONS.filter((p) => p.id !== '10ft-1bed').length,
+            count: state.modelId === 'expandable-10ft' ? 1 : modelFloorPlans.length,
           },
         ]
       : []),
@@ -1631,12 +1648,21 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                   })}
                 </div>
 
-                {state.modelId === 'expandable-10ft' ? (
+                {state.modelId === 'expandable-10ft' ? (() => {
                   /* -----------------------------------------------------------
                      10FT DOUBLE-WING EXPANDABLE: FIXED 1-BEDROOM ARCHITECTURE
                      Strictly 1-Bedroom (Users cannot configure multi-bedroom like 20/30/40ft).
                      Kitchenette is "L"-shaped and optional. Bathroom is optional.
                      ----------------------------------------------------------- */
+                  const plan10ft =
+                    allFloorPlans.find((p: any) => p.id === '10ft-1bed') ||
+                    FLOOR_PLAN_OPTIONS.find((p) => p.id === '10ft-1bed');
+                  const plan10ftPrice = plan10ft
+                    ? getItemPriceForModel(plan10ft, state.modelId, config.models)
+                    : 0;
+                  const plan10ftSpec = plan10ft?.unitSpecs?.[state.modelId]?.specDetail;
+
+                  return (
                   <div className="flex flex-col gap-3.5">
                     {/* Architectural Fixed Floor Plan Card */}
                     <div className="p-3.5 rounded-2xl border-2 border-blue-500/40 bg-gradient-to-br from-blue-50/90 via-white to-indigo-50/60 shadow-xs flex flex-col gap-2.5 text-left">
@@ -1644,25 +1670,27 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <h4 className="text-sm font-extrabold text-gray-950 leading-tight truncate">
-                              10FT Dedicated 1-Bedroom Layout
+                              {plan10ft?.name || '10FT Dedicated 1-Bedroom Layout'}
                             </h4>
                             <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.2 rounded-full bg-blue-600 text-white shadow-2xs shrink-0">
-                              Fixed 1-Bed
+                              {plan10ft?.badge || 'Fixed 1-Bed'}
                             </span>
                           </div>
                           <p className="text-[11px] text-blue-900/80 font-medium mt-0.5 truncate">
-                            Dual-wing footprint (18 m² / 195 sq ft) · Open-concept living
+                            {plan10ftSpec || plan10ft?.tagline || 'Dual-wing footprint (18 m² / 195 sq ft) · Open-concept living'}
                           </p>
                         </div>
                         <div className="text-right shrink-0">
                           <span className="text-[11px] font-bold font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
-                            Included
+                            {plan10ftPrice === 0
+                              ? 'Included'
+                              : `+${formatCurrency(plan10ftPrice * markupFactor, config.currency, { ratesMap: config.exchangeRates })}`}
                           </span>
                         </div>
                       </div>
 
                       <p className="text-[11px] text-gray-600 leading-snug">
-                        Open-concept 1-bedroom suite maximizing usable space and flow. Kitchenette and central bath pod can be toggled below.
+                        {plan10ft?.description || 'Open-concept 1-bedroom suite maximizing usable space and flow. Kitchenette and central bath pod can be toggled below.'}
                       </p>
 
                       {/* 10FT Architectural Floor Plan Diagram */}
@@ -1830,16 +1858,17 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                       })()}
                     </div>
                   </div>
-                ) : (
+                  );
+                })() : (
                   <>
                     {/* Bedroom / Layout Filter Chips */}
                     <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
                   {[
-                    { id: 'all', label: 'All Floor Plans (6)' },
-                    { id: '1-bed', label: '1 Bedroom (2)' },
-                    { id: '2-bed', label: '2 Bedrooms (1)' },
-                    { id: '3-bed', label: '3 Bedrooms (2)' },
-                    { id: '4-bed', label: '4 Bedrooms (1)' },
+                    { id: 'all', label: `All Floor Plans (${modelFloorPlans.length})` },
+                    { id: '1-bed', label: `1 Bedroom (${modelFloorPlans.filter((p: any) => p.bedrooms === 1).length})` },
+                    { id: '2-bed', label: `2 Bedrooms (${modelFloorPlans.filter((p: any) => p.bedrooms === 2).length})` },
+                    { id: '3-bed', label: `3 Bedrooms (${modelFloorPlans.filter((p: any) => p.bedrooms === 3).length})` },
+                    { id: '4-bed', label: `4 Bedrooms (${modelFloorPlans.filter((p: any) => p.bedrooms === 4).length})` },
                   ].map((filter) => {
                     const isActive = floorPlanFilter === filter.id;
                     return (
@@ -1861,17 +1890,18 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
 
                 {/* List of Floor Plans matching the attached factory blueprint catalog */}
                 <div className="grid grid-cols-1 gap-3.5">
-                  {filteredFloorPlans.map((plan) => {
+                  {filteredFloorPlans.map((plan: any) => {
                     const isSelected = (state.floorPlan || '2-bed-1-bath') === plan.id;
-                    const bedroomMapping: Record<FloorPlanId, '1-bedroom' | '2-bedroom' | '3-bedroom' | '4-bedroom'> = {
-                      '10ft-1bed': '1-bedroom',
-                      '2-bed-1-bath': '2-bedroom',
-                      '3-bed-split-1-bath': '3-bedroom',
-                      '3-bed-kitchen-lounge': '3-bedroom',
-                      '1-bed-grand-dining': '1-bedroom',
-                      '1-bed-studio-suite': '1-bedroom',
-                      '4-bed-quad-suite': '4-bedroom',
-                    };
+                    const resolvedBedroomLayout: '1-bedroom' | '2-bedroom' | '3-bedroom' | '4-bedroom' =
+                      plan.bedrooms === 1
+                        ? '1-bedroom'
+                        : plan.bedrooms === 3
+                        ? '3-bedroom'
+                        : plan.bedrooms === 4
+                        ? '4-bedroom'
+                        : '2-bedroom';
+                    const planPrice = getItemPriceForModel(plan, state.modelId, config.models);
+                    const planUnitSpec = plan.unitSpecs?.[state.modelId]?.specDetail;
 
                     return (
                       <div
@@ -1906,12 +1936,12 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
 
                           <div className="text-right shrink-0">
                             <div className="text-xs font-bold font-mono text-gray-900">
-                              {plan.price === 0
+                              {planPrice === 0
                                 ? 'Included'
-                                : `+${formatCurrency(plan.price * markupFactor, config.currency, { ratesMap: config.exchangeRates })}`}
+                                : `+${formatCurrency(planPrice * markupFactor, config.currency, { ratesMap: config.exchangeRates })}`}
                             </div>
                             <div className="text-[9px] text-gray-400">
-                              {plan.price === 0 ? 'Standard setup' : 'Partition setup'}
+                              {planPrice === 0 ? 'Standard setup' : 'Bedroom addition'}
                             </div>
                           </div>
                         </div>
@@ -1938,7 +1968,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                               onChange((prev) => ({
                                 ...prev,
                                 floorPlan: plan.id,
-                                bedroomLayout: bedroomMapping[plan.id],
+                                bedroomLayout: resolvedBedroomLayout,
                                 hasLuxuryBathPod: true,
                                 hasKitchenetteModule: plan.id !== '4-bed-quad-suite',
                               }));
@@ -1982,7 +2012,9 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
 
                         {/* Description & Recommended For - Compact layout */}
                         <div className="space-y-1 text-xs text-gray-600">
-                          <p className="text-[11px] leading-snug line-clamp-2 text-gray-500">{plan.description}</p>
+                          <p className="text-[11px] leading-snug line-clamp-2 text-gray-500">
+                            {planUnitSpec || plan.description}
+                          </p>
                           <div className="text-[10px] bg-blue-50/60 px-2 py-1 rounded-lg border border-blue-100/80 text-blue-950 flex items-center gap-1.5 truncate">
                             <Info className="w-3 h-3 text-blue-600 shrink-0" />
                             <span className="truncate"><strong>Best For:</strong> {plan.recommendedFor}</span>
@@ -1991,7 +2023,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
 
                         {/* Architectural Feature Bullets */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 pt-1 border-t border-gray-100">
-                          {plan.features.slice(0, 4).map((feat, fIdx) => (
+                          {(plan.features || []).slice(0, 4).map((feat: string, fIdx: number) => (
                             <div key={fIdx} className="flex items-center gap-1.5 text-[10px] text-gray-600 min-w-0">
                               <Check className="w-3 h-3 text-emerald-600 shrink-0" />
                               <span className="truncate">{feat}</span>
@@ -2006,7 +2038,7 @@ export const ConfiguratorPanel: React.FC<ConfiguratorPanelProps> = ({
                             onChange((prev) => ({
                               ...prev,
                               floorPlan: plan.id,
-                              bedroomLayout: bedroomMapping[plan.id],
+                              bedroomLayout: resolvedBedroomLayout,
                               hasLuxuryBathPod: true,
                               hasKitchenetteModule: plan.id !== '4-bed-quad-suite',
                             }));

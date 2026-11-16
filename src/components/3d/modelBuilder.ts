@@ -688,60 +688,6 @@ export function buildHomeModel(
     return legGroup;
   };
 
-  // Helper: Heavy-Duty Hydraulic / Gas-Spring Deployment Assist Strut (for expandable wings)
-  const createGasAssistStrut = (
-    startX: number,
-    startY: number,
-    startZ: number,
-    endX: number,
-    endY: number,
-    endZ: number
-  ) => {
-    const strutGroup = new THREE.Group();
-    const startVec = new THREE.Vector3(startX, startY, startZ);
-    const endVec = new THREE.Vector3(endX, endY, endZ);
-    const dir = new THREE.Vector3().subVectors(endVec, startVec);
-    const totalLen = dir.length();
-    const midPoint = new THREE.Vector3().addVectors(startVec, endVec).multiplyScalar(0.5);
-
-    // Orientation quaternion
-    const up = new THREE.Vector3(0, 1, 0);
-    const orientation = new THREE.Quaternion().setFromUnitVectors(up, dir.clone().normalize());
-
-    // Cylinder Outer Barrel (dark industrial steel)
-    const barrelLen = totalLen * 0.55;
-    const barrel = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.032, 0.032, barrelLen, 12),
-      materials.chassisMaterial || materials.q235SteelMaterial
-    );
-    barrel.position.copy(startVec.clone().add(dir.clone().normalize().multiplyScalar(barrelLen * 0.5)));
-    barrel.quaternion.copy(orientation);
-    barrel.castShadow = true;
-    strutGroup.add(barrel);
-
-    // Piston Rod (polished chrome steel)
-    const rodLen = totalLen * 0.50;
-    const rod = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.018, 0.018, rodLen, 12),
-      materials.metalTrimMaterial
-    );
-    rod.position.copy(endVec.clone().sub(dir.clone().normalize().multiplyScalar(rodLen * 0.5)));
-    rod.quaternion.copy(orientation);
-    rod.castShadow = true;
-    strutGroup.add(rod);
-
-    // Pivot mount brackets at both ends
-    [startVec, endVec].forEach((pos) => {
-      const bracket = new THREE.Mesh(
-        new THREE.BoxGeometry(0.07, 0.07, 0.07),
-        materials.q235SteelMaterial || materials.chassisMaterial
-      );
-      bracket.position.copy(pos);
-      strutGroup.add(bracket);
-    });
-
-    return strutGroup;
-  };
 
   // =========================================================================
   // HELPER: ULTRA-DETAILED BROKEN-BRIDGE ARCHITECTURAL WINDOW UNIT
@@ -1291,21 +1237,6 @@ export function buildHomeModel(
       rootGroup.add(transBeam);
     });
 
-    // Folding hinges connecting side wings to central core
-    [-coreWidth / 2, coreWidth / 2].forEach((hx) => {
-      const hingeCount = is40ft ? 7 : is30ft ? 5 : 4;
-      const hingeSpacing = (houseDepth - 0.8) / (hingeCount - 1);
-      for (let i = 0; i < hingeCount; i++) {
-        const hz = -houseDepth / 2 + 0.4 + i * hingeSpacing;
-        const hinge = new THREE.Mesh(
-          new THREE.BoxGeometry(0.06, 0.12, 0.08),
-          materials.q235SteelMaterial
-        );
-        hinge.position.set(hx, height * 0.5, hz);
-        rootGroup.add(hinge);
-      }
-    });
-
     // Architectural Wall Mesh with Dual-Sided Materials:
     // Exterior face receives materials.wallMaterial (the selected exterior cladding),
     // while the interior face remains strictly materials.whiteInteriorWallMaterial (crisp architectural white)
@@ -1421,14 +1352,6 @@ export function buildHomeModel(
         }
       });
 
-      // Heavy-Duty Gas-Spring / Hydraulic Deployment Assist Struts
-      [-1, 1].forEach((dir) => {
-        const coreX = dir * (coreWidth / 2 - 0.08);
-        const wingX = dir * (expandableWidth / 2 - 0.25);
-        [-houseDepth / 2 + 0.65, houseDepth / 2 - 0.65].forEach((sz) => {
-          rootGroup.add(createGasAssistStrut(coreX, 0.22, sz, wingX, 0.12, sz));
-        });
-      });
 
       // 3. Exterior Walls (75mm bamboo-wood-fiber board) with Architectural Window Openings
       const wallT = 0.075; // 75mm bamboo-wood-fiber insulation board
@@ -3931,172 +3854,559 @@ export function buildHomeModel(
       // - Strict Open Architecture: ZERO separate cabinets next to it, ZERO overhead wall cabinets, and ZERO heat extractor
       // - 100% unobstructed daylight and views through both windows
       // - Exactly ONE L-shaped kitchenette in the entire residence for 20ft, 30ft, and 40ft
-      const buildKitchen = (target: THREE.Group, kX?: number, kZ?: number, kLen = 1.85, hasFridge = false) => {
+      // Helper: Procedural Veined Quartz Countertop Texture (Calacatta White with Soft Grey Mineral Veins)
+      const createQuartzCounterMaterial = () => {
+        if (typeof document === 'undefined') return materials.countertopMaterial;
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return materials.countertopMaterial;
+
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(0, 0, 256, 256);
+
+        // Subtle organic quartz mineral veins
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.24)';
+        ctx.lineCap = 'round';
+        for (let i = 0; i < 8; i++) {
+          ctx.lineWidth = 1.2 + (i % 3) * 0.9;
+          ctx.beginPath();
+          let x = (i * 37) % 256;
+          let y = 0;
+          ctx.moveTo(x, y);
+          for (let step = 1; step <= 6; step++) {
+            x += Math.sin(step * 1.4 + i) * 26;
+            y = step * 44;
+            ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        }
+        // Fine crystalline mineral flecks
+        ctx.fillStyle = 'rgba(100, 116, 139, 0.12)';
+        for (let f = 0; f < 65; f++) {
+          const fx = (f * 73) % 256;
+          const fy = (f * 139) % 256;
+          ctx.fillRect(fx, fy, 1.5, 1.5);
+        }
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(2, 2);
+        tex.colorSpace = THREE.SRGBColorSpace;
+
+        return new THREE.MeshStandardMaterial({
+          map: tex,
+          color: 0xffffff,
+          roughness: 0.16,
+          metalness: 0.05,
+        });
+      };
+
+      const buildKitchen = (target: THREE.Group, _kX?: number, _kZ?: number, _kLen = 1.85, _hasFridge = false) => {
         if (state.hasKitchenetteModule === false) return;
         const kGroup = new THREE.Group();
-        const kD = 0.54; // counter depth along Z & X (540mm)
-        const kH = 0.88; // counter height (880mm)
-        const counterThick = 0.04; // quartz countertop thickness (40mm)
-        const rearWallClearance = 0.05; // 50mm clearance in front of rear exterior wall
-        const leftWallClearance = 0.05; // 50mm clearance inside left exterior wall
+        const kD = 0.58; // Full 580mm architectural cabinet carcass depth
+        const kH = 0.90; // Standard 900mm ergonomic countertop height
+        const toeKickH = 0.085; // 85mm recessed plinth toe-kick
+        const counterThick = 0.048; // 48mm mitered quartz architectural slab
+        const overhang = 0.022; // 22mm sculpted countertop lip
+        const rearWallClearance = 0.03;
+        const leftWallClearance = 0.03;
 
         const startX = leftWallX + leftWallClearance;
         const kitchenRearZ = zRear + rearWallClearance;
+        const armXEnd = -coreWidth / 2 - 0.025; // Anchored along right central spine wall
+        const armX = armXEnd - startX;
 
-        // Window Aperture Boundaries (Rear & Side Windows)
-        const rearWinCenter = -expandableWidth / 3; // rx1
-        const sideWinCenter = is40ft ? -houseDepth / 3 : is10ft ? 0 : -houseDepth * 0.25;
-        const sideWinHalfW = 0.46; // winW / 2
-        const sideWinMinZ = sideWinCenter - sideWinHalfW; // Z where side window starts
+        // Return Arm now starts on the RIGHT side (against central bathroom spine wall) & extends forward (+Z)
+        const targetArmZ = is40ft ? 1.52 : is30ft ? 1.46 : is10ft ? 1.12 : 1.38;
+        const armZ = Math.max(0.96, targetArmZ);
+        const returnXStart = armXEnd - kD; // Inner left face of the right-side L-return wing
+        const rearRunW = returnXStart - startX; // Width of the rear wall run to the left of the L-corner
+        const returnRunZ = armZ - kD; // Length of the forward-projecting right wing
 
-        // ---------------------------------------------------------------------
-        // 1. SINGLE UNIFIED "L"-SHAPED FOOTPRINT (ZERO SEPARATE CABINETS)
-        // ---------------------------------------------------------------------
-        // Exactly ONE L-shaped kitchenette module in the residence across 10ft, 20ft, 30ft, and 40ft models.
-        // No separate cabinet close to it, no tall pantry unit, no overhead cabinets, and no heat extractor.
-        const spineWallX = -coreWidth / 2 - 0.06;
-        const armXEnd = spineWallX - 0.04; // Extends cleanly up to spine wall with 40mm expansion clearance
+        const quartzMat = createQuartzCounterMaterial();
+        const toeKickMat = materials.sofaLegMaterial || new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.65, metalness: 0.15 });
+        const stainlessMat = materials.metalTrimMaterial || new THREE.MeshStandardMaterial({ color: 0xd4d4d8, roughness: 0.25, metalness: 0.88 });
+        const gunmetalSinkMat = new THREE.MeshStandardMaterial({ color: 0x3f3f46, roughness: 0.32, metalness: 0.78 });
+        const woodBoardMat = materials.woodDeckMaterial || new THREE.MeshStandardMaterial({ color: 0xb07d4f, roughness: 0.52, metalness: 0.04 });
+        const handleMat = materials.brassHandleMaterial || materials.metalTrimMaterial;
 
-        // ---------------------------------------------------------------------
-        // 2. DIMENSIONS OF THE SINGLE "L"-SHAPED KITCHENETTE
-        // ---------------------------------------------------------------------
-        const armX = armXEnd - startX; // Total width across rear wall (X-axis)
-        // Return arm length along left wall (Z-axis): stops safely before side window
-        const maxReturnZ = sideWinMinZ - 0.15; // 150mm clearance before side window starts
-        const targetArmZ = is40ft ? 1.25 : is30ft ? 1.15 : is10ft ? 0.85 : 0.95;
-        const armZ = Math.max(0.65, Math.min(targetArmZ, maxReturnZ - kitchenRearZ));
+        const bodyH = kH - counterThick - toeKickH;
+        const bodyCenterY = 0.15 + toeKickH + bodyH / 2;
+        const counterBottomY = 0.15 + kH - counterThick;
+        const counterTopY = 0.15 + kH;
 
         // ---------------------------------------------------------------------
-        // 3. UNIFIED "L"-SHAPED BASE CABINET CARCASS
+        // 1. RECESSED ARCHITECTURAL TOE-KICK PLINTHS
         // ---------------------------------------------------------------------
-        // Section A: Left wall wing (runs from kitchenRearZ to kitchenRearZ + armZ)
-        const leftBaseCab = new THREE.Mesh(
-          new THREE.BoxGeometry(kD, kH - counterThick, armZ),
-          materials.cabinetMaterial
+        const rearKick = new THREE.Mesh(
+          new THREE.BoxGeometry(armX - 0.02, toeKickH, kD - 0.05),
+          toeKickMat
         );
-        leftBaseCab.position.set(
-          startX + kD / 2,
-          0.15 + (kH - counterThick) / 2,
-          kitchenRearZ + armZ / 2
-        );
-        leftBaseCab.castShadow = true;
+        rearKick.position.set(startX + armX / 2, 0.15 + toeKickH / 2, kitchenRearZ + (kD - 0.05) / 2);
 
-        // Section B: Rear wall wing (connects seamlessly to leftBaseCab at X = startX + kD)
-        const rearBaseW = armX - kD;
+        const rightKick = new THREE.Mesh(
+          new THREE.BoxGeometry(kD - 0.05, toeKickH, returnRunZ),
+          toeKickMat
+        );
+        rightKick.position.set(returnXStart + 0.04 + (kD - 0.05) / 2, 0.15 + toeKickH / 2, kitchenRearZ + kD + returnRunZ / 2);
+        kGroup.add(rearKick, rightKick);
+
+        // ---------------------------------------------------------------------
+        // 2. RIGHT-ANCHORED "L"-SHAPED CABINET CARCASSES
+        // ---------------------------------------------------------------------
         const rearBaseCab = new THREE.Mesh(
-          new THREE.BoxGeometry(rearBaseW, kH - counterThick, kD),
+          new THREE.BoxGeometry(armX, bodyH, kD),
           materials.cabinetMaterial
         );
-        rearBaseCab.position.set(
-          startX + kD + rearBaseW / 2,
-          0.15 + (kH - counterThick) / 2,
-          kitchenRearZ + kD / 2
-        );
+        rearBaseCab.position.set(startX + armX / 2, bodyCenterY, kitchenRearZ + kD / 2);
         rearBaseCab.castShadow = true;
+        rearBaseCab.receiveShadow = true;
 
-        kGroup.add(leftBaseCab, rearBaseCab);
+        const rightBaseCab = new THREE.Mesh(
+          new THREE.BoxGeometry(kD, bodyH, returnRunZ),
+          materials.cabinetMaterial
+        );
+        rightBaseCab.position.set(armXEnd - kD / 2, bodyCenterY, kitchenRearZ + kD + returnRunZ / 2);
+        rightBaseCab.castShadow = true;
+        rightBaseCab.receiveShadow = true;
+        kGroup.add(rearBaseCab, rightBaseCab);
 
         // ---------------------------------------------------------------------
-        // 4. SEAMLESS "L"-SHAPED QUARTZ WATERFALL COUNTERTOP
+        // 3. ARCHITECTURAL CABINET DOORS, BUILT-IN OVEN & 3-TIER DRAWER STACK
         // ---------------------------------------------------------------------
-        const counterY = 0.15 + (kH - counterThick) + counterThick / 2;
+        const frontThick = 0.018;
+        const rearDoorFaceZ = kitchenRearZ + kD + frontThick / 2 + 0.002;
 
-        // Left Countertop Slab (continuous from rear corner along return arm)
-        const leftTop = new THREE.Mesh(
-          new THREE.BoxGeometry(kD + 0.02, counterThick, armZ + 0.02),
-          materials.countertopMaterial
-        );
-        leftTop.position.set(
-          startX + kD / 2,
-          counterY,
-          kitchenRearZ + armZ / 2
-        );
-        leftTop.castShadow = true;
+        // Partition Rear Run Front into Oven/Drawer Bay (Left) & Under-Sink Double Doors (Under Window)
+        const rearWinCenter = -expandableWidth / 3;
+        const sinkW = Math.min(0.56, Math.max(0.42, rearRunW * 0.44));
+        const sinkX = Math.max(startX + sinkW / 2 + 0.08, Math.min(returnXStart - sinkW / 2 - 0.06, rearWinCenter));
 
-        // Rear Countertop Slab (connects perfectly flush to left slab at X = startX + kD)
-        const rearTop = new THREE.Mesh(
-          new THREE.BoxGeometry(rearBaseW, counterThick, kD + 0.02),
-          materials.countertopMaterial
-        );
-        rearTop.position.set(
-          startX + kD + rearBaseW / 2,
-          counterY,
-          kitchenRearZ + kD / 2
-        );
-        rearTop.castShadow = true;
+        const doorCountRear = rearRunW >= 1.25 ? 3 : 2;
+        const doorGap = 0.008;
+        const bayW = (rearRunW - doorGap * (doorCountRear + 1)) / doorCountRear;
 
-        // Waterfall edge at the end of the return arm
-        const waterfallReturn = new THREE.Mesh(
-          new THREE.BoxGeometry(kD + 0.02, kH, 0.02),
-          materials.countertopMaterial
-        );
-        waterfallReturn.position.set(
-          startX + kD / 2,
-          0.15 + kH / 2,
-          kitchenRearZ + armZ + 0.01
-        );
-        waterfallReturn.castShadow = true;
+        for (let bi = 0; bi < doorCountRear; bi++) {
+          const bx = startX + doorGap + bayW / 2 + bi * (bayW + doorGap);
 
-        kGroup.add(leftTop, rearTop, waterfallReturn);
+          // Leftmost bay (when 3 bays) features a Built-In Compact Oven + Bottom Pan Drawer
+          if (bi === 0 && doorCountRear === 3) {
+            const lowerDrawerH = bodyH * 0.28;
+            const ovenH = bodyH - lowerDrawerH - 0.025;
+            const ovenY = 0.15 + toeKickH + lowerDrawerH + 0.015 + ovenH / 2;
 
-        // ---------------------------------------------------------------------
-        // 5. UNDERMOUNT DOUBLE SINK & DESIGNER GOOSENECK FAUCET
-        // ---------------------------------------------------------------------
-        // Center the sink under the rear exterior window for natural light & outdoor views
-        const sinkX = Math.max(startX + kD + 0.25, Math.min(armXEnd - 0.35, rearWinCenter));
-        const sink = new THREE.Mesh(
-          new THREE.BoxGeometry(0.46, 0.12, 0.38),
-          materials.chassisMaterial
-        );
-        sink.position.set(sinkX, 0.15 + kH - 0.04, kitchenRearZ + kD / 2);
+            // Lower Pan Drawer Front
+            const panDrawer = new THREE.Mesh(
+              new THREE.BoxGeometry(bayW, lowerDrawerH, frontThick),
+              materials.cabinetMaterial
+            );
+            panDrawer.position.set(bx, 0.15 + toeKickH + lowerDrawerH / 2 + 0.005, rearDoorFaceZ);
+            const panHandle = new THREE.Mesh(
+              new THREE.BoxGeometry(bayW * 0.48, 0.012, 0.022),
+              handleMat
+            );
+            panHandle.position.set(bx, 0.15 + toeKickH + lowerDrawerH - 0.045, rearDoorFaceZ + 0.016);
 
-        const faucet = new THREE.Mesh(
-          new THREE.TorusGeometry(0.065, 0.012, 8, 16, Math.PI),
-          materials.brassHandleMaterial || materials.metalTrimMaterial
-        );
-        faucet.position.set(sinkX, 0.15 + kH + 0.15, kitchenRearZ + 0.12);
+            // Built-in Convection Oven Glass Door & Stainless Control Bezel
+            const ovenFrame = new THREE.Mesh(
+              new THREE.BoxGeometry(bayW, ovenH, frontThick + 0.004),
+              stainlessMat
+            );
+            ovenFrame.position.set(bx, ovenY, rearDoorFaceZ);
+            const ovenGlass = new THREE.Mesh(
+              new THREE.BoxGeometry(bayW - 0.045, ovenH * 0.62, 0.008),
+              materials.applianceGlassMaterial
+            );
+            ovenGlass.position.set(bx, ovenY - ovenH * 0.10, rearDoorFaceZ + 0.012);
+            const ovenPull = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.007, 0.007, bayW - 0.07, 10),
+              stainlessMat
+            );
+            ovenPull.rotation.z = Math.PI / 2;
+            ovenPull.position.set(bx, ovenY + ovenH * 0.15, rearDoorFaceZ + 0.032);
+            // Digital LED clock & 2 rotary control knobs
+            const ledClock = new THREE.Mesh(
+              new THREE.BoxGeometry(0.09, 0.018, 0.006),
+              materials.ledStripMaterial
+            );
+            ledClock.position.set(bx, ovenY + ovenH * 0.36, rearDoorFaceZ + 0.014);
+            [-0.12, 0.12].forEach((kx) => {
+              const knob = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.013, 0.013, 0.016, 12),
+                stainlessMat
+              );
+              knob.rotation.x = Math.PI / 2;
+              knob.position.set(bx + kx, ovenY + ovenH * 0.36, rearDoorFaceZ + 0.018);
+              kGroup.add(knob);
+            });
 
-        kGroup.add(sink, faucet);
+            kGroup.add(panDrawer, panHandle, ovenFrame, ovenGlass, ovenPull, ledClock);
+          } else {
+            // Crisp Architectural Inset Door Panel with Vertical Standoff Handle
+            const doorPanel = new THREE.Mesh(
+              new THREE.BoxGeometry(bayW, bodyH - 0.012, frontThick),
+              materials.cabinetMaterial
+            );
+            doorPanel.position.set(bx, bodyCenterY, rearDoorFaceZ);
+            doorPanel.castShadow = true;
 
-        // ---------------------------------------------------------------------
-        // 6. 2-BURNER INDUCTION COOKTOP ON L-RETURN ARM
-        // ---------------------------------------------------------------------
-        const cookZ = kitchenRearZ + kD + (armZ - kD) * 0.50;
-        const cooktop = new THREE.Mesh(
-          new THREE.BoxGeometry(0.38, 0.012, 0.48),
-          materials.applianceGlassMaterial
-        );
-        cooktop.position.set(startX + kD / 2, 0.15 + kH + 0.005, cookZ);
-        [-0.11, 0.11].forEach((oz) => {
-          const ring = new THREE.Mesh(
-            new THREE.RingGeometry(0.055, 0.07, 16),
-            materials.ledStripMaterial
+            // Subtle inset recess border trim
+            const hBar = new THREE.Mesh(
+              new THREE.BoxGeometry(0.012, 0.18, 0.016),
+              handleMat
+            );
+            const handleSide = bi % 2 === 0 ? bayW * 0.36 : -bayW * 0.36;
+            hBar.position.set(bx + handleSide, bodyCenterY + bodyH * 0.24, rearDoorFaceZ + 0.018);
+            kGroup.add(doorPanel, hBar);
+          }
+        }
+
+        // Right L-Return Wing Inner Face (-X facing workspace): 3-Tier Soft-Close Drawer Bank
+        const drawerFaceX = returnXStart - frontThick / 2 - 0.002;
+        const drawerSpanZ = returnRunZ - 0.03;
+        const tierHeights = [bodyH * 0.21, bodyH * 0.36, bodyH * 0.38];
+        let curY = 0.15 + toeKickH + 0.006;
+
+        tierHeights.forEach((dh) => {
+          const dPanel = new THREE.Mesh(
+            new THREE.BoxGeometry(frontThick, dh, drawerSpanZ),
+            materials.cabinetMaterial
           );
-          ring.rotation.x = -Math.PI / 2;
-          ring.position.set(startX + kD / 2, 0.15 + kH + 0.012, cookZ + oz);
-          kGroup.add(ring);
+          dPanel.position.set(drawerFaceX, curY + dh / 2, kitchenRearZ + kD + returnRunZ / 2 - 0.005);
+          dPanel.castShadow = true;
+
+          const dPull = new THREE.Mesh(
+            new THREE.BoxGeometry(0.018, 0.012, Math.min(0.32, drawerSpanZ * 0.45)),
+            handleMat
+          );
+          dPull.position.set(
+            drawerFaceX - 0.018,
+            curY + dh - 0.042,
+            kitchenRearZ + kD + returnRunZ / 2 - 0.005
+          );
+          kGroup.add(dPanel, dPull);
+          curY += dh + 0.012;
         });
 
-        // Architectural Cabinet Drawer / Door Handles
-        for (let di = 0; di < 2; di++) {
-          const hY = 0.15 + kH * (0.35 + di * 0.35);
-          const handle = new THREE.Mesh(
-            new THREE.BoxGeometry(0.015, 0.015, 0.20),
-            materials.brassHandleMaterial || materials.metalTrimMaterial
-          );
-          handle.position.set(startX + kD + 0.01, hY, kitchenRearZ + kD + (armZ - kD) * (di === 0 ? 0.30 : 0.70));
-          kGroup.add(handle);
-        }
-        const rearDoorHandle = new THREE.Mesh(
-          new THREE.BoxGeometry(0.20, 0.015, 0.015),
-          materials.brassHandleMaterial || materials.metalTrimMaterial
+        // ---------------------------------------------------------------------
+        // 4. SEAMLESS VEINED QUARTZ COUNTERTOP WITH REAL SINK CUTOUT & WATERFALL LEG
+        // ---------------------------------------------------------------------
+        const sinkD = 0.40;
+        const sinkCenterZ = kitchenRearZ + kD / 2 + 0.02;
+        const sinkMinX = sinkX - sinkW / 2;
+        const sinkMaxX = sinkX + sinkW / 2;
+        const sinkMinZ = sinkCenterZ - sinkD / 2;
+        const sinkMaxZ = sinkCenterZ + sinkD / 2;
+
+        const rearFrontEdgeZ = kitchenRearZ + kD + overhang;
+        const rearTotalD = kD + overhang;
+        const counterCenterY = counterBottomY + counterThick / 2;
+
+        // Split rear quartz slab around the sink cutout so the basin recesses cleanly inside
+        const leftSlabW = Math.max(0.05, sinkMinX - startX);
+        const leftSlab = new THREE.Mesh(
+          new THREE.BoxGeometry(leftSlabW, counterThick, rearTotalD),
+          quartzMat
         );
-        rearDoorHandle.position.set(startX + kD + rearBaseW * 0.50, 0.15 + kH * 0.70, kitchenRearZ + kD + 0.01);
-        kGroup.add(rearDoorHandle);
+        leftSlab.position.set(startX + leftSlabW / 2, counterCenterY, kitchenRearZ + rearTotalD / 2);
+        leftSlab.castShadow = true;
+        leftSlab.receiveShadow = true;
 
-        kGroup.add(cooktop);
+        const rightSlabW = Math.max(0.05, armXEnd - sinkMaxX);
+        const rightSlab = new THREE.Mesh(
+          new THREE.BoxGeometry(rightSlabW, counterThick, rearTotalD),
+          quartzMat
+        );
+        rightSlab.position.set(sinkMaxX + rightSlabW / 2, counterCenterY, kitchenRearZ + rearTotalD / 2);
+        rightSlab.castShadow = true;
+        rightSlab.receiveShadow = true;
 
-        // Open Wall Overhead: Clean perimeter with zero upper cabinets and zero heat extractor
+        // Back deck behind sink (carries faucet & soap dispenser)
+        const backStripD = Math.max(0.06, sinkMinZ - kitchenRearZ);
+        const backStrip = new THREE.Mesh(
+          new THREE.BoxGeometry(sinkW, counterThick, backStripD),
+          quartzMat
+        );
+        backStrip.position.set(sinkX, counterCenterY, kitchenRearZ + backStripD / 2);
+        backStrip.receiveShadow = true;
+
+        // Front quartz apron in front of sink
+        const frontStripD = Math.max(0.04, rearFrontEdgeZ - sinkMaxZ);
+        const frontStrip = new THREE.Mesh(
+          new THREE.BoxGeometry(sinkW, counterThick, frontStripD),
+          quartzMat
+        );
+        frontStrip.position.set(sinkX, counterCenterY, sinkMaxZ + frontStripD / 2);
+        frontStrip.castShadow = true;
+        frontStrip.receiveShadow = true;
+
+        // Right L-Return Quartz Slab (joins flush behind rear slab at Z = kitchenRearZ + kD + overhang)
+        const retSlabZStart = kitchenRearZ + rearTotalD;
+        const retSlabD = Math.max(0.25, kitchenRearZ + armZ - retSlabZStart);
+        const retSlab = new THREE.Mesh(
+          new THREE.BoxGeometry(kD + overhang, counterThick, retSlabD),
+          quartzMat
+        );
+        retSlab.position.set(
+          armXEnd - (kD + overhang) / 2,
+          counterCenterY,
+          retSlabZStart + retSlabD / 2
+        );
+        retSlab.castShadow = true;
+        retSlab.receiveShadow = true;
+
+        // Sculpted Waterfall End Leg on the front tip of the Right L-Return Wing
+        const waterfallEnd = new THREE.Mesh(
+          new THREE.BoxGeometry(kD + overhang, kH, 0.036),
+          quartzMat
+        );
+        waterfallEnd.position.set(
+          armXEnd - (kD + overhang) / 2,
+          0.15 + kH / 2,
+          kitchenRearZ + armZ + 0.018
+        );
+        waterfallEnd.castShadow = true;
+        waterfallEnd.receiveShadow = true;
+
+        // Warm Under-Countertop Linear LED Accent Strip tucked beneath overhang
+        const underLedRear = new THREE.Mesh(
+          new THREE.BoxGeometry(Math.max(0.4, rearRunW - 0.08), 0.008, 0.010),
+          materials.ledStripMaterial
+        );
+        underLedRear.position.set(startX + rearRunW / 2, counterBottomY - 0.004, kitchenRearZ + kD + 0.006);
+
+        const underLedReturn = new THREE.Mesh(
+          new THREE.BoxGeometry(0.010, 0.008, Math.max(0.3, returnRunZ - 0.06)),
+          materials.ledStripMaterial
+        );
+        underLedReturn.position.set(returnXStart - 0.006, counterBottomY - 0.004, kitchenRearZ + kD + returnRunZ / 2);
+
+        kGroup.add(leftSlab, rightSlab, backStrip, frontStrip, retSlab, waterfallEnd, underLedRear, underLedReturn);
+
+        // ---------------------------------------------------------------------
+        // 5. QUARTZ BACKSPLASH, POWER OUTLET & MOUNTED UTENSIL RAIL
+        // ---------------------------------------------------------------------
+        // Rear 10cm quartz upstand along rear exterior wall
+        const upstandH = 0.095;
+        const rearUpstand = new THREE.Mesh(
+          new THREE.BoxGeometry(armX, upstandH, 0.018),
+          quartzMat
+        );
+        rearUpstand.position.set(startX + armX / 2, counterTopY + upstandH / 2, kitchenRearZ + 0.009);
+
+        // Full-height quartz backsplash panel along Right Spine Wall (bathroom partition side)
+        const splashH = 0.48;
+        const rightBacksplash = new THREE.Mesh(
+          new THREE.BoxGeometry(0.016, splashH, armZ),
+          quartzMat
+        );
+        rightBacksplash.position.set(armXEnd - 0.008, counterTopY + splashH / 2, kitchenRearZ + armZ / 2);
+        rightBacksplash.receiveShadow = true;
+
+        // Duplex Power Outlet Faceplate mounted cleanly on the Right Backsplash
+        const outletPlate = new THREE.Mesh(
+          new THREE.BoxGeometry(0.010, 0.075, 0.115),
+          stainlessMat
+        );
+        outletPlate.position.set(armXEnd - 0.018, counterTopY + 0.24, kitchenRearZ + kD + 0.22);
+
+        // Brushed Utensil / Spice Rail along Right Spine Backsplash
+        const railLen = Math.min(0.65, armZ * 0.50);
+        const railZ = kitchenRearZ + kD + Math.min(0.45, returnRunZ * 0.58);
+        const utensilRail = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.006, 0.006, railLen, 10),
+          handleMat
+        );
+        utensilRail.rotation.x = Math.PI / 2;
+        utensilRail.position.set(armXEnd - 0.036, counterTopY + 0.38, railZ);
+        [-railLen * 0.42, railLen * 0.42].forEach((rz) => {
+          const post = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.025, 8), handleMat);
+          post.rotation.z = Math.PI / 2;
+          post.position.set(armXEnd - 0.024, counterTopY + 0.38, railZ + rz);
+          kGroup.add(post);
+        });
+        kGroup.add(rearUpstand, rightBacksplash, outletPlate, utensilRail);
+
+        // ---------------------------------------------------------------------
+        // 6. RECESSED WORKSTATION SINK, DRAIN, PREP BOARD & PULL-DOWN FAUCET
+        // ---------------------------------------------------------------------
+        const basinDepth = 0.18;
+        const rimT = 0.012;
+        const rimLip = 0.016;
+        // Recessed stainless sink rim framing cutout
+        const sinkRimF = new THREE.Mesh(new THREE.BoxGeometry(sinkW + rimLip * 2, 0.006, rimLip), stainlessMat);
+        sinkRimF.position.set(sinkX, counterTopY + 0.003, sinkMaxZ + rimLip / 2 - 0.004);
+        const sinkRimB = new THREE.Mesh(new THREE.BoxGeometry(sinkW + rimLip * 2, 0.006, rimLip), stainlessMat);
+        sinkRimB.position.set(sinkX, counterTopY + 0.003, sinkMinZ - rimLip / 2 + 0.004);
+        const sinkRimL = new THREE.Mesh(new THREE.BoxGeometry(rimLip, 0.006, sinkD), stainlessMat);
+        sinkRimL.position.set(sinkMinX - rimLip / 2 + 0.004, counterTopY + 0.003, sinkCenterZ);
+        const sinkRimR = new THREE.Mesh(new THREE.BoxGeometry(rimLip, 0.006, sinkD), stainlessMat);
+        sinkRimR.position.set(sinkMaxX + rimLip / 2 - 0.004, counterTopY + 0.003, sinkCenterZ);
+
+        // 4 inner basin walls + bottom floor
+        const basinBot = new THREE.Mesh(new THREE.BoxGeometry(sinkW, 0.012, sinkD), gunmetalSinkMat);
+        basinBot.position.set(sinkX, counterTopY - basinDepth, sinkCenterZ);
+        const basinWallB = new THREE.Mesh(new THREE.BoxGeometry(sinkW, basinDepth, rimT), gunmetalSinkMat);
+        basinWallB.position.set(sinkX, counterTopY - basinDepth / 2, sinkMinZ + rimT / 2);
+        const basinWallF = new THREE.Mesh(new THREE.BoxGeometry(sinkW, basinDepth, rimT), gunmetalSinkMat);
+        basinWallF.position.set(sinkX, counterTopY - basinDepth / 2, sinkMaxZ - rimT / 2);
+        const basinWallL = new THREE.Mesh(new THREE.BoxGeometry(rimT, basinDepth, sinkD), gunmetalSinkMat);
+        basinWallL.position.set(sinkMinX + rimT / 2, counterTopY - basinDepth / 2, sinkCenterZ);
+        const basinWallR = new THREE.Mesh(new THREE.BoxGeometry(rimT, basinDepth, sinkD), gunmetalSinkMat);
+        basinWallR.position.set(sinkMaxX - rimT / 2, counterTopY - basinDepth / 2, sinkCenterZ);
+
+        // Stainless drain basket strainer
+        const drainRing = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.006, 16), stainlessMat);
+        drainRing.position.set(sinkX, counterTopY - basinDepth + 0.009, sinkCenterZ);
+
+        // Integrated sliding Acacia workstation prep board on right third of sink
+        const sinkBoard = new THREE.Mesh(
+          new THREE.BoxGeometry(sinkW * 0.30, 0.014, sinkD - 0.02),
+          woodBoardMat
+        );
+        sinkBoard.position.set(sinkMaxX - sinkW * 0.16, counterTopY + 0.007, sinkCenterZ);
+
+        // High-Arc Pull-Down Gooseneck Faucet + Side Mixer Lever + Soap Dispenser
+        const faucetZ = kitchenRearZ + backStripD * 0.48;
+        const faucetBase = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.028, 0.012, 16), handleMat);
+        faucetBase.position.set(sinkX, counterTopY + 0.006, faucetZ);
+        const faucetStem = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.013, 0.18, 12), handleMat);
+        faucetStem.position.set(sinkX, counterTopY + 0.095, faucetZ);
+        const faucetArch = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.010, 10, 20, Math.PI), handleMat);
+        faucetArch.rotation.y = Math.PI / 2;
+        faucetArch.position.set(sinkX, counterTopY + 0.185, faucetZ + 0.075);
+        const sprayNozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.017, 0.055, 12), handleMat);
+        sprayNozzle.position.set(sinkX, counterTopY + 0.16, faucetZ + 0.15);
+        const mixerLever = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.055, 8), stainlessMat);
+        mixerLever.rotation.z = -Math.PI / 3;
+        mixerLever.position.set(sinkX + 0.032, counterTopY + 0.055, faucetZ);
+
+        // Countertop Soap Dispenser Pump
+        const soapNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.012, 0.035, 10), stainlessMat);
+        soapNeck.position.set(sinkX + 0.14, counterTopY + 0.018, faucetZ + 0.01);
+        const soapSpout = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.006, 0.042), stainlessMat);
+        soapSpout.position.set(sinkX + 0.14, counterTopY + 0.038, faucetZ + 0.026);
+
+        kGroup.add(
+          sinkRimF, sinkRimB, sinkRimL, sinkRimR,
+          basinBot, basinWallB, basinWallF, basinWallL, basinWallR,
+          drainRing, sinkBoard,
+          faucetBase, faucetStem, faucetArch, sprayNozzle, mixerLever,
+          soapNeck, soapSpout
+        );
+
+        // ---------------------------------------------------------------------
+        // 7. DETAILED GLASS-CERAMIC INDUCTION COOKTOP ON RIGHT L-RETURN WING
+        // ---------------------------------------------------------------------
+        const cookX = armXEnd - kD / 2 - 0.01;
+        const cookZ = kitchenRearZ + kD + returnRunZ * 0.52;
+        const hobW = 0.34;
+        const hobL = Math.min(0.52, returnRunZ * 0.62);
+
+        const hobBezel = new THREE.Mesh(
+          new THREE.BoxGeometry(hobW + 0.016, 0.008, hobL + 0.016),
+          stainlessMat
+        );
+        hobBezel.position.set(cookX, counterTopY + 0.004, cookZ);
+
+        const cooktop = new THREE.Mesh(
+          new THREE.BoxGeometry(hobW, 0.011, hobL),
+          materials.applianceGlassMaterial
+        );
+        cooktop.position.set(cookX, counterTopY + 0.007, cookZ);
+
+        // Dual-Zone Concentric Heating Rings + Digital Touch Control Strip
+        [-hobL * 0.24, hobL * 0.22].forEach((oz, idx) => {
+          const outerR = idx === 0 ? 0.075 : 0.062;
+          const outerRing = new THREE.Mesh(
+            new THREE.RingGeometry(outerR - 0.008, outerR, 24),
+            materials.ledStripMaterial
+          );
+          outerRing.rotation.x = -Math.PI / 2;
+          outerRing.position.set(cookX, counterTopY + 0.0135, cookZ + oz);
+
+          const innerRing = new THREE.Mesh(
+            new THREE.RingGeometry(outerR * 0.48, outerR * 0.56, 20),
+            materials.ledStripMaterial
+          );
+          innerRing.rotation.x = -Math.PI / 2;
+          innerRing.position.set(cookX, counterTopY + 0.0135, cookZ + oz);
+          kGroup.add(outerRing, innerRing);
+        });
+
+        // Illuminated touch slider bar on inner (-X) edge of cooktop glass
+        const touchBar = new THREE.Mesh(
+          new THREE.BoxGeometry(0.014, 0.003, 0.14),
+          materials.ledStripMaterial
+        );
+        touchBar.position.set(cookX - hobW * 0.36, counterTopY + 0.0135, cookZ);
+
+        // Designer Stainless Sauté Pan resting on rear induction burner
+        const panBody = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.088, 0.078, 0.048, 20),
+          stainlessMat
+        );
+        panBody.position.set(cookX, counterTopY + 0.036, cookZ - hobL * 0.24);
+        panBody.castShadow = true;
+        const panHandle = new THREE.Mesh(
+          new THREE.BoxGeometry(0.11, 0.010, 0.016),
+          handleMat
+        );
+        panHandle.position.set(cookX - 0.125, counterTopY + 0.052, cookZ - hobL * 0.24);
+
+        kGroup.add(hobBezel, cooktop, touchBar, panBody, panHandle);
+
+        // ---------------------------------------------------------------------
+        // 8. ARCHITECTURAL COUNTERTOP STYLING (COFFEE BAR, BOARDS & HERB PLANTER)
+        // ---------------------------------------------------------------------
+        if (leftSlabW >= 0.30) {
+          const prepX = startX + Math.min(0.24, leftSlabW * 0.45);
+          // Warm Acacia wood prep board + matte ceramic canister duo
+          const prepBoard = new THREE.Mesh(
+            new THREE.BoxGeometry(0.22, 0.016, 0.30),
+            woodBoardMat
+          );
+          prepBoard.position.set(prepX, counterTopY + 0.008, kitchenRearZ + kD * 0.56);
+          prepBoard.castShadow = true;
+
+          const mug = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.036, 0.032, 0.085, 14),
+            materials.ceramicVesselMaterial || quartzMat
+          );
+          mug.position.set(prepX + 0.04, counterTopY + 0.058, kitchenRearZ + kD * 0.52);
+
+          const canister = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.048, 0.048, 0.135, 16),
+            materials.ceramicVesselMaterial || quartzMat
+          );
+          canister.position.set(startX + 0.11, counterTopY + 0.068, kitchenRearZ + 0.14);
+          const canisterLid = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.049, 0.049, 0.014, 16),
+            woodBoardMat
+          );
+          canisterLid.position.set(startX + 0.11, counterTopY + 0.14, kitchenRearZ + 0.14);
+          kGroup.add(prepBoard, mug, canister, canisterLid);
+        }
+
+        // Fluted herb pot & brass coffee kettle in the rear-right corner quartz counter zone
+        const cornerX = armXEnd - kD * 0.48;
+        const cornerZ = kitchenRearZ + kD * 0.42;
+        const pot = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.052, 0.042, 0.09, 14),
+          materials.ceramicVesselMaterial || quartzMat
+        );
+        pot.position.set(cornerX, counterTopY + 0.045, cornerZ);
+        const foliage = new THREE.Mesh(
+          new THREE.DodecahedronGeometry(0.058, 0),
+          new THREE.MeshStandardMaterial({ color: 0x3f6212, roughness: 0.78 })
+        );
+        foliage.position.set(cornerX, counterTopY + 0.115, cornerZ);
+        kGroup.add(pot, foliage);
+
         target.add(kGroup);
       };
 
@@ -4806,11 +5116,214 @@ export function buildHomeModel(
         const bDepth = is10ft ? 1.30 : 1.50; // 1.30m along Z for 10ft micro, 1.50m for 20ft/30ft/40ft
         const bHeight = 2.30;
         const bCenterZ = zRear + bDepth / 2;
+        const floorSurfaceY = 0.15 + 0.025; // Top surface of bathroom floor slab (0.175m)
+        const rearWallInnerZ = zRear + intWallT;
+        const leftWallInnerX = -bWidth / 2 + intWallT;
+        const rightWallInnerX = bWidth / 2 - intWallT;
 
-        // Dedicated Non-Slip Luxury Marble / Porcelain Bathroom Floor Slab
+        // ===================================================================
+        // BATHROOM PROCEDURAL ARCHITECTURAL MATERIALS
+        // ===================================================================
+        const createBathTileMaterial = (isWetFeature = false) => {
+          if (typeof document === 'undefined') return materials.countertopMaterial;
+          const canvas = document.createElement('canvas');
+          canvas.width = 256;
+          canvas.height = 256;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return materials.countertopMaterial;
+
+          // Warm architectural honed porcelain / limestone base
+          ctx.fillStyle = isWetFeature ? '#e5e9ef' : '#eff2f5';
+          ctx.fillRect(0, 0, 256, 256);
+
+          // Soft stone mineral clouding & speckles
+          for (let i = 0; i < 420; i++) {
+            const sx = (i * 53) % 256;
+            const sy = (i * 97) % 256;
+            ctx.fillStyle = i % 3 === 0 ? 'rgba(148, 163, 184, 0.12)' : 'rgba(255, 255, 255, 0.22)';
+            ctx.fillRect(sx, sy, 4, 2);
+          }
+
+          // Subtle diagonal marble veining
+          ctx.strokeStyle = 'rgba(148, 163, 184, 0.16)';
+          ctx.lineWidth = 1.4;
+          for (let v = 0; v < 4; v++) {
+            ctx.beginPath();
+            ctx.moveTo(0, (v * 64 + 18) % 256);
+            ctx.bezierCurveTo(85, (v * 64 + 40) % 256, 170, (v * 64 + 5) % 256, 256, (v * 64 + 34) % 256);
+            ctx.stroke();
+          }
+
+          // Crisp architectural tile grout grid
+          ctx.strokeStyle = isWetFeature ? 'rgba(100, 116, 139, 0.34)' : 'rgba(148, 163, 184, 0.36)';
+          ctx.lineWidth = 2;
+          if (isWetFeature) {
+            for (let y = 0; y <= 256; y += 64) {
+              ctx.beginPath();
+              ctx.moveTo(0, y);
+              ctx.lineTo(256, y);
+              ctx.stroke();
+            }
+            for (let x = 0; x <= 256; x += 128) {
+              ctx.beginPath();
+              ctx.moveTo(x, 0);
+              ctx.lineTo(x, 256);
+              ctx.stroke();
+            }
+          } else {
+            for (let g = 0; g <= 256; g += 128) {
+              ctx.beginPath();
+              ctx.moveTo(g, 0);
+              ctx.lineTo(g, 256);
+              ctx.stroke();
+              ctx.beginPath();
+              ctx.moveTo(0, g);
+              ctx.lineTo(256, g);
+              ctx.stroke();
+            }
+          }
+
+          const tex = new THREE.CanvasTexture(canvas);
+          tex.wrapS = THREE.RepeatWrapping;
+          tex.wrapT = THREE.RepeatWrapping;
+          tex.repeat.set(isWetFeature ? 2 : 3, isWetFeature ? 3 : 2);
+          tex.colorSpace = THREE.SRGBColorSpace;
+
+          return new THREE.MeshStandardMaterial({
+            map: tex,
+            color: 0xffffff,
+            roughness: isWetFeature ? 0.32 : 0.28,
+            metalness: 0.04,
+          });
+        };
+
+        const createShowerSlateMaterial = () => {
+          if (typeof document === 'undefined') return materials.chassisMaterial;
+          const canvas = document.createElement('canvas');
+          canvas.width = 256;
+          canvas.height = 256;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return materials.chassisMaterial;
+
+          ctx.fillStyle = '#334155';
+          ctx.fillRect(0, 0, 256, 256);
+          for (let i = 0; i < 650; i++) {
+            const x = (i * 61) % 256;
+            const y = (i * 113) % 256;
+            ctx.fillStyle = i % 2 === 0 ? 'rgba(148, 163, 184, 0.16)' : 'rgba(15, 23, 42, 0.28)';
+            ctx.fillRect(x, y, 2, 2);
+          }
+          const tex = new THREE.CanvasTexture(canvas);
+          tex.wrapS = THREE.RepeatWrapping;
+          tex.wrapT = THREE.RepeatWrapping;
+          tex.colorSpace = THREE.SRGBColorSpace;
+          return new THREE.MeshStandardMaterial({
+            map: tex,
+            color: 0xffffff,
+            roughness: 0.62,
+            metalness: 0.06,
+          });
+        };
+
+        const createSilverMirrorMaterial = () => {
+          if (typeof document === 'undefined') return materials.metalTrimMaterial;
+          const canvas = document.createElement('canvas');
+          canvas.width = 256;
+          canvas.height = 256;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return materials.metalTrimMaterial;
+
+          // Bright silvered architectural reflection gradient with soft diagonal studio glint
+          const grad = ctx.createLinearGradient(0, 0, 256, 256);
+          grad.addColorStop(0.0, '#cbd5e1');
+          grad.addColorStop(0.28, '#e2e8f0');
+          grad.addColorStop(0.44, '#f8fafc');
+          grad.addColorStop(0.54, '#e2e8f0');
+          grad.addColorStop(0.78, '#cbd5e1');
+          grad.addColorStop(1.0, '#94a3b8');
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, 256, 256);
+
+          // Crisp architectural highlight bands
+          ctx.save();
+          ctx.translate(128, 128);
+          ctx.rotate(-0.45);
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.36)';
+          ctx.fillRect(-180, -34, 360, 28);
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+          ctx.fillRect(-180, 12, 360, 12);
+          ctx.restore();
+
+          // Subtle inner perimeter anti-fog frame hint
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+          ctx.lineWidth = 4;
+          ctx.strokeRect(10, 10, 236, 236);
+
+          const tex = new THREE.CanvasTexture(canvas);
+          tex.colorSpace = THREE.SRGBColorSpace;
+          return new THREE.MeshPhysicalMaterial({
+            map: tex,
+            color: 0xffffff,
+            emissive: 0x475569,
+            emissiveIntensity: 0.22,
+            roughness: 0.06,
+            metalness: 0.35,
+            clearcoat: 1.0,
+            clearcoatRoughness: 0.03,
+          });
+        };
+
+        const bathFloorTileMat = createBathTileMaterial(false);
+        const wetWallTileMat = createBathTileMaterial(true);
+        const quartzMat = createQuartzCounterMaterial();
+        const showerSlateMat = createShowerSlateMaterial();
+        const mirrorGlassMat = createSilverMirrorMaterial();
+
+        const porcelainMat = new THREE.MeshPhysicalMaterial({
+          color: 0xf8fafc,
+          roughness: 0.14,
+          metalness: 0.04,
+          clearcoat: 0.9,
+          clearcoatRoughness: 0.08,
+        });
+        const chromeMat = new THREE.MeshStandardMaterial({
+          color: 0xe2e8f0,
+          roughness: 0.18,
+          metalness: 0.58,
+        });
+        const smoothBlackVanityMat = new THREE.MeshStandardMaterial({
+          color: 0x16181d,
+          roughness: 0.36,
+          metalness: 0.08,
+        });
+        const brushedBrassMat = new THREE.MeshStandardMaterial({
+          color: 0xc29b61,
+          roughness: 0.26,
+          metalness: 0.84,
+        });
+        const gunmetalMat = new THREE.MeshStandardMaterial({
+          color: 0x334155,
+          roughness: 0.34,
+          metalness: 0.72,
+        });
+        const flutedOakMat = smoothBlackVanityMat;
+        const walnutTrimMat = smoothBlackVanityMat;
+        const showerGlassMat = new THREE.MeshPhysicalMaterial({
+          color: 0xdbeafe,
+          transparent: true,
+          opacity: 0.34,
+          roughness: 0.06,
+          metalness: 0.12,
+          clearcoat: 1.0,
+          clearcoatRoughness: 0.04,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        });
+
+        // Dedicated Porcelain Stoneware Bathroom Floor Slab
         const bathFloor = new THREE.Mesh(
           new THREE.BoxGeometry(bWidth - 0.02, 0.025, bDepth - 0.02),
-          materials.countertopMaterial || materials.chassisMaterial
+          bathFloorTileMat
         );
         bathFloor.position.set(0, 0.15 + 0.0125, bCenterZ);
         bathFloor.receiveShadow = true;
@@ -4833,14 +5346,45 @@ export function buildHomeModel(
           bathGroup.add(bSide);
         });
 
+        // Wet-Zone & Vanity Porcelain Feature Wall Cladding + Recessed Upper Cove LED Accent
+        const wallTileThick = 0.008;
+        const rearTilePanel = new THREE.Mesh(
+          new THREE.BoxGeometry(bWidth - intWallT * 2, bHeight - 0.06, wallTileThick),
+          wetWallTileMat
+        );
+        rearTilePanel.position.set(0, floorSurfaceY + (bHeight - 0.06) / 2, rearWallInnerZ + wallTileThick / 2);
+        rearTilePanel.receiveShadow = true;
+
+        const leftShowerTileW = is10ft ? 0.90 : 0.96;
+        const leftShowerTile = new THREE.Mesh(
+          new THREE.BoxGeometry(wallTileThick, bHeight - 0.06, leftShowerTileW),
+          wetWallTileMat
+        );
+        leftShowerTile.position.set(leftWallInnerX + wallTileThick / 2, floorSurfaceY + (bHeight - 0.06) / 2, rearWallInnerZ + leftShowerTileW / 2);
+        leftShowerTile.receiveShadow = true;
+
+        const rightVanityTilePanel = new THREE.Mesh(
+          new THREE.BoxGeometry(wallTileThick, bHeight - 0.06, bDepth - intWallT * 2),
+          wetWallTileMat
+        );
+        rightVanityTilePanel.position.set(rightWallInnerX - wallTileThick / 2, floorSurfaceY + (bHeight - 0.06) / 2, bCenterZ);
+        rightVanityTilePanel.receiveShadow = true;
+
+        // Top ambient architectural LED wash trim along rear feature wall
+        const rearCoveLed = new THREE.Mesh(
+          new THREE.BoxGeometry(bWidth - intWallT * 2 - 0.08, 0.014, 0.018),
+          materials.ledStripMaterial
+        );
+        rearCoveLed.position.set(0, 0.15 + bHeight - 0.08, rearWallInnerZ + 0.018);
+
+        bathGroup.add(rearTilePanel, leftShowerTile, rightVanityTilePanel, rearCoveLed);
+
         // ===================================================================
         // ENTRANCE ACCESS DOORWAY & FRONT PARTITION WALL (At Z = zRear + bDepth - intWallT / 2)
         // ===================================================================
-        // Total pod width = 2.20m across X [-1.10m, +1.10m].
-        // Seamlessly split between left solid wall, entrance doorway, and right privacy wall
         const bDoorW = is10ft ? 0.72 : 0.80;
         const bDoorH = 2.10;
-        const doorOpeningX = is10ft ? -0.25 : -0.20; // Center of entrance doorway
+        const doorOpeningX = is10ft ? -0.25 : -0.20;
         const frontWallZ = zRear + bDepth - intWallT / 2;
 
         const leftFrontW = Math.abs((-bWidth / 2) - (doorOpeningX - bDoorW / 2));
@@ -4884,8 +5428,8 @@ export function buildHomeModel(
         });
         const headerJamb = new THREE.Mesh(new THREE.BoxGeometry(bDoorW + jambT * 2, 0.04, intWallT + 0.02), materials.metalTrimMaterial);
         headerJamb.position.set(doorOpeningX, 0.15 + bDoorH - 0.02, frontWallZ);
-        const threshold = new THREE.Mesh(new THREE.BoxGeometry(bDoorW, 0.015, 0.10), materials.metalTrimMaterial);
-        threshold.position.set(doorOpeningX, 0.15 + 0.0075, frontWallZ);
+        const threshold = new THREE.Mesh(new THREE.BoxGeometry(bDoorW, 0.015, 0.10), chromeMat);
+        threshold.position.set(doorOpeningX, floorSurfaceY + 0.004, frontWallZ);
         bathGroup.add(headerJamb, threshold);
 
         // Entrance Access Door Leaf: Reflects selected state.bathroomDoor style
@@ -4893,9 +5437,9 @@ export function buildHomeModel(
         const doorThick = 0.038;
         const doorLeafW = bDoorW - 0.02;
         const doorLeafH = bDoorH - 0.03;
-        const doorHingeX = doorOpeningX - bDoorW / 2 + 0.015; // Hinge on left jamb
+        const doorHingeX = doorOpeningX - bDoorW / 2 + 0.015;
         const isBathPocket = bathDoorStyle === 'bath-pocket-sliding-wetroom';
-        const doorSwingAngle = isBathPocket ? 0 : 0.38; // ~22 degrees open
+        const doorSwingAngle = isBathPocket ? 0 : 0.38;
 
         const doorGroup = new THREE.Group();
         doorGroup.position.set(
@@ -4990,7 +5534,6 @@ export function buildHomeModel(
           doorGroup.add(doorPanel);
 
           if (bathDoorStyle === 'bath-wpc-louver-vent') {
-            // Bottom architectural ventilation louvers
             for (let ly = -doorLeafH / 2 + 0.14; ly <= -doorLeafH / 2 + 0.46; ly += 0.045) {
               const louver = new THREE.Mesh(
                 new THREE.BoxGeometry(doorLeafW - 0.18, 0.018, doorThick + 0.008),
@@ -5017,7 +5560,7 @@ export function buildHomeModel(
         // Matte black / brushed hardware lever handles & occupancy indicator
         const hwMat =
           bathDoorStyle === 'bath-alu-frosted-glass' || bathDoorStyle === 'bath-pdlc-smart-privacy'
-            ? materials.brassHandleMaterial || materials.metalTrimMaterial
+            ? brushedBrassMat
             : new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.3, metalness: 0.75 });
         const handleX = doorLeafW - 0.08;
         const handleY = 0.15 + 1.02 - (0.15 + doorLeafH / 2);
@@ -5031,7 +5574,7 @@ export function buildHomeModel(
           leverArm.position.set(handleX - 0.05, handleY + 0.02, dir * (doorThick / 2 + 0.035));
           doorGroup.add(escutcheon, leverStem, leverArm);
         });
-        const indicator = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.008, 12), materials.metalTrimMaterial);
+        const indicator = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.008, 12), chromeMat);
         indicator.rotation.x = Math.PI / 2;
         indicator.position.set(handleX, handleY - 0.035, doorThick / 2 + 0.004);
         const thumbturn = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.008, 0.016), hwMat);
@@ -5040,313 +5583,777 @@ export function buildHomeModel(
         bathGroup.add(doorGroup);
 
         // ===================================================================
-        // FIXTURE A: WALK-IN RAINFALL SHOWER ENCLOSURE (Left Zone)
+        // FIXTURE A: ARCHITECTURAL WALK-IN RAINFALL BATHING POD (Left Zone)
         // ===================================================================
-        // Spans: Left wall (X = -1.06m) to X = -0.18m (width 0.88m)
-        // Z: zRear + intWallT (Z = zRear + 0.075m) to Z = zRear + 0.995m (depth 0.92m)
-        const showerTrayW = is10ft ? 0.80 : 0.88;
-        const showerTrayD = is10ft ? 0.86 : 0.92;
-        const showerCenterX = -bWidth / 2 + intWallT + showerTrayW / 2; // X = -0.62m
-        const showerCenterZ = zRear + intWallT + showerTrayD / 2; // Z = zRear + 0.535m
+        const showerWallX = leftWallInnerX + wallTileThick;
+        const showerBackZ = rearWallInnerZ + wallTileThick;
+        const showerTrayW = is10ft ? 0.78 : 0.86;
+        const showerTrayD = is10ft ? 0.84 : 0.92;
+        const showerCenterX = showerWallX + showerTrayW / 2;
+        const showerCenterZ = showerBackZ + showerTrayD / 2;
 
-        // 1. Ultra-Low Profile Stone Resin Shower Tray with Linear Trench Drain
-        const showerTray = new THREE.Mesh(new THREE.BoxGeometry(showerTrayW, 0.045, showerTrayD), materials.chassisMaterial);
-        showerTray.position.set(showerCenterX, 0.1725, showerCenterZ);
+        // 1. Honed Slate Walk-In Shower Base with Perimeter Curb & Slotted Linear Drain
+        const trayBaseH = 0.032;
+        const showerTrayBase = new THREE.Mesh(
+          new THREE.BoxGeometry(showerTrayW, trayBaseH, showerTrayD),
+          showerSlateMat
+        );
+        showerTrayBase.position.set(showerCenterX, floorSurfaceY + trayBaseH / 2, showerCenterZ);
+        showerTrayBase.receiveShadow = true;
 
-        const trenchDrain = new THREE.Mesh(new THREE.BoxGeometry(showerTrayW - 0.12, 0.008, 0.06), materials.metalTrimMaterial);
-        trenchDrain.position.set(showerCenterX, 0.196, zRear + intWallT + 0.06);
+        // Raised stone resin perimeter retaining curb around the shower floor
+        const curbT = 0.028;
+        const curbH = 0.014;
+        const trayTopY = floorSurfaceY + trayBaseH;
+        const frontCurb = new THREE.Mesh(
+          new THREE.BoxGeometry(showerTrayW, curbH, curbT),
+          showerSlateMat
+        );
+        frontCurb.position.set(showerCenterX, trayTopY + curbH / 2, showerBackZ + showerTrayD - curbT / 2);
+        const rightCurb = new THREE.Mesh(
+          new THREE.BoxGeometry(curbT, curbH, showerTrayD),
+          showerSlateMat
+        );
+        rightCurb.position.set(showerWallX + showerTrayW - curbT / 2, trayTopY + curbH / 2, showerCenterZ);
 
-        // 2. Frameless 10mm Tempered Glass Screen along Z (Dividing shower from dry zone)
-        // Runs along X = -0.18m from rear wall to Z = zRear + intWallT + 0.94m
-        const glassScreenX = -bWidth / 2 + intWallT + showerTrayW; // X = -0.18m
-        const glassScreenD = showerTrayD + 0.02; // 0.94m along Z
-        const glassCenterZ = zRear + intWallT + glassScreenD / 2;
-        const glassHeight = 2.05;
+        // Anti-slip teak/slate deck slats inside shower floor
+        for (let ds = 0; ds < 5; ds++) {
+          const dz = showerBackZ + 0.19 + ds * ((showerTrayD - 0.28) / 4);
+          const groove = new THREE.Mesh(
+            new THREE.BoxGeometry(showerTrayW - 0.14, 0.004, 0.016),
+            gunmetalMat
+          );
+          groove.position.set(showerCenterX - 0.01, trayTopY + 0.002, dz);
+          bathGroup.add(groove);
+        }
 
-        const showerGlass = new THREE.Mesh(new THREE.BoxGeometry(0.012, glassHeight, glassScreenD), materials.glassMaterial);
-        showerGlass.position.set(glassScreenX, 0.15 + glassHeight / 2, glassCenterZ);
+        // Slotted brushed stainless steel linear trench drain
+        const drainW = showerTrayW - 0.14;
+        const drainHousing = new THREE.Mesh(
+          new THREE.BoxGeometry(drainW, 0.006, 0.068),
+          gunmetalMat
+        );
+        drainHousing.position.set(showerCenterX - 0.01, trayTopY + 0.003, showerBackZ + 0.065);
+        const drainCover = new THREE.Mesh(
+          new THREE.BoxGeometry(drainW - 0.012, 0.008, 0.048),
+          chromeMat
+        );
+        drainCover.position.set(showerCenterX - 0.01, trayTopY + 0.004, showerBackZ + 0.065);
+        bathGroup.add(showerTrayBase, frontCurb, rightCurb, drainHousing, drainCover);
 
-        const glassChannelBottom = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, glassScreenD), materials.chassisMaterial);
-        glassChannelBottom.position.set(glassScreenX, 0.15 + 0.0125, glassCenterZ);
+        // 2. Frameless Architectural Tempered Glass Screen + Wall Clamps & Stabilizer Bar
+        const glassScreenX = showerWallX + showerTrayW - curbT / 2;
+        const glassScreenD = showerTrayD;
+        const glassCenterZ = showerBackZ + glassScreenD / 2;
+        const glassHeight = 2.04;
+        const glassBotY = trayTopY + curbH;
 
-        const glassChannelWall = new THREE.Mesh(new THREE.BoxGeometry(0.025, glassHeight, 0.025), materials.chassisMaterial);
-        glassChannelWall.position.set(glassScreenX, 0.15 + glassHeight / 2, zRear + intWallT + 0.0125);
+        const showerGlass = new THREE.Mesh(
+          new THREE.BoxGeometry(0.01, glassHeight, glassScreenD),
+          showerGlassMat
+        );
+        showerGlass.position.set(glassScreenX, glassBotY + glassHeight / 2, glassCenterZ);
 
-        // Stabilizer Bar anchored cleanly to the left wall at the top of the glass
-        const stabilizerBar = new THREE.Mesh(new THREE.BoxGeometry(showerTrayW, 0.02, 0.02), materials.metalTrimMaterial);
-        stabilizerBar.position.set(showerCenterX, 0.15 + glassHeight - 0.01, zRear + intWallT + showerTrayD - 0.04);
+        // Slim anodized bottom & rear sealing U-channels + precision patch clamps
+        const glassChannelBottom = new THREE.Mesh(
+          new THREE.BoxGeometry(0.018, 0.018, glassScreenD),
+          chromeMat
+        );
+        glassChannelBottom.position.set(glassScreenX, glassBotY + 0.009, glassCenterZ);
 
-        // 3. Polished Chrome 260mm Round Rainfall Showerhead & Wall Arm with Drop Pipe
-        const showerHead = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.02, 24), materials.metalTrimMaterial);
-        showerHead.position.set(showerCenterX, 0.15 + 2.12, showerCenterZ);
+        const glassChannelWall = new THREE.Mesh(
+          new THREE.BoxGeometry(0.018, glassHeight, 0.018),
+          chromeMat
+        );
+        glassChannelWall.position.set(glassScreenX, glassBotY + glassHeight / 2, showerBackZ + 0.009);
 
-        const showerDropPipe = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.10, 12), materials.metalTrimMaterial);
-        showerDropPipe.position.set(showerCenterX, 0.15 + 2.17, showerCenterZ);
+        [0.35, 1.05, 1.75].forEach((cy) => {
+          const patchClamp = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.042, 0.036), chromeMat);
+          patchClamp.position.set(glassScreenX, glassBotY + cy, showerBackZ + 0.018);
+          bathGroup.add(patchClamp);
+        });
 
-        const showerArm = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, showerTrayD / 2 + 0.05), materials.metalTrimMaterial);
-        showerArm.position.set(showerCenterX, 0.15 + 2.22, zRear + intWallT + showerTrayD / 4);
+        // Tubular stainless overhead stabilizer bar with glass bracket & wall rosette
+        const stabY = glassBotY + glassHeight - 0.025;
+        const stabZ = showerBackZ + glassScreenD - 0.055;
+        const stabilizerBar = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.011, 0.011, showerTrayW - curbT / 2, 12),
+          chromeMat
+        );
+        stabilizerBar.rotation.z = Math.PI / 2;
+        stabilizerBar.position.set(showerWallX + (showerTrayW - curbT / 2) / 2, stabY, stabZ);
+        const stabWallFlange = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.012, 16), chromeMat);
+        stabWallFlange.rotation.z = Math.PI / 2;
+        stabWallFlange.position.set(showerWallX + 0.006, stabY, stabZ);
+        const stabGlassClamp = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.036, 0.036), chromeMat);
+        stabGlassClamp.position.set(glassScreenX, stabY, stabZ);
 
-        // 4. Secondary Hand Shower Wand & Vertical Slider Rail on Left Wall
-        const sliderRail = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.65, 12), materials.metalTrimMaterial);
-        sliderRail.position.set(-bWidth / 2 + intWallT + 0.03, 0.15 + 1.30, showerCenterZ);
-        const handWand = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.20, 0.02), materials.metalTrimMaterial);
-        handWand.position.set(-bWidth / 2 + intWallT + 0.05, 0.15 + 1.40, showerCenterZ);
+        // 3. Slim Multi-Nozzle Rainfall Showerhead + Curved Gooseneck Arm
+        const headY = floorSurfaceY + 2.06;
+        const rainHeadBezel = new THREE.Mesh(
+          new THREE.BoxGeometry(0.25, 0.012, 0.25),
+          chromeMat
+        );
+        rainHeadBezel.position.set(showerCenterX, headY, showerCenterZ);
+        const rainNozzleFace = new THREE.Mesh(
+          new THREE.BoxGeometry(0.22, 0.006, 0.22),
+          gunmetalMat
+        );
+        rainNozzleFace.position.set(showerCenterX, headY - 0.005, showerCenterZ);
+        const headBallJoint = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.016, 0.022, 0.036, 12),
+          chromeMat
+        );
+        headBallJoint.position.set(showerCenterX, headY + 0.022, showerCenterZ);
 
-        // 5. Thermostatic Digital Mixer Valve Plate on Left Wall
-        const showerValve = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.22, 0.12), materials.metalTrimMaterial);
-        showerValve.position.set(-bWidth / 2 + intWallT + 0.015, 0.15 + 1.10, showerCenterZ);
-        const knob1 = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.025, 16), materials.metalTrimMaterial);
-        knob1.rotation.z = Math.PI / 2;
-        knob1.position.set(-bWidth / 2 + intWallT + 0.03, 0.15 + 1.15, showerCenterZ);
-        const knob2 = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.025, 16), materials.metalTrimMaterial);
-        knob2.rotation.z = Math.PI / 2;
-        knob2.position.set(-bWidth / 2 + intWallT + 0.03, 0.15 + 1.05, showerCenterZ);
+        // Curved shower feed arm from rear wet wall to overhead rainfall head
+        const armCurve = new THREE.CatmullRomCurve3([
+          new THREE.Vector3(showerCenterX, headY + 0.035, showerCenterZ),
+          new THREE.Vector3(showerCenterX, headY + 0.11, showerCenterZ - 0.02),
+          new THREE.Vector3(showerCenterX, headY + 0.13, showerCenterZ - 0.16),
+          new THREE.Vector3(showerCenterX, headY + 0.13, showerBackZ + 0.006),
+        ]);
+        const showerArmTube = new THREE.Mesh(new THREE.TubeGeometry(armCurve, 18, 0.011, 10, false), chromeMat);
+        const armEscutcheon = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.01, 16), chromeMat);
+        armEscutcheon.rotation.x = Math.PI / 2;
+        armEscutcheon.position.set(showerCenterX, headY + 0.13, showerBackZ + 0.005);
 
-        // 6. Recessed Illuminated Shower Niche on Rear Wall
-        const nicheW = 0.38;
+        // 4. Thermostatic Bar Mixer with Digital Display + Handshower Rail + Curved Flex Hose
+        const mixerX = showerWallX + 0.035;
+        const mixerY = floorSurfaceY + 1.05;
+        const mixerPlate = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.056, 0.28), chromeMat);
+        mixerPlate.position.set(showerWallX + 0.008, mixerY, showerCenterZ);
+        const mixerBody = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.24, 16), chromeMat);
+        mixerBody.rotation.x = Math.PI / 2;
+        mixerBody.position.set(mixerX, mixerY, showerCenterZ);
+        const mixerDigitalFace = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.024, 0.055), materials.applianceGlassMaterial);
+        mixerDigitalFace.position.set(mixerX + 0.018, mixerY, showerCenterZ);
+        const mixerGlowBar = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.008, 0.032), materials.ledStripMaterial);
+        mixerGlowBar.position.set(mixerX + 0.022, mixerY, showerCenterZ);
+
+        [-0.105, 0.105].forEach((dz) => {
+          const dial = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.03, 18), gunmetalMat);
+          dial.rotation.x = Math.PI / 2;
+          dial.position.set(mixerX + 0.004, mixerY, showerCenterZ + dz);
+          const dialCap = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.034, 16), chromeMat);
+          dialCap.rotation.x = Math.PI / 2;
+          dialCap.position.set(mixerX + 0.004, mixerY, showerCenterZ + dz);
+          bathGroup.add(dial, dialCap);
+        });
+
+        // Handshower vertical riser rail + sliding cradle + contoured wand + curved flexible hose
+        const railZ = showerCenterZ + 0.14;
+        const sliderRail = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.72, 12), chromeMat);
+        sliderRail.position.set(showerWallX + 0.042, floorSurfaceY + 1.44, railZ);
+        [floorSurfaceY + 1.12, floorSurfaceY + 1.76].forEach((ry) => {
+          const standoff = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.016, 0.042, 12), chromeMat);
+          standoff.rotation.z = Math.PI / 2;
+          standoff.position.set(showerWallX + 0.021, ry, railZ);
+          bathGroup.add(standoff);
+        });
+
+        const wandCradle = new THREE.Mesh(new THREE.BoxGeometry(0.038, 0.048, 0.036), gunmetalMat);
+        wandCradle.position.set(showerWallX + 0.052, floorSurfaceY + 1.48, railZ);
+        const wandHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.009, 0.16, 12), chromeMat);
+        wandHandle.position.set(showerWallX + 0.072, floorSurfaceY + 1.48, railZ);
+        wandHandle.rotation.z = -0.22;
+        const wandHead = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.032, 0.016, 18), chromeMat);
+        wandHead.rotation.z = Math.PI / 2 - 0.45;
+        wandHead.position.set(showerWallX + 0.095, floorSurfaceY + 1.565, railZ);
+        const wandFace = new THREE.Mesh(new THREE.CylinderGeometry(0.031, 0.031, 0.006, 18), gunmetalMat);
+        wandFace.rotation.z = Math.PI / 2 - 0.45;
+        wandFace.position.set(showerWallX + 0.10, floorSurfaceY + 1.561, railZ);
+
+        // Flexible curved stainless shower hose from mixer bar to hand wand
+        const showerHoseCurve = new THREE.CatmullRomCurve3([
+          new THREE.Vector3(mixerX, mixerY - 0.022, showerCenterZ - 0.04),
+          new THREE.Vector3(mixerX + 0.04, floorSurfaceY + 0.72, showerCenterZ + 0.04),
+          new THREE.Vector3(mixerX + 0.05, floorSurfaceY + 0.96, railZ + 0.03),
+          new THREE.Vector3(showerWallX + 0.06, floorSurfaceY + 1.40, railZ),
+        ]);
+        const showerHoseMesh = new THREE.Mesh(
+          new THREE.TubeGeometry(showerHoseCurve, 22, 0.007, 8, false),
+          chromeMat
+        );
+
+        // 5. Recessed LED-Lit Architectural Shower Niche with 3 Bath Bottles
+        const nicheW = is10ft ? 0.36 : 0.42;
         const nicheH = 0.28;
-        const nicheFrame = new THREE.Mesh(new THREE.BoxGeometry(nicheW, nicheH, 0.03), materials.countertopMaterial);
-        nicheFrame.position.set(showerCenterX, 0.15 + 1.45, zRear + intWallT + 0.015);
-        const nicheLed = new THREE.Mesh(new THREE.BoxGeometry(nicheW - 0.04, 0.015, 0.01), materials.ledStripMaterial);
-        nicheLed.position.set(showerCenterX, 0.15 + 1.45 + nicheH / 2 - 0.015, zRear + intWallT + 0.02);
+        const nicheD = 0.065;
+        const nicheY = floorSurfaceY + 1.38;
+        const nicheZ = showerBackZ + nicheD / 2;
+
+        const nicheBack = new THREE.Mesh(new THREE.BoxGeometry(nicheW, nicheH, 0.01), showerSlateMat);
+        nicheBack.position.set(showerCenterX, nicheY, showerBackZ + 0.006);
+        const nicheTop = new THREE.Mesh(new THREE.BoxGeometry(nicheW + 0.024, 0.016, nicheD), quartzMat);
+        nicheTop.position.set(showerCenterX, nicheY + nicheH / 2 + 0.008, nicheZ);
+        const nicheBot = new THREE.Mesh(new THREE.BoxGeometry(nicheW + 0.024, 0.018, nicheD + 0.01), quartzMat);
+        nicheBot.position.set(showerCenterX, nicheY - nicheH / 2 - 0.009, nicheZ + 0.004);
+        const nicheLeft = new THREE.Mesh(new THREE.BoxGeometry(0.016, nicheH, nicheD), quartzMat);
+        nicheLeft.position.set(showerCenterX - nicheW / 2 - 0.008, nicheY, nicheZ);
+        const nicheRight = new THREE.Mesh(new THREE.BoxGeometry(0.016, nicheH, nicheD), quartzMat);
+        nicheRight.position.set(showerCenterX + nicheW / 2 + 0.008, nicheY, nicheZ);
+        const nicheLed = new THREE.Mesh(new THREE.BoxGeometry(nicheW - 0.04, 0.008, 0.01), materials.ledStripMaterial);
+        nicheLed.position.set(showerCenterX, nicheY + nicheH / 2 - 0.008, showerBackZ + 0.032);
+
+        // 3 Toiletries seated neatly on bottom shelf of niche
+        const bottleShelfY = nicheY - nicheH / 2;
+        const shampooMat = new THREE.MeshStandardMaterial({ color: 0x3f6212, roughness: 0.32, metalness: 0.08 });
+        const shampooBottle = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.13, 14), shampooMat);
+        shampooBottle.position.set(showerCenterX - 0.10, bottleShelfY + 0.065, showerBackZ + 0.036);
+        const shampooPump = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.007, 0.028, 8), gunmetalMat);
+        shampooPump.position.set(showerCenterX - 0.10, bottleShelfY + 0.144, showerBackZ + 0.036);
+
+        const condMat = new THREE.MeshStandardMaterial({ color: 0xd6d3d1, roughness: 0.4, metalness: 0.04 });
+        const condBottle = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.025, 0.115, 14), condMat);
+        condBottle.position.set(showerCenterX, bottleShelfY + 0.058, showerBackZ + 0.036);
+        const condCap = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.013, 0.018, 10), gunmetalMat);
+        condCap.position.set(showerCenterX, bottleShelfY + 0.124, showerBackZ + 0.036);
+
+        const scrubJarMat = new THREE.MeshStandardMaterial({ color: 0x92400e, roughness: 0.25, metalness: 0.1 });
+        const scrubJar = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.026, 0.052, 14), scrubJarMat);
+        scrubJar.position.set(showerCenterX + 0.10, bottleShelfY + 0.026, showerBackZ + 0.036);
+        const scrubLid = new THREE.Mesh(new THREE.CylinderGeometry(0.029, 0.029, 0.012, 14), gunmetalMat);
+        scrubLid.position.set(showerCenterX + 0.10, bottleShelfY + 0.058, showerBackZ + 0.036);
 
         bathGroup.add(
-          showerTray,
-          trenchDrain,
           showerGlass,
           glassChannelBottom,
           glassChannelWall,
           stabilizerBar,
-          showerHead,
-          showerDropPipe,
-          showerArm,
+          stabWallFlange,
+          stabGlassClamp,
+          rainHeadBezel,
+          rainNozzleFace,
+          headBallJoint,
+          showerArmTube,
+          armEscutcheon,
+          mixerPlate,
+          mixerBody,
+          mixerDigitalFace,
+          mixerGlowBar,
           sliderRail,
-          handWand,
-          showerValve,
-          knob1,
-          knob2,
-          nicheFrame,
-          nicheLed
+          wandCradle,
+          wandHandle,
+          wandHead,
+          wandFace,
+          showerHoseMesh,
+          nicheBack,
+          nicheTop,
+          nicheBot,
+          nicheLeft,
+          nicheRight,
+          nicheLed,
+          shampooBottle,
+          shampooPump,
+          condBottle,
+          condCap,
+          scrubJar,
+          scrubLid
         );
 
         // ===================================================================
-        // FIXTURE B: ELONGATED WALL-HUNG CERAMIC TOILET (WC) (Rear-Right Zone)
+        // FIXTURE B: SCULPTED ARCHITECTURAL PORCELAIN WC (Rear-Right Zone)
         // ===================================================================
-        // Flush against the rear wall lining (Z = zRear + intWallT)
-        // Dry zone spans from shower glass (X = -0.18m) to right wall (X = +1.025m)
-        // Centered at X = +0.40m with generous legroom (0.88m open space in front)
-        const toiletX = is10ft ? 0.35 : 0.40;
-        const toiletRearZ = zRear + intWallT;
-        const bowlW = is10ft ? 0.34 : 0.36;
-        const bowlL = is10ft ? 0.48 : 0.54;
-        const bowlCenterZ = toiletRearZ + bowlL / 2;
+        const toiletX = is10ft ? 0.34 : 0.38;
+        const toiletRearZ = showerBackZ;
+        const bowlScaleZ = is10ft ? 1.32 : 1.44; // Elongated architectural bowl factor along Z
+        const bowlCenterZ = toiletRearZ + 0.295;
 
-        // 1. Ceramic Pedestal Base & Sculpted Bowl
-        const tPedestal = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.22, bowlL - 0.08), materials.ceramicVesselMaterial || materials.countertopMaterial);
-        tPedestal.position.set(toiletX, 0.15 + 0.11, bowlCenterZ - 0.02);
-        tPedestal.castShadow = true;
+        // 1. Continuous Sculpted Vitreous China Toilet Bowl via LatheGeometry
+        // Closed profile forming base skirt, curved waist, flared rim lip, and concave inner bowl!
+        const wcProfilePoints = [
+          new THREE.Vector2(0.0, 0.0),
+          new THREE.Vector2(0.112, 0.0),
+          new THREE.Vector2(0.116, 0.045),
+          new THREE.Vector2(0.102, 0.13),
+          new THREE.Vector2(0.128, 0.23),
+          new THREE.Vector2(0.166, 0.335),
+          new THREE.Vector2(0.175, 0.375),
+          new THREE.Vector2(0.17, 0.392),
+          new THREE.Vector2(0.136, 0.392),
+          new THREE.Vector2(0.122, 0.335),
+          new THREE.Vector2(0.092, 0.245),
+          new THREE.Vector2(0.052, 0.185),
+          new THREE.Vector2(0.0, 0.18),
+        ];
+        const sculptedBowlGeo = new THREE.LatheGeometry(wcProfilePoints, 32);
+        const tSculptedBowl = new THREE.Mesh(sculptedBowlGeo, porcelainMat);
+        tSculptedBowl.scale.set(1.0, 1.0, bowlScaleZ);
+        tSculptedBowl.position.set(toiletX, floorSurfaceY, bowlCenterZ);
+        tSculptedBowl.castShadow = true;
+        tSculptedBowl.receiveShadow = true;
 
-        const tBowl = new THREE.Mesh(new THREE.BoxGeometry(bowlW, 0.20, bowlL), materials.ceramicVesselMaterial || materials.countertopMaterial);
-        tBowl.position.set(toiletX, 0.15 + 0.22 + 0.10, bowlCenterZ);
-        tBowl.castShadow = true;
+        // Seamless rear porcelain shroud enclosing plumbing to rear wall
+        const shroudShape = new THREE.Shape();
+        const sw = 0.155;
+        shroudShape.moveTo(-sw, 0);
+        shroudShape.lineTo(sw, 0);
+        shroudShape.lineTo(sw, 0.365);
+        shroudShape.quadraticCurveTo(sw, 0.39, sw - 0.03, 0.39);
+        shroudShape.lineTo(-sw + 0.03, 0.39);
+        shroudShape.quadraticCurveTo(-sw, 0.39, -sw, 0.365);
+        shroudShape.closePath();
 
-        const tWell = new THREE.Mesh(new THREE.BoxGeometry(bowlW - 0.08, 0.06, bowlL - 0.12), materials.glassMaterial);
-        tWell.position.set(toiletX, 0.15 + 0.38, bowlCenterZ + 0.02);
+        const shroudGeo = new THREE.ExtrudeGeometry(shroudShape, {
+          depth: 0.24,
+          bevelEnabled: true,
+          bevelThickness: 0.012,
+          bevelSize: 0.01,
+          bevelSegments: 2,
+        });
+        const tRearShroud = new THREE.Mesh(shroudGeo, porcelainMat);
+        tRearShroud.position.set(toiletX, floorSurfaceY, toiletRearZ);
+        tRearShroud.castShadow = true;
 
-        // 2. Ergonomic Soft-Close Seat Ring & Contoured Lid
-        const tSeat = new THREE.Mesh(new THREE.BoxGeometry(bowlW, 0.025, bowlL - 0.04), materials.ceramicVesselMaterial || materials.countertopMaterial);
-        tSeat.position.set(toiletX, 0.15 + 0.42 + 0.0125, bowlCenterZ);
+        // 2. Slim Contoured Soft-Close Seat & Wrap-Over Lid + Chrome Hinges
+        const seatShape = new THREE.Shape();
+        const seatRx = 0.172;
+        const seatRz = 0.172 * bowlScaleZ;
+        seatShape.absellipse(0, 0, seatRx, seatRz, 0, Math.PI * 2, false, 0);
+        const seatInnerHole = new THREE.Path();
+        seatInnerHole.absellipse(0, 0.01, 0.116, 0.116 * bowlScaleZ, 0, Math.PI * 2, true, 0);
+        seatShape.holes.push(seatInnerHole);
 
-        const tLid = new THREE.Mesh(new THREE.BoxGeometry(bowlW, 0.02, bowlL - 0.04), materials.ceramicVesselMaterial || materials.countertopMaterial);
-        tLid.position.set(toiletX, 0.15 + 0.445 + 0.01, bowlCenterZ);
+        const tSeatGeo = new THREE.ExtrudeGeometry(seatShape, {
+          depth: 0.016,
+          bevelEnabled: true,
+          bevelThickness: 0.005,
+          bevelSize: 0.005,
+          bevelSegments: 2,
+          curveSegments: 28,
+        });
+        const tSeat = new THREE.Mesh(tSeatGeo, porcelainMat);
+        tSeat.rotation.x = Math.PI / 2;
+        tSeat.position.set(toiletX, floorSurfaceY + 0.408, bowlCenterZ);
 
-        const tHinge = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.025, 0.03), materials.metalTrimMaterial);
-        tHinge.position.set(toiletX, 0.15 + 0.44, toiletRearZ + 0.02);
+        // Flush wrap-over soft-close toilet lid
+        const lidShape = new THREE.Shape();
+        lidShape.absellipse(0, 0, 0.176, 0.176 * bowlScaleZ, 0, Math.PI * 2, false, 0);
+        const tLidGeo = new THREE.ExtrudeGeometry(lidShape, {
+          depth: 0.014,
+          bevelEnabled: true,
+          bevelThickness: 0.007,
+          bevelSize: 0.006,
+          bevelSegments: 3,
+          curveSegments: 28,
+        });
+        const tLid = new THREE.Mesh(tLidGeo, porcelainMat);
+        tLid.rotation.x = Math.PI / 2;
+        tLid.position.set(toiletX, floorSurfaceY + 0.428, bowlCenterZ);
+        tLid.castShadow = true;
 
-        // 3. Concealed In-Wall Cistern Actuator Plate on Rear Wall
-        const flushPlate = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.14, 0.012), materials.metalTrimMaterial);
-        flushPlate.position.set(toiletX, 0.15 + 1.15, toiletRearZ + 0.008);
-        const flushBtn1 = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.08, 0.008), materials.applianceGlassMaterial);
-        flushBtn1.position.set(toiletX - 0.042, 0.15 + 1.15, toiletRearZ + 0.015);
-        const flushBtn2 = new THREE.Mesh(new THREE.BoxGeometry(0.065, 0.08, 0.008), materials.applianceGlassMaterial);
-        flushBtn2.position.set(toiletX + 0.042, 0.15 + 1.15, toiletRearZ + 0.015);
-
-        // 4. Chrome Angle Stop Valve and Braided Stainless Hose
-        const waterValve = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.04, 8), materials.metalTrimMaterial);
-        waterValve.rotation.z = Math.PI / 2;
-        waterValve.position.set(toiletX - 0.22, 0.15 + 0.18, toiletRearZ + 0.02);
-        const flexHose = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.008, 8, 16, Math.PI / 2), materials.metalTrimMaterial);
-        flexHose.rotation.y = Math.PI / 2;
-        flexHose.position.set(toiletX - 0.22, 0.15 + 0.24, toiletRearZ + 0.06);
-
-        // 5. Toilet Paper Holder Mounted on Right Wall beside toilet
-        const tpRightWallX = bWidth / 2 - intWallT;
-        const tpZ = toiletRearZ + 0.42;
-        const tpBracket = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.04, 0.14), materials.metalTrimMaterial);
-        tpBracket.position.set(tpRightWallX - 0.01, 0.15 + 0.72, tpZ);
-        const tpRoll = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.12, 16), materials.bedLinenMaterial);
-        tpRoll.rotation.x = Math.PI / 2;
-        tpRoll.position.set(tpRightWallX - 0.06, 0.15 + 0.72, tpZ);
-
-        bathGroup.add(
-          tPedestal,
-          tBowl,
-          tWell,
-          tSeat,
-          tLid,
-          tHinge,
-          flushPlate,
-          flushBtn1,
-          flushBtn2,
-          waterValve,
-          flexHose,
-          tpBracket,
-          tpRoll
-        );
-
-        // ===================================================================
-        // FIXTURE C: LUXURY FLOATING VANITY SUITE (Front-Right Zone, Along Right Wall)
-        // ===================================================================
-        // Mounted flush along the solid RIGHT WALL (X = +1.025m), facing LEFT (-X)
-        // Perfectly positioned in the front quadrant:
-        // Positioned safely behind the front partition wall with zero door/wall intersection!
-        const vW = is10ft ? 0.48 : 0.68; // Length along Z
-        const vD = is10ft ? 0.36 : 0.40; // Depth along X
-        const vH = 0.46; // Height
-        const vanityRightX = bWidth / 2 - intWallT; // Flush against right wall at X = +1.025m
-        const vanityX = vanityRightX - vD / 2; // X = +0.845m (10ft) / +0.825m (others)
-        const frontWallInnerZ = frontWallZ - intWallT / 2;
-        const vanityFrontClearance = is10ft ? 0.08 : 0.06;
-        const vanityZ = is10ft
-          ? (frontWallInnerZ - vanityFrontClearance - vW / 2)
-          : (zRear + intWallT + 0.98);
-
-        // 1. Floating Fluted Oak Vanity Cabinet with soft-close drawers
-        const vanityCab = new THREE.Mesh(
-          new THREE.BoxGeometry(vD, vH, vW),
-          materials.cabinetWoodNicheMaterial || materials.sofaWoodFrameMaterial
-        );
-        vanityCab.position.set(vanityX, 0.15 + 0.36 + vH / 2, vanityZ);
-        vanityCab.castShadow = true;
-
-        // Front face is at X = vanityX - vD / 2 (facing -X into the bathroom)
-        const frontFaceX = vanityX - vD / 2;
-        const drawerSplit = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.008, vW - 0.04), materials.chassisMaterial);
-        drawerSplit.position.set(frontFaceX - 0.003, 0.15 + 0.36 + vH / 2, vanityZ);
-
-        const pull1 = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.015, Math.min(0.28, vW - 0.12)), materials.brassHandleMaterial || materials.metalTrimMaterial);
-        pull1.position.set(frontFaceX - 0.012, 0.15 + 0.36 + vH * 0.75, vanityZ);
-        const pull2 = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.015, Math.min(0.28, vW - 0.12)), materials.brassHandleMaterial || materials.metalTrimMaterial);
-        pull2.position.set(frontFaceX - 0.012, 0.15 + 0.36 + vH * 0.25, vanityZ);
-
-        // Lower open shelf with three rolled luxury guest towels
-        const towelShelf = new THREE.Mesh(new THREE.BoxGeometry(vD - 0.06, 0.02, vW - 0.06), materials.cabinetMaterial);
-        towelShelf.position.set(vanityX, 0.15 + 0.20, vanityZ);
-        const towelStep = is10ft ? 0.11 : 0.15;
-        [-towelStep, 0, towelStep].forEach((tz) => {
-          const rolledTowel = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, vD - 0.10, 12), materials.bedLinenMaterial);
-          rolledTowel.rotation.z = Math.PI / 2;
-          rolledTowel.position.set(vanityX, 0.15 + 0.25, vanityZ + tz);
-          bathGroup.add(rolledTowel);
+        // Dual polished chrome quick-release hinge caps
+        [-0.078, 0.078].forEach((hx) => {
+          const hingePin = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.022, 12), chromeMat);
+          hingePin.position.set(toiletX + hx, floorSurfaceY + 0.422, toiletRearZ + 0.085);
+          bathGroup.add(hingePin);
         });
 
-        // 2. Calacatta Quartz Countertop with Splashback along Right Wall
-        const vCounter = new THREE.Mesh(new THREE.BoxGeometry(vD + 0.01, 0.035, vW + 0.01), materials.countertopMaterial);
-        vCounter.position.set(vanityX, 0.15 + 0.36 + vH + 0.0175, vanityZ);
-        vCounter.castShadow = true;
+        // 3. Concealed In-Wall Cistern Glass & Chrome Dual-Flush Actuator Plate
+        const flushY = floorSurfaceY + 1.06;
+        const flushOuterPlate = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.155, 0.012), chromeMat);
+        flushOuterPlate.position.set(toiletX, flushY, toiletRearZ + 0.006);
+        const flushGlassFace = new THREE.Mesh(new THREE.BoxGeometry(0.224, 0.138, 0.006), porcelainMat);
+        flushGlassFace.position.set(toiletX, flushY, toiletRearZ + 0.012);
+        const flushLargeBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.008, 20), chromeMat);
+        flushLargeBtn.rotation.x = Math.PI / 2;
+        flushLargeBtn.position.set(toiletX - 0.044, flushY, toiletRearZ + 0.016);
+        const flushSmallBtn = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.008, 20), chromeMat);
+        flushSmallBtn.rotation.x = Math.PI / 2;
+        flushSmallBtn.position.set(toiletX + 0.046, flushY, toiletRearZ + 0.016);
 
-        // Splashback flush against Right Wall (X = vanityRightX)
-        const splashback = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.08, vW), materials.countertopMaterial);
-        splashback.position.set(vanityRightX - 0.01, 0.15 + 0.36 + vH + 0.035 + 0.04, vanityZ);
+        // 4. Compact Wall Bidet / Shattaf Sprayer + Coiled Chrome Flex Hose (Left of WC)
+        const bidetX = toiletX - 0.24;
+        const bidetVal = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.028, 12), chromeMat);
+        bidetVal.rotation.x = Math.PI / 2;
+        bidetVal.position.set(bidetX, floorSurfaceY + 0.46, toiletRearZ + 0.014);
+        const bidetWand = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.009, 0.12, 12), chromeMat);
+        bidetWand.position.set(bidetX, floorSurfaceY + 0.49, toiletRearZ + 0.034);
+        const bidetHoseCurve = new THREE.CatmullRomCurve3([
+          new THREE.Vector3(bidetX, floorSurfaceY + 0.44, toiletRearZ + 0.026),
+          new THREE.Vector3(bidetX - 0.015, floorSurfaceY + 0.30, toiletRearZ + 0.055),
+          new THREE.Vector3(bidetX, floorSurfaceY + 0.43, toiletRearZ + 0.034),
+        ]);
+        const bidetHose = new THREE.Mesh(new THREE.TubeGeometry(bidetHoseCurve, 14, 0.005, 8, false), chromeMat);
 
-        // 3. Contemporary Porcelain Vessel Basin Sink (Centered on Countertop)
-        const basinW = is10ft ? 0.34 : 0.44; // Along Z
-        const basinD = is10ft ? 0.24 : 0.28; // Along X
-        const basinH = is10ft ? 0.11 : 0.12;
-        const basinY = 0.15 + 0.36 + vH + 0.035 + basinH / 2;
-        const basinInsetFromWall = is10ft ? 0.065 : 0.06;
-        const basinX = vanityRightX - basinInsetFromWall - basinD / 2;
+        // 5. Wall-Mounted Hooded Chrome Toilet Roll Holder on Right Wall beside WC
+        const tpWallX = rightWallInnerX - wallTileThick;
+        const tpZ = toiletRearZ + 0.36;
+        const tpRosette = new THREE.Mesh(new THREE.CylinderGeometry(0.024, 0.024, 0.014, 16), chromeMat);
+        tpRosette.rotation.z = Math.PI / 2;
+        tpRosette.position.set(tpWallX - 0.007, floorSurfaceY + 0.66, tpZ + 0.075);
+        const tpArm = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.075, 10), chromeMat);
+        tpArm.rotation.z = Math.PI / 2;
+        tpArm.position.set(tpWallX - 0.045, floorSurfaceY + 0.66, tpZ + 0.075);
+        const tpSpindle = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.145, 10), chromeMat);
+        tpSpindle.rotation.x = Math.PI / 2;
+        tpSpindle.position.set(tpWallX - 0.078, floorSurfaceY + 0.66, tpZ);
+        const tpHood = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.006, 0.135), chromeMat);
+        tpHood.position.set(tpWallX - 0.068, floorSurfaceY + 0.725, tpZ);
+        tpHood.rotation.z = 0.18;
+        const tpRoll = new THREE.Mesh(new THREE.CylinderGeometry(0.054, 0.054, 0.105, 20), materials.bedLinenMaterial);
+        tpRoll.rotation.x = Math.PI / 2;
+        tpRoll.position.set(tpWallX - 0.078, floorSurfaceY + 0.66, tpZ);
+        const tpCore = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.108, 12), flutedOakMat);
+        tpCore.rotation.x = Math.PI / 2;
+        tpCore.position.set(tpWallX - 0.078, floorSurfaceY + 0.66, tpZ);
 
-        const vesselBasin = new THREE.Mesh(new THREE.BoxGeometry(basinD, basinH, basinW), materials.ceramicVesselMaterial || materials.countertopMaterial);
-        vesselBasin.position.set(basinX, basinY, vanityZ);
-        vesselBasin.castShadow = true;
-
-        // Sloped inner basin cavity
-        const basinCavity = new THREE.Mesh(new THREE.BoxGeometry(basinD - 0.05, basinH - 0.02, basinW - 0.06), materials.applianceGlassMaterial);
-        basinCavity.position.set(basinX, basinY + 0.015, vanityZ);
-
-        // Chrome pop-up drain stopper centered in basin
-        const popUpDrain = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.01, 16), materials.metalTrimMaterial);
-        popUpDrain.position.set(basinX, basinY - basinH / 2 + 0.015, vanityZ);
-
-        // 4. Tall Designer Mono-Bloc Mixer Faucet (Mounted behind vessel basin near Right Wall)
-        const faucetX = vanityRightX - 0.045;
-        const faucetStem = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.22, 12), materials.brassHandleMaterial || materials.metalTrimMaterial);
-        faucetStem.position.set(faucetX, basinY + 0.06, vanityZ);
-        const faucetSpout = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.015, 0.015), materials.brassHandleMaterial || materials.metalTrimMaterial);
-        faucetSpout.position.set(faucetX - 0.05, basinY + 0.16, vanityZ);
-        const faucetLever = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.01, 0.015), materials.brassHandleMaterial || materials.metalTrimMaterial);
-        faucetLever.position.set(faucetX, basinY + 0.17, vanityZ);
-
-        // 5. Amber Glass Soap Dispenser Bottle on counter
-        const soapZ = vanityZ - (is10ft ? 0.14 : 0.20);
-        const soapBottle = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.10, 12), materials.candleGlowMaterial || materials.applianceGlassMaterial);
-        soapBottle.position.set(vanityX + (is10ft ? 0.05 : 0.08), 0.15 + 0.36 + vH + 0.035 + 0.05, soapZ);
-        const soapPump = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.04, 8), materials.metalTrimMaterial);
-        soapPump.position.set(vanityX + (is10ft ? 0.05 : 0.08), 0.15 + 0.36 + vH + 0.035 + 0.11, soapZ);
-
-        // 6. Wall-Mounted Hand Towel Ring with Plush Hand Towel on Front Wall beside Vanity
-        const towelRing = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.008, 8, 16), materials.brassHandleMaterial || materials.metalTrimMaterial);
-        towelRing.position.set(vanityX - 0.10, 0.15 + 1.15, frontWallInnerZ - 0.01);
-        const hangingTowel = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.28, 0.02), materials.bedLinenMaterial);
-        hangingTowel.position.set(vanityX - 0.10, 0.15 + 0.98, frontWallInnerZ - 0.01);
-
-        // 7. Oversized Smart LED Backlit Mirror Mounted Flush Against Right Wall
-        // Centered directly over the vanity at vanityZ, facing left (-X) into the bathroom
-        const mirrorW = is10ft ? 0.42 : 0.54; // Along Z
-        const mirrorH = is10ft ? 0.74 : 0.82; // Along Y
-        const mirrorY = 0.15 + (is10ft ? 1.45 : 1.50);
-        const mirrorWallX = vanityRightX - 0.01;
-
-        // Ambient halo glow behind mirror on right wall
-        const mirrorGlow = new THREE.Mesh(new THREE.BoxGeometry(0.01, mirrorH + 0.06, mirrorW + 0.06), materials.ledStripMaterial);
-        mirrorGlow.position.set(mirrorWallX, mirrorY, vanityZ);
-
-        // Brushed brass / black perimeter mirror frame
-        const mirrorFrame = new THREE.Mesh(new THREE.BoxGeometry(0.02, mirrorH, mirrorW), materials.brassHandleMaterial || materials.metalTrimMaterial);
-        mirrorFrame.position.set(mirrorWallX - 0.01, mirrorY, vanityZ);
-
-        // High-clarity glass mirror reflection face (facing -X into room)
-        const mirrorGlass = new THREE.Mesh(new THREE.BoxGeometry(0.005, mirrorH - 0.03, mirrorW - 0.03), materials.glassMaterial);
-        mirrorGlass.position.set(mirrorWallX - 0.022, mirrorY, vanityZ);
-
-        // Circular touch sensor icon on mirror surface
-        const touchIcon = new THREE.Mesh(new THREE.RingGeometry(0.012, 0.016, 16), materials.ledStripMaterial);
-        touchIcon.rotation.y = Math.PI / 2;
-        touchIcon.position.set(mirrorWallX - 0.025, mirrorY - 0.28, vanityZ);
+        // Minimalist ceramic toilet brush caddy tucked cleanly behind right of WC
+        const brushCup = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.044, 0.15, 16), porcelainMat);
+        brushCup.position.set(toiletX + 0.28, floorSurfaceY + 0.075, toiletRearZ + 0.10);
+        const brushHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.22, 10), chromeMat);
+        brushHandle.position.set(toiletX + 0.28, floorSurfaceY + 0.22, toiletRearZ + 0.10);
 
         bathGroup.add(
-          vanityCab,
-          drawerSplit,
-          pull1,
-          pull2,
-          towelShelf,
-          vCounter,
-          splashback,
-          vesselBasin,
-          basinCavity,
-          popUpDrain,
-          faucetStem,
+          tSculptedBowl,
+          tRearShroud,
+          tSeat,
+          tLid,
+          flushOuterPlate,
+          flushGlassFace,
+          flushLargeBtn,
+          flushSmallBtn,
+          bidetVal,
+          bidetWand,
+          bidetHose,
+          tpRosette,
+          tpArm,
+          tpSpindle,
+          tpHood,
+          tpRoll,
+          tpCore,
+          brushCup,
+          brushHandle
+        );
+
+        // ===================================================================
+        // FIXTURE C: ARCHITECTURAL FLOATING VANITY, HOLLOW VESSEL BASIN & BRIGHT SMART MIRROR
+        // ===================================================================
+        const vW = is10ft ? 0.48 : 0.68; // Length along Z
+        const vD = is10ft ? 0.36 : 0.40; // Depth along X
+        const vH = 0.45;
+        const vanityRightX = rightWallInnerX - wallTileThick;
+        const vanityX = vanityRightX - vD / 2;
+        const frontWallInnerZ = frontWallZ - intWallT / 2;
+        const vanityFrontClearance = is10ft ? 0.075 : 0.06;
+        const vanityZ = is10ft
+          ? frontWallInnerZ - vanityFrontClearance - vW / 2
+          : zRear + intWallT + 0.98;
+        const cabBottomY = floorSurfaceY + 0.34;
+        const cabTopY = cabBottomY + vH;
+
+        // 1. Smooth Minimalist Matte Black Floating Vanity Closet (Pattern-Free)
+        const vanityBody = new THREE.Mesh(
+          new THREE.BoxGeometry(vD - 0.016, vH, vW - 0.012),
+          smoothBlackVanityMat
+        );
+        vanityBody.position.set(vanityX + 0.008, cabBottomY + vH / 2, vanityZ);
+        vanityBody.castShadow = true;
+        vanityBody.receiveShadow = true;
+
+        // Smooth flat flush drawer fronts separated by a crisp recessed horizontal shadow reveal (no ribs or patterns)
+        const drawerFrontX = vanityX - vD / 2 + 0.009;
+        const halfDrawerH = (vH - 0.016) / 2;
+        [
+          cabBottomY + halfDrawerH / 2 + 0.003,
+          cabBottomY + vH - halfDrawerH / 2 - 0.003,
+        ].forEach((dy) => {
+          const dSlab = new THREE.Mesh(
+            new THREE.BoxGeometry(0.018, halfDrawerH, vW - 0.014),
+            smoothBlackVanityMat
+          );
+          dSlab.position.set(drawerFrontX, dy, vanityZ);
+          dSlab.castShadow = true;
+          dSlab.receiveShadow = true;
+          bathGroup.add(dSlab);
+        });
+
+        // Floating under-cabinet warm LED wash strip
+        const vanityUnderLed = new THREE.Mesh(
+          new THREE.BoxGeometry(0.014, 0.008, vW - 0.08),
+          materials.ledStripMaterial
+        );
+        vanityUnderLed.position.set(vanityX, cabBottomY - 0.004, vanityZ);
+
+        // Smooth matte black lower floating shelf with folded luxury towels & charcoal storage basket
+        const lowerShelfY = floorSurfaceY + 0.16;
+        const lowerShelf = new THREE.Mesh(
+          new THREE.BoxGeometry(vD - 0.05, 0.018, vW - 0.04),
+          smoothBlackVanityMat
+        );
+        lowerShelf.position.set(vanityX + 0.01, lowerShelfY, vanityZ);
+        bathGroup.add(vanityBody, vanityUnderLed, lowerShelf);
+
+        // Stacked folded plush towels + woven storage basket on lower shelf
+        const towelFoldZ = vanityZ - (is10ft ? 0.08 : 0.14);
+        const towelTaupeMat = new THREE.MeshStandardMaterial({ color: 0xd6d3d1, roughness: 0.88 });
+        [0, 1].forEach((layer) => {
+          const foldedTowel = new THREE.Mesh(
+            new THREE.BoxGeometry(vD - 0.12, 0.036, is10ft ? 0.16 : 0.22),
+            layer === 0 ? towelTaupeMat : materials.bedLinenMaterial
+          );
+          foldedTowel.position.set(vanityX + 0.01, lowerShelfY + 0.028 + layer * 0.038, towelFoldZ);
+          bathGroup.add(foldedTowel);
+        });
+        const basketZ = vanityZ + (is10ft ? 0.10 : 0.16);
+        const weaveBasket = new THREE.Mesh(
+          new THREE.BoxGeometry(vD - 0.13, 0.095, is10ft ? 0.15 : 0.20),
+          gunmetalMat
+        );
+        weaveBasket.position.set(vanityX + 0.01, lowerShelfY + 0.056, basketZ);
+        bathGroup.add(weaveBasket);
+
+        // 2. Veined Calacatta Quartz Countertop Slab & Matching Backsplash
+        const counterH = 0.036;
+        const counterTopY = cabTopY + counterH;
+        const vCounter = new THREE.Mesh(
+          new THREE.BoxGeometry(vD + 0.016, counterH, vW + 0.016),
+          quartzMat
+        );
+        vCounter.position.set(vanityX - 0.004, cabTopY + counterH / 2, vanityZ);
+        vCounter.castShadow = true;
+        vCounter.receiveShadow = true;
+
+        const splashback = new THREE.Mesh(
+          new THREE.BoxGeometry(0.018, 0.085, vW + 0.012),
+          quartzMat
+        );
+        splashback.position.set(vanityRightX - 0.009, counterTopY + 0.0425, vanityZ);
+        bathGroup.add(vCounter, splashback);
+
+        // 3. Authentic Hollowed-Out Sculpted Porcelain Vessel Basin (Real cavity & drain!)
+        const basinW = is10ft ? 0.32 : 0.44; // Along Z
+        const basinD = is10ft ? 0.23 : 0.28; // Along X
+        const basinH = is10ft ? 0.105 : 0.118;
+        const basinX = vanityRightX - (is10ft ? 0.075 : 0.085) - basinD / 2;
+
+        // Outer sculpted stadium-rounded perimeter walls via ExtrudeGeometry with real central hole
+        const bOuter = new THREE.Shape();
+        const bHx = basinD / 2;
+        const bHz = basinW / 2;
+        const bCr = 0.042;
+        bOuter.moveTo(-bHx + bCr, -bHz);
+        bOuter.lineTo(bHx - bCr, -bHz);
+        bOuter.quadraticCurveTo(bHx, -bHz, bHx, -bHz + bCr);
+        bOuter.lineTo(bHx, bHz - bCr);
+        bOuter.quadraticCurveTo(bHx, bHz, bHx - bCr, bHz);
+        bOuter.lineTo(-bHx + bCr, bHz);
+        bOuter.quadraticCurveTo(-bHx, bHz, -bHx, bHz - bCr);
+        bOuter.lineTo(-bHx, -bHz + bCr);
+        bOuter.quadraticCurveTo(-bHx, -bHz, -bHx + bCr, -bHz);
+
+        const wallThick = 0.022;
+        const bIx = bHx - wallThick;
+        const bIz = bHz - wallThick;
+        const bIcr = 0.028;
+        const bInnerHole = new THREE.Path();
+        bInnerHole.moveTo(-bIx + bIcr, -bIz);
+        bInnerHole.lineTo(bIx - bIcr, -bIz);
+        bInnerHole.quadraticCurveTo(bIx, -bIz, bIx, -bIz + bIcr);
+        bInnerHole.lineTo(bIx, bIz - bIcr);
+        bInnerHole.quadraticCurveTo(bIx, bIz, bIx - bIcr, bIz);
+        bInnerHole.lineTo(-bIx + bIcr, bIz);
+        bInnerHole.quadraticCurveTo(-bIx, bIz, -bIx, bIz - bIcr);
+        bInnerHole.lineTo(-bIx, -bIz + bIcr);
+        bInnerHole.quadraticCurveTo(-bIx, -bIz, -bIx + bIcr, -bIz);
+        bOuter.holes.push(bInnerHole);
+
+        const vesselRimGeo = new THREE.ExtrudeGeometry(bOuter, {
+          depth: basinH - 0.014,
+          bevelEnabled: true,
+          bevelThickness: 0.007,
+          bevelSize: 0.006,
+          bevelSegments: 3,
+          curveSegments: 20,
+        });
+        const vesselBasinRim = new THREE.Mesh(vesselRimGeo, porcelainMat);
+        vesselBasinRim.rotation.x = -Math.PI / 2;
+        vesselBasinRim.position.set(basinX, counterTopY + 0.007, vanityZ);
+        vesselBasinRim.castShadow = true;
+        vesselBasinRim.receiveShadow = true;
+
+        // Glazed white porcelain concave basin floor seated flush inside the cutout
+        const basinFloorShape = new THREE.Shape();
+        basinFloorShape.moveTo(-bIx + bIcr, -bIz);
+        basinFloorShape.lineTo(bIx - bIcr, -bIz);
+        basinFloorShape.quadraticCurveTo(bIx, -bIz, bIx, -bIz + bIcr);
+        basinFloorShape.lineTo(bIx, bIz - bIcr);
+        basinFloorShape.quadraticCurveTo(bIx, bIz, bIx - bIcr, bIz);
+        basinFloorShape.lineTo(-bIx + bIcr, bIz);
+        basinFloorShape.quadraticCurveTo(-bIx, bIz, -bIx, bIz - bIcr);
+        basinFloorShape.lineTo(-bIx, -bIz + bIcr);
+        basinFloorShape.quadraticCurveTo(-bIx, -bIz, -bIx + bIcr, -bIz);
+
+        const basinFloorMesh = new THREE.Mesh(
+          new THREE.ExtrudeGeometry(basinFloorShape, {
+            depth: 0.022,
+            bevelEnabled: false,
+            curveSegments: 16,
+          }),
+          porcelainMat
+        );
+        basinFloorMesh.rotation.x = -Math.PI / 2;
+        basinFloorMesh.position.set(basinX, counterTopY, vanityZ);
+        basinFloorMesh.receiveShadow = true;
+
+        // Chrome mushroom pop-up waste drain & inner overflow bezel ring
+        const drainCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.006, 20), chromeMat);
+        drainCollar.position.set(basinX, counterTopY + 0.023, vanityZ);
+        const drainCap = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.018, 0.009, 20), chromeMat);
+        drainCap.position.set(basinX, counterTopY + 0.03, vanityZ);
+        const overflowRing = new THREE.Mesh(new THREE.TorusGeometry(0.009, 0.0025, 8, 16), chromeMat);
+        overflowRing.rotation.y = Math.PI / 2;
+        overflowRing.position.set(basinX + bIx - 0.002, counterTopY + basinH - 0.032, vanityZ);
+
+        // 4. ONE Single Clean Architectural Chrome Mixer Tap (No duplicate stems, cleanly below mirror)
+        const faucetX = vanityRightX - 0.05;
+        const faucetCollar = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.024, 0.012, 18), chromeMat);
+        faucetCollar.position.set(faucetX, counterTopY + 0.006, vanityZ);
+        const faucetRiser = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.015, 0.132, 16), chromeMat);
+        faucetRiser.position.set(faucetX, counterTopY + 0.072, vanityZ);
+
+        // Single sleek forward-projecting horizontal spout reaching cleanly over the basin
+        const spoutLen = Math.max(0.11, faucetX - (basinX + 0.015));
+        const faucetSpout = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.0095, 0.011, spoutLen, 14),
+          chromeMat
+        );
+        faucetSpout.rotation.z = Math.PI / 2;
+        faucetSpout.position.set(faucetX - spoutLen / 2, counterTopY + 0.132, vanityZ);
+
+        const faucetAerator = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.009, 0.018, 14), chromeMat);
+        faucetAerator.position.set(faucetX - spoutLen + 0.006, counterTopY + 0.123, vanityZ);
+
+        // Single minimal inline top mixer lever handle
+        const leverBlade = new THREE.Mesh(new THREE.BoxGeometry(0.048, 0.006, 0.016), chromeMat);
+        leverBlade.position.set(faucetX - 0.014, counterTopY + 0.145, vanityZ);
+
+        // 5. Compact Matte Soap Bottle & Ceramic Toothbrush Tumbler (Well clear of tap area)
+        const soapZ = vanityZ - (is10ft ? 0.19 : 0.27);
+        const soapBodyMat = new THREE.MeshPhysicalMaterial({
+          color: 0xf8fafc,
+          roughness: 0.24,
+          metalness: 0.04,
+          clearcoat: 0.6,
+        });
+        const soapBottle = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.026, 0.072, 16), soapBodyMat);
+        soapBottle.position.set(vanityX - 0.02, counterTopY + 0.036, soapZ);
+        const soapCap = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.012, 0.016, 12), smoothBlackVanityMat);
+        soapCap.position.set(vanityX - 0.02, counterTopY + 0.08, soapZ);
+
+        if (!is10ft) {
+          const cupZ = vanityZ + 0.255;
+          const tumblerCup = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.023, 0.085, 16), porcelainMat);
+          tumblerCup.position.set(vanityX + 0.02, counterTopY + 0.0425, cupZ);
+          const brush1 = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.0035, 0.13, 8), porcelainMat);
+          brush1.rotation.z = 0.16;
+          brush1.position.set(vanityX + 0.025, counterTopY + 0.085, cupZ - 0.007);
+          const brush2 = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.0035, 0.125, 8), smoothBlackVanityMat);
+          brush2.rotation.z = -0.14;
+          brush2.position.set(vanityX + 0.014, counterTopY + 0.082, cupZ + 0.007);
+          bathGroup.add(tumblerCup, brush1, brush2);
+        }
+
+        // 6. Bright Silvered Pill-Shaped Smart LED Backlit Mirror (Flush on Right Wall, cleanly above tap)
+        const mirrorW = is10ft ? 0.42 : 0.56; // Along Z
+        const mirrorH = is10ft ? 0.68 : 0.78; // Along Y
+        const mirrorY = floorSurfaceY + (is10ft ? 1.44 : 1.48);
+        const mirrorWallX = vanityRightX - 0.004;
+
+        const makeRoundedRectShape = (w: number, h: number, radius: number) => {
+          const s = new THREE.Shape();
+          const hw = w / 2;
+          const hh = h / 2;
+          const r = Math.min(radius, hw - 0.005, hh - 0.005);
+          s.moveTo(-hw + r, -hh);
+          s.lineTo(hw - r, -hh);
+          s.quadraticCurveTo(hw, -hh, hw, -hh + r);
+          s.lineTo(hw, hh - r);
+          s.quadraticCurveTo(hw, hh, hw - r, hh);
+          s.lineTo(-hw + r, hh);
+          s.quadraticCurveTo(-hw, hh, -hw, hh - r);
+          s.lineTo(-hw, -hh + r);
+          s.quadraticCurveTo(-hw, -hh, -hw + r, -hh);
+          return s;
+        };
+
+        const mCornerR = 0.075;
+        // Backlit LED halo diffuser pad behind the mirror casting golden edge aura onto wet wall
+        const haloShape = makeRoundedRectShape(mirrorW + 0.044, mirrorH + 0.044, mCornerR + 0.015);
+        const mirrorGlow = new THREE.Mesh(
+          new THREE.ExtrudeGeometry(haloShape, { depth: 0.008, bevelEnabled: false, curveSegments: 20 }),
+          materials.ledStripMaterial
+        );
+        mirrorGlow.rotation.y = -Math.PI / 2;
+        mirrorGlow.position.set(mirrorWallX, mirrorY, vanityZ);
+
+        // Sleek smooth matte black perimeter bezel frame matching vanity cabinet
+        const bezelOuter = makeRoundedRectShape(mirrorW, mirrorH, mCornerR);
+        const bezelInnerHole = new THREE.Path();
+        const biw = mirrorW / 2 - 0.012;
+        const bih = mirrorH / 2 - 0.012;
+        const bir = mCornerR - 0.01;
+        bezelInnerHole.moveTo(-biw + bir, -bih);
+        bezelInnerHole.lineTo(biw - bir, -bih);
+        bezelInnerHole.quadraticCurveTo(biw, -bih, biw, -bih + bir);
+        bezelInnerHole.lineTo(biw, bih - bir);
+        bezelInnerHole.quadraticCurveTo(biw, bih, biw - bir, bih);
+        bezelInnerHole.lineTo(-biw + bir, bih);
+        bezelInnerHole.quadraticCurveTo(-biw, bih, -biw, bih - bir);
+        bezelInnerHole.lineTo(-biw, -bih + bir);
+        bezelInnerHole.quadraticCurveTo(-biw, -bih, -biw + bir, -bih);
+        bezelOuter.holes.push(bezelInnerHole);
+
+        const mirrorBezel = new THREE.Mesh(
+          new THREE.ExtrudeGeometry(bezelOuter, {
+            depth: 0.018,
+            bevelEnabled: true,
+            bevelThickness: 0.003,
+            bevelSize: 0.003,
+            bevelSegments: 2,
+            curveSegments: 20,
+          }),
+          smoothBlackVanityMat
+        );
+        mirrorBezel.rotation.y = -Math.PI / 2;
+        mirrorBezel.position.set(mirrorWallX - 0.008, mirrorY, vanityZ);
+
+        // Bright silvered architectural mirror glass face (facing -X into bathroom)
+        const glassShape = makeRoundedRectShape(mirrorW - 0.022, mirrorH - 0.022, mCornerR - 0.01);
+        const mirrorGlass = new THREE.Mesh(
+          new THREE.ExtrudeGeometry(glassShape, { depth: 0.006, bevelEnabled: false, curveSegments: 20 }),
+          mirrorGlassMat
+        );
+        mirrorGlass.rotation.y = -Math.PI / 2;
+        mirrorGlass.position.set(mirrorWallX - 0.018, mirrorY, vanityZ);
+
+        // Frosted inner perimeter light ring + capacitive anti-fog touch icon
+        const touchIcon = new THREE.Mesh(new THREE.RingGeometry(0.013, 0.018, 20), materials.ledStripMaterial);
+        touchIcon.rotation.y = -Math.PI / 2;
+        touchIcon.position.set(mirrorWallX - 0.026, mirrorY - mirrorH / 2 + 0.075, vanityZ);
+
+        const defogBadge = new THREE.Mesh(new THREE.BoxGeometry(0.002, 0.022, 0.068), materials.applianceGlassMaterial);
+        defogBadge.position.set(mirrorWallX - 0.025, mirrorY + mirrorH / 2 - 0.07, vanityZ);
+
+        bathGroup.add(
+          vesselBasinRim,
+          basinFloorMesh,
+          drainCollar,
+          drainCap,
+          overflowRing,
+          faucetCollar,
+          faucetRiser,
           faucetSpout,
-          faucetLever,
+          faucetAerator,
+          leverBlade,
           soapBottle,
-          soapPump,
-          towelRing,
-          hangingTowel,
+          soapCap,
           mirrorGlow,
-          mirrorFrame,
+          mirrorBezel,
           mirrorGlass,
-          touchIcon
+          touchIcon,
+          defogBadge
         );
 
         interiorGroup.add(bathGroup);

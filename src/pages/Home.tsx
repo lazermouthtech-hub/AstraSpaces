@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAppConfig, getActivePublicModelId } from '../context/AppConfigContext';
 import { useAuth } from '../context/AuthContext';
 import { BASE_MODELS } from '../data/models';
+import { FLOOR_PLAN_OPTIONS } from '../data/options';
+import { getItemPriceForModel } from '../utils/pricingCalculator';
 import {
   formatCurrency,
   TWO_CURRENCIES,
@@ -71,6 +73,22 @@ const DEFAULT_SPEC_STATE: CustomizationState = {
   hasSatelliteInternet: false,
   hasWardrobe: false,
   hasTvConsole: false,
+};
+
+const MULTI_BEDROOM_EXPANDABLE_IDS = new Set([
+  'expandable-20ft',
+  'expandable-30ft',
+  'expandable-40ft',
+]);
+
+const BEDROOM_TO_FLOOR_PLAN: Record<
+  1 | 2 | 3 | 4,
+  { floorPlan: CustomizationState['floorPlan']; bedroomLayout: CustomizationState['bedroomLayout'] }
+> = {
+  1: { floorPlan: '1-bed-studio-suite', bedroomLayout: '1-bedroom' },
+  2: { floorPlan: '2-bed-1-bath', bedroomLayout: '2-bedroom' },
+  3: { floorPlan: '3-bed-split-1-bath', bedroomLayout: '3-bedroom' },
+  4: { floorPlan: '4-bed-quad-suite', bedroomLayout: '4-bedroom' },
 };
 
 const HERO_SLIDER_IMAGES = [
@@ -150,6 +168,16 @@ export default function Home() {
 
   // Model series filter on homepage
   const [homeModelFilter, setHomeModelFilter] = useState<'all' | 'expandable' | 'apple-cabin' | 'space-capsule' | 'folding'>('all');
+
+  // Selected bedroom layout (1, 2, 3, or 4 bedrooms) for customizable 20FT / 30FT / 40FT expandable houses
+  const [selectedBedroomsByModel, setSelectedBedroomsByModel] = useState<Record<string, 1 | 2 | 3 | 4>>({
+    'expandable-20ft': 2,
+    'expandable-30ft': 3,
+    'expandable-40ft': 4,
+  });
+
+  // Active photo index for model showcase cards that have uploaded/configured gallery photos
+  const [activeCardPhotoByModel, setActiveCardPhotoByModel] = useState<Record<string, number>>({});
 
   // FAQ Accordion State
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
@@ -754,12 +782,81 @@ export default function Home() {
                 className="flex flex-nowrap items-stretch gap-6 overflow-x-auto scroll-smooth snap-x snap-mandatory py-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
               >
                 {filteredHomeModels.map((model: any) => {
+                  const supportsCustomBedrooms = MULTI_BEDROOM_EXPANDABLE_IDS.has(model.id);
+                  const defaultBeds = Math.min(4, Math.max(1, Number(model.bedrooms) || 2)) as 1 | 2 | 3 | 4;
+                  const activeBedrooms = supportsCustomBedrooms
+                    ? selectedBedroomsByModel[model.id] || defaultBeds
+                    : model.bedrooms;
+                  const customizeUrl = supportsCustomBedrooms
+                    ? `/configurator?model=${model.id}&bedrooms=${activeBedrooms}`
+                    : `/configurator?model=${model.id}`;
+
+                  const cardPhotos: string[] = [];
+                  if (typeof model.image === 'string' && model.image.trim()) {
+                    cardPhotos.push(model.image.trim());
+                  }
+                  if (Array.isArray(model.gallery)) {
+                    model.gallery.forEach((g: string) => {
+                      const trimmed = typeof g === 'string' ? g.trim() : '';
+                      if (trimmed && !cardPhotos.includes(trimmed)) {
+                        cardPhotos.push(trimmed);
+                      }
+                    });
+                  }
+                  const activePhotoIdx = Math.min(
+                    activeCardPhotoByModel[model.id] || 0,
+                    Math.max(0, cardPhotos.length - 1)
+                  );
+
                   return (
                     <div
                       key={model.id}
                       className="w-[86vw] sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] shrink-0 snap-start bg-white rounded-3xl border border-gray-200 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between overflow-hidden group"
                     >
-                      <div className="p-6 sm:p-7 space-y-5">
+                      {cardPhotos.length > 0 && (
+                        <div className="relative aspect-16/10 bg-gray-100 overflow-hidden border-b border-gray-100">
+                          <img
+                            src={cardPhotos[activePhotoIdx]}
+                            alt={`${model.name} photo ${activePhotoIdx + 1}`}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                          {cardPhotos.length > 1 && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setActiveCardPhotoByModel((prev) => ({
+                                    ...prev,
+                                    [model.id]:
+                                      (activePhotoIdx - 1 + cardPhotos.length) % cardPhotos.length,
+                                  }))
+                                }
+                                aria-label={`Previous photo of ${model.name}`}
+                                className="absolute left-2.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center backdrop-blur-xs opacity-90 hover:opacity-100 transition-all cursor-pointer"
+                              >
+                                <ChevronLeft className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setActiveCardPhotoByModel((prev) => ({
+                                    ...prev,
+                                    [model.id]: (activePhotoIdx + 1) % cardPhotos.length,
+                                  }))
+                                }
+                                aria-label={`Next photo of ${model.name}`}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/60 hover:bg-black text-white flex items-center justify-center backdrop-blur-xs opacity-90 hover:opacity-100 transition-all cursor-pointer"
+                              >
+                                <ChevronRight className="w-4 h-4" />
+                              </button>
+                              <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-full bg-black/65 text-white text-[10px] font-mono font-bold backdrop-blur-xs">
+                                {activePhotoIdx + 1} / {cardPhotos.length}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                      <div className="p-6 sm:p-7 space-y-5 flex-1">
                         {/* Model Header */}
                         <div className="flex items-start justify-between gap-3">
                           <div>
@@ -801,9 +898,67 @@ export default function Home() {
                           <div className="flex items-center justify-between text-xs gap-2">
                             <span className="text-gray-500 font-medium shrink-0">Bedrooms / Baths:</span>
                             <span className="font-bold text-gray-900 text-right">
-                              {model.bedrooms} Bed · {model.bathrooms} Bath
+                              {supportsCustomBedrooms
+                                ? `1–4 Beds (Custom) · ${model.bathrooms} Bath`
+                                : `${model.bedrooms} Bed · ${model.bathrooms} Bath`}
                             </span>
                           </div>
+
+                          {supportsCustomBedrooms && (() => {
+                            const presetPlanId = BEDROOM_TO_FLOOR_PLAN[activeBedrooms as 1 | 2 | 3 | 4]?.floorPlan;
+                            const floorPlanList =
+                              config.floorPlanOptions && config.floorPlanOptions.length > 0
+                                ? config.floorPlanOptions
+                                : FLOOR_PLAN_OPTIONS;
+                            const matchedPlan = floorPlanList.find((p: any) => p.id === presetPlanId);
+                            const bedroomAddonUsd = matchedPlan
+                              ? getItemPriceForModel(matchedPlan, model.id, config.models)
+                              : 0;
+
+                            return (
+                              <div className="pt-2 mt-1 border-t border-gray-200/70 space-y-1.5">
+                                <div className="flex items-center justify-between text-[11px] gap-2">
+                                  <span className="text-gray-500 font-semibold">
+                                    Bedroom Layout:
+                                  </span>
+                                  <span className="font-bold text-orange-600 text-right">
+                                    {activeBedrooms} {activeBedrooms === 1 ? 'Bedroom' : 'Bedrooms'}{' '}
+                                    <span className="font-mono text-gray-800">
+                                      ({bedroomAddonUsd === 0 ? 'Included' : `+${formatCurrency(bedroomAddonUsd, config.currency)}`})
+                                    </span>
+                                  </span>
+                                </div>
+                                <div
+                                  className="grid grid-cols-4 gap-1.5"
+                                  role="group"
+                                  aria-label={`Select bedroom layout for ${model.name}`}
+                                >
+                                  {([1, 2, 3, 4] as const).map((bedCount) => {
+                                    const isBedSelected = activeBedrooms === bedCount;
+                                    return (
+                                      <button
+                                        key={bedCount}
+                                        type="button"
+                                        onClick={() =>
+                                          setSelectedBedroomsByModel((prev) => ({
+                                            ...prev,
+                                            [model.id]: bedCount,
+                                          }))
+                                        }
+                                        className={`py-1.5 px-1 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer border ${
+                                          isBedSelected
+                                            ? 'bg-black text-white border-black shadow-xs'
+                                            : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400 hover:text-gray-950'
+                                        }`}
+                                      >
+                                        {bedCount} Bed{bedCount > 1 ? 's' : ''}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
 
                         {/* Description */}
@@ -845,7 +1000,7 @@ export default function Home() {
                           </button>
 
                           <Link
-                            to={`/configurator?model=${model.id}`}
+                            to={customizeUrl}
                             className="w-full py-2.5 px-3 rounded-xl bg-black text-white text-xs font-extrabold hover:bg-neutral-800 transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
                           >
                             <span>Customize Home</span>
@@ -1479,15 +1634,40 @@ export default function Home() {
       </footer>
 
       {/* Spec Sheet Modal if triggered from model cards */}
-      {specModalModelId && (
-        <SpecSheetModal
-          state={{ ...DEFAULT_SPEC_STATE, modelId: specModalModelId }}
-          onClose={() => setSpecModalModelId(null)}
-          totalPrice={
-            config.models?.find((m: any) => m.id === specModalModelId)?.basePrice || 54900
-          }
-        />
-      )}
+      {specModalModelId && (() => {
+        const isMultiBed = MULTI_BEDROOM_EXPANDABLE_IDS.has(specModalModelId);
+        const selectedBeds = selectedBedroomsByModel[specModalModelId];
+        const floorPlanConfig =
+          specModalModelId === 'expandable-10ft'
+            ? { floorPlan: '10ft-1bed' as const, bedroomLayout: '1-bedroom' as const }
+            : isMultiBed && selectedBeds
+            ? BEDROOM_TO_FLOOR_PLAN[selectedBeds]
+            : {};
+        const floorPlanList =
+          config.floorPlanOptions && config.floorPlanOptions.length > 0
+            ? config.floorPlanOptions
+            : FLOOR_PLAN_OPTIONS;
+        const matchedPlan = floorPlanConfig.floorPlan
+          ? floorPlanList.find((p: any) => p.id === floorPlanConfig.floorPlan)
+          : undefined;
+        const bedroomAddonUsd = matchedPlan
+          ? getItemPriceForModel(matchedPlan, specModalModelId, config.models)
+          : 0;
+        const baseModelUsd =
+          config.models?.find((m: any) => m.id === specModalModelId)?.basePrice || 54900;
+
+        return (
+          <SpecSheetModal
+            state={{
+              ...DEFAULT_SPEC_STATE,
+              modelId: specModalModelId,
+              ...floorPlanConfig,
+            }}
+            onClose={() => setSpecModalModelId(null)}
+            totalPrice={baseModelUsd + bedroomAddonUsd}
+          />
+        );
+      })()}
     </div>
   );
 }

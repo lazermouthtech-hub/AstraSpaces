@@ -211,7 +211,7 @@ export function getItemCurrentSystemPrice(
     config.glazingOptions,
     config.lightingOptions,
     config.electricalOptions,
-    FLOOR_PLAN_OPTIONS,
+    config.floorPlanOptions || FLOOR_PLAN_OPTIONS,
   ];
 
   for (const list of optionLists) {
@@ -316,14 +316,20 @@ function buildRowsForUnitModel(
 
   // 5. Floor Plans (for expandable models)
   if (modelId.includes('expandable') || model?.series === 'expandable') {
-    const relevantPlans = FLOOR_PLAN_OPTIONS.filter((p) => {
-      if (modelId === 'expandable-20ft') return p.bedrooms <= 2;
-      if (modelId === 'expandable-30ft') return p.bedrooms >= 2 && p.bedrooms <= 3;
-      if (modelId === 'expandable-40ft') return p.bedrooms >= 3;
+    const planSource =
+      Array.isArray(config.floorPlanOptions) && config.floorPlanOptions.length > 0
+        ? config.floorPlanOptions
+        : FLOOR_PLAN_OPTIONS;
+    const relevantPlans = planSource.filter((p: any) => {
+      if (modelId === 'expandable-10ft') return p.id === '10ft-1bed';
+      if (p.id === '10ft-1bed') return false;
+      if (Array.isArray(p.availableModels)) {
+        return p.availableModels.includes(modelId);
+      }
       return true;
     });
 
-    relevantPlans.forEach((plan) => {
+    relevantPlans.forEach((plan: any) => {
       const planPrice = getItemPriceForModel(plan, modelId, allModels);
       rows.push({
         ItemType: 'OPTION',
@@ -477,7 +483,8 @@ export function getModelSheetName(model: any, usedNames: Set<string>): string {
   let candidate = '';
   const mId = (model.id || '').toLowerCase();
 
-  if (mId === 'expandable-20ft') candidate = '20FT Expandable';
+  if (mId === 'expandable-10ft') candidate = '10FT Expandable';
+  else if (mId === 'expandable-20ft') candidate = '20FT Expandable';
   else if (mId === 'expandable-30ft') candidate = '30FT Expandable';
   else if (mId === 'expandable-40ft') candidate = '40FT Expandable';
   else if (mId === 'studio') candidate = 'AC01 Apple Studio';
@@ -802,6 +809,7 @@ export function inferUnitModelIdFromSheetName(
   }
 
   // 1. Exact known model sheet matches
+  if (lower.includes('10ft') && (lower.includes('expand') || lower.includes('wing'))) return 'expandable-10ft';
   if (lower.includes('20ft') && (lower.includes('expand') || lower.includes('wing'))) return 'expandable-20ft';
   if (lower.includes('30ft') && (lower.includes('expand') || lower.includes('wing'))) return 'expandable-30ft';
   if (lower.includes('40ft') && (lower.includes('expand') || lower.includes('flagship'))) return 'expandable-40ft';
@@ -1303,6 +1311,7 @@ export function applySpreadsheetPricesToConfig(
   updateOptionList('glazingOptions', 'Glazing');
   updateOptionList('lightingOptions', 'Lighting');
   updateOptionList('electricalOptions', 'Electrical');
+  updateOptionList('floorPlanOptions', 'Architectural Floor Plan');
 
   // 3. Update Logistics & Site Prep
   if (!next.logistics) next.logistics = {};

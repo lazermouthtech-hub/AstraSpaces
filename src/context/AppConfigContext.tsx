@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { BASE_MODELS } from '../data/models';
 import {
   WALL_CLADDING_OPTIONS, INTERIOR_WALL_OPTIONS, GLAZING_OPTIONS, INTERIOR_DOOR_OPTIONS, BATHROOM_DOOR_OPTIONS, LIGHTING_OPTIONS, ELECTRICAL_OPTIONS,
-  FLOORING_OPTIONS, ROOF_OPTIONS, CABINETRY_OPTIONS, MODULAR_ADDONS
+  FLOORING_OPTIONS, ROOF_OPTIONS, CABINETRY_OPTIONS, MODULAR_ADDONS, FLOOR_PLAN_OPTIONS
 } from '../data/options';
 import {
   normalizeCurrency,
@@ -44,6 +44,7 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
       roofOptions: ROOF_OPTIONS,
       cabinetryOptions: CABINETRY_OPTIONS,
       addons: MODULAR_ADDONS,
+      floorPlanOptions: FLOOR_PLAN_OPTIONS,
       hiddenCategories: [] as string[],
       currency: 'USD',
       exchangeRates: { ...DEFAULT_EXCHANGE_RATES, ...getStoredExchangeRates() },
@@ -99,11 +100,50 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
             const cleanedName = cleanText(rawName);
             const rawDesc = p.description || defOpt?.description || '';
             const cleanedDesc = cleanText(rawDesc);
+
+            const isMultiBedExpandable =
+              p.id === 'expandable-20ft' || p.id === 'expandable-30ft' || p.id === 'expandable-40ft';
+            const legacyTaglines = [
+              'Dual-Wing Assisted Deployment · Instant Living Space',
+              'Expanded 3-Bedroom Family Living with Central Great Room',
+              'Four-Bedroom Grand Villa · Commercial Camp or Luxury Estate',
+            ];
+            const legacyDescs = [
+              'Double your floor area in minutes. Heavy-duty Q235 galvanized steel chassis with dual fold-out wing assemblies.',
+              'High-capacity expandable floorplan offering a spacious living/dining lounge flanked by up to three private bedrooms.',
+              'The largest single-shipment modular home on the market. Over 800 sq ft of interior conditioned space with capacity for up to 4 bedrooms,',
+            ];
+            const nextTagline =
+              isMultiBedExpandable && (!p.tagline || legacyTaglines.includes(p.tagline))
+                ? defOpt?.tagline
+                : p.tagline || defOpt?.tagline;
+            const nextDescription =
+              isMultiBedExpandable && legacyDescs.some((prefix) => cleanedDesc.startsWith(prefix))
+                ? defOpt?.description
+                : cleanedDesc || defOpt?.description;
+            const nextFeatures =
+              isMultiBedExpandable &&
+              Array.isArray(p.includedFeatures) &&
+              p.includedFeatures.some(
+                (f: string) =>
+                  f === 'Spacious 3-bedroom, 1-bath, and living room layout' ||
+                  f === 'Multi-room customizable layout (up to 4 private bedrooms)'
+              )
+                ? defOpt?.includedFeatures
+                : isMultiBedExpandable &&
+                  p.id === 'expandable-20ft' &&
+                  Array.isArray(p.includedFeatures) &&
+                  !p.includedFeatures.some((f: string) => f.includes('1, 2, 3, or 4-bedroom'))
+                ? defOpt?.includedFeatures
+                : p.includedFeatures || defOpt?.includedFeatures;
+
             result.push({
               ...(defOpt || {}),
               ...p,
               name: cleanedName || defOpt?.name,
-              description: cleanedDesc || defOpt?.description,
+              tagline: nextTagline,
+              description: nextDescription,
+              includedFeatures: nextFeatures,
               // Strictly preserve user availability toggles from dashboard
               isAvailable: p.isAvailable !== undefined ? Boolean(p.isAvailable) : (defOpt?.isAvailable !== undefined ? Boolean(defOpt.isAvailable) : true),
               isActive: p.isActive !== undefined ? Boolean(p.isActive) : (defOpt?.isActive !== undefined ? Boolean(defOpt.isActive) : true),
@@ -215,6 +255,7 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
           roofOptions: mergeOptions(parsed.roofOptions, defaults.roofOptions),
           cabinetryOptions: mergeOptions(parsed.cabinetryOptions, defaults.cabinetryOptions),
           addons: mergeOptions(parsed.addons, defaults.addons),
+          floorPlanOptions: mergeOptions(parsed.floorPlanOptions, defaults.floorPlanOptions),
           branding: {
             ...defaults.branding,
             ...(parsed.branding || {}),
@@ -255,14 +296,19 @@ export const AppConfigProvider = ({ children }: { children: ReactNode }) => {
     return defaults;
   });
 
-  const updateConfig = (newConfig: any) => {
-    setConfig(newConfig);
+  const updateConfig = (newConfig: any): boolean => {
     try {
-      localStorage.setItem('boxabl_app_config', JSON.stringify(newConfig));
+      const serialized = JSON.stringify(newConfig);
+      localStorage.setItem('boxabl_app_config', serialized);
       if (newConfig.currency) {
         localStorage.setItem('boxabl_active_currency', normalizeCurrency(newConfig.currency));
       }
-    } catch (e) {}
+      setConfig(newConfig);
+      return true;
+    } catch (e) {
+      setConfig(newConfig);
+      return false;
+    }
   };
 
   const updateExchangeRate = (currCode: string, rate: number) => {

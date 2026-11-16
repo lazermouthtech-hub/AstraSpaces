@@ -268,7 +268,8 @@ export type FloorPlanId =
   | '3-bed-kitchen-lounge' // 3 bedrooms / 1 restroom / 1 living room (Kitchen Lounge Suite)
   | '1-bed-grand-dining' // 1 bedrooms / 1 restroom / 1 living room (Grand Dining & Great Room)
   | '1-bed-studio-suite' // 1 bedrooms / 1 restroom / 1 living room (Chef Kitchen & Workstation)
-  | '4-bed-quad-suite'; // 4 bedrooms / 1 restroom (Quad Private Suites)
+  | '4-bed-quad-suite' // 4 bedrooms / 1 restroom (Quad Private Suites)
+  | string;
 
 export interface FloorPlanOption {
   id: FloorPlanId;
@@ -282,6 +283,9 @@ export interface FloorPlanOption {
   badge: string;
   recommendedFor: string;
   features: string[];
+  isAvailable?: boolean;
+  isActive?: boolean;
+  availableModels?: string[];
   priceByModel?: Record<string, number>;
   unitSpecs?: Record<string, { sizeLabel?: string; specDetail?: string; description?: string }>;
 }

@@ -87,8 +87,22 @@ export default function Configurator() {
     window.scrollTo(0, 0);
   }, []);
 
+const BEDROOM_PARAM_MAP: Record<
+  '1' | '2' | '3' | '4',
+  {
+    floorPlan: CustomizationState['floorPlan'];
+    bedroomLayout: CustomizationState['bedroomLayout'];
+  }
+> = {
+  '1': { floorPlan: '1-bed-studio-suite', bedroomLayout: '1-bedroom' },
+  '2': { floorPlan: '2-bed-1-bath', bedroomLayout: '2-bedroom' },
+  '3': { floorPlan: '3-bed-split-1-bath', bedroomLayout: '3-bedroom' },
+  '4': { floorPlan: '4-bed-quad-suite', bedroomLayout: '4-bedroom' },
+};
+
   const prevUrlParamsRef = useRef<{
     model: string | null;
+    bedrooms: string | null;
     wall: string | null;
     bath: string | null;
     kitchen: string | null;
@@ -96,6 +110,7 @@ export default function Configurator() {
     deck: string | null;
   }>({
     model: null,
+    bedrooms: null,
     wall: null,
     bath: null,
     kitchen: null,
@@ -106,6 +121,7 @@ export default function Configurator() {
   const [state, setState] = useState<CustomizationState>(() => {
     const params = new URLSearchParams(window.location.search);
     const urlModel = params.get('model');
+    const urlBedrooms = params.get('bedrooms');
     const urlWall = params.get('wall');
     const urlBath = params.get('bath');
     const urlKitchen = params.get('kitchen');
@@ -114,6 +130,7 @@ export default function Configurator() {
 
     prevUrlParamsRef.current = {
       model: urlModel,
+      bedrooms: urlBedrooms,
       wall: urlWall,
       bath: urlBath,
       kitchen: urlKitchen,
@@ -137,14 +154,33 @@ export default function Configurator() {
     const parsedHvac = parseBoolParam(urlHvac);
     const parsedDeck = parseBoolParam(urlDeck);
 
+    const bedroomPreset =
+      urlBedrooms && urlBedrooms in BEDROOM_PARAM_MAP && initialModel !== 'expandable-10ft'
+        ? BEDROOM_PARAM_MAP[urlBedrooms as '1' | '2' | '3' | '4']
+        : null;
+
     return {
       ...INITIAL_STATE,
       modelId: initialModel,
       wallCladding: initialWall,
-      floorPlan: initialModel === 'expandable-10ft' ? '10ft-1bed' : INITIAL_STATE.floorPlan,
-      bedroomLayout: initialModel === 'expandable-10ft' ? '1-bedroom' : INITIAL_STATE.bedroomLayout,
+      floorPlan:
+        initialModel === 'expandable-10ft'
+          ? '10ft-1bed'
+          : bedroomPreset
+          ? bedroomPreset.floorPlan
+          : INITIAL_STATE.floorPlan,
+      bedroomLayout:
+        initialModel === 'expandable-10ft'
+          ? '1-bedroom'
+          : bedroomPreset
+          ? bedroomPreset.bedroomLayout
+          : INITIAL_STATE.bedroomLayout,
       ...(parsedBath !== undefined ? { hasLuxuryBathPod: parsedBath } : {}),
-      ...(parsedKitchen !== undefined ? { hasKitchenetteModule: parsedKitchen } : {}),
+      ...(parsedKitchen !== undefined
+        ? { hasKitchenetteModule: parsedKitchen }
+        : bedroomPreset?.floorPlan === '4-bed-quad-suite' && initialModel !== 'expandable-40ft'
+        ? { hasKitchenetteModule: false }
+        : {}),
       ...(parsedHvac !== undefined ? { hasHvacMiniSplit: parsedHvac } : {}),
       ...(parsedDeck !== undefined ? { hasExteriorPergolaDeck: parsedDeck } : {}),
     };
@@ -163,6 +199,7 @@ export default function Configurator() {
     }
 
     const modelParam = searchParams.get('model');
+    const bedroomsParam = searchParams.get('bedrooms');
     const wallParam = searchParams.get('wall');
     const bathParam = searchParams.get('bath');
     const kitchenParam = searchParams.get('kitchen');
@@ -174,11 +211,30 @@ export default function Configurator() {
     const allKnown = [...(config.models || []), ...BASE_MODELS];
     const allKnownWalls = [...(config.wallOptions || []), ...WALL_CLADDING_OPTIONS];
 
+    const effectiveModelId =
+      modelParam && allKnown.some((m: any) => m.id === modelParam)
+        ? (modelParam as HomeModelId)
+        : state.modelId;
+
     if (modelParam && modelParam !== prev.model && allKnown.some((m: any) => m.id === modelParam)) {
       patch.modelId = modelParam as HomeModelId;
       if (modelParam === 'expandable-10ft') {
         patch.floorPlan = '10ft-1bed';
         patch.bedroomLayout = '1-bedroom';
+      }
+    }
+    if (
+      bedroomsParam &&
+      (bedroomsParam !== prev.bedrooms || modelParam !== prev.model) &&
+      bedroomsParam in BEDROOM_PARAM_MAP &&
+      effectiveModelId !== 'expandable-10ft'
+    ) {
+      const preset = BEDROOM_PARAM_MAP[bedroomsParam as '1' | '2' | '3' | '4'];
+      patch.floorPlan = preset.floorPlan;
+      patch.bedroomLayout = preset.bedroomLayout;
+      if (kitchenParam === null) {
+        patch.hasKitchenetteModule =
+          preset.floorPlan === '4-bed-quad-suite' ? effectiveModelId === 'expandable-40ft' : true;
       }
     }
     if (wallParam && wallParam !== prev.wall && allKnownWalls.some((w: any) => w.id === wallParam)) {
@@ -203,6 +259,7 @@ export default function Configurator() {
 
     prevUrlParamsRef.current = {
       model: modelParam,
+      bedrooms: bedroomsParam,
       wall: wallParam,
       bath: bathParam,
       kitchen: kitchenParam,
@@ -439,8 +496,12 @@ export default function Configurator() {
       state.modelId === 'expandable-40ft' ||
       state.modelId.includes('expandable') ||
       currentModel?.series === 'expandable';
+    const floorPlanList =
+      config.floorPlanOptions && config.floorPlanOptions.length > 0
+        ? config.floorPlanOptions
+        : FLOOR_PLAN_OPTIONS;
     const floorPlanOpt = isExpandableHouse && state.floorPlan
-      ? FLOOR_PLAN_OPTIONS.find((f) => f.id === state.floorPlan)
+      ? floorPlanList.find((f: any) => f.id === state.floorPlan)
       : null;
     const floorPlanPrice = floorPlanOpt ? getItemPriceForModel(floorPlanOpt, state.modelId, config.models) : 0;
 

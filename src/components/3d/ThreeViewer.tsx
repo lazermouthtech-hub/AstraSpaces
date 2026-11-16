@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CustomizationState, LightingMode, ViewPerspective } from '../../types';
@@ -6,6 +6,13 @@ import { BASE_MODELS } from '../../data/models';
 import { FLOORING_OPTIONS } from '../../data/options';
 import { createMaterialLibrary, MaterialLibrary } from './materials';
 import { buildHomeModel, BuiltHomeModel } from './modelBuilder';
+import {
+  getExpandableHouseMeta,
+  getExpandableDimensions,
+  clampToExpandableInterior,
+  findNearestWaypointId,
+  ExpandableRoomWaypoint,
+} from './expandableNavigation';
 import {
   Sun,
   Sunset,
@@ -27,7 +34,30 @@ import {
   Zap,
   ChevronUp,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Footprints,
+  DoorOpen,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  RotateCcw,
 } from 'lucide-react';
+
+// Pre-allocated scratch helpers outside React/render loop to ensure zero GC pressure
+const _walkForward = new THREE.Vector3();
+const _walkRight = new THREE.Vector3();
+const _walkDelta = new THREE.Vector3();
+const _lookOffset = new THREE.Vector3();
+const _desiredDir = new THREE.Vector3();
+const _floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.15);
+const _floorRaycaster = new THREE.Raycaster();
+const _pointerNdc = new THREE.Vector2();
+const _floorHit = new THREE.Vector3();
+const _yAxis = new THREE.Vector3(0, 1, 0);
+
+type WalkPadAction = 'forward' | 'backward' | 'left' | 'right' | 'turnLeft' | 'turnRight' | null;
 
 interface ThreeViewerProps {
   state: CustomizationState;
@@ -162,7 +192,75 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
   const targetLookAtRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 1.2, 0));
   const isTransitioningRef = useRef<boolean>(false);
 
-  // Update target camera based on perspective
+  // Seamless Expandable House Interior Navigation state & live refs for animation loop
+  const expandableMeta = useMemo(() => getExpandableHouseMeta(state), [state]);
+  const isInsidePerspective =
+    currentPerspective === 'interior-walkthrough' ||
+    currentPerspective === 'bedroom-suite' ||
+    currentPerspective === 'living-lounge';
+  const isExpandableInsideWalk =
+    expandableMeta.isExpandable && !state.isFoldedTransportMode && isInsidePerspective;
+
+  const [activeRoomId, setActiveRoomId] = useState<string>('entrance');
+  const [showWalkPad, setShowWalkPad] = useState<boolean>(false);
+
+  const expandableMetaRef = useRef(expandableMeta);
+  expandableMetaRef.current = expandableMeta;
+  const isExpandableInsideWalkRef = useRef(isExpandableInsideWalk);
+  isExpandableInsideWalkRef.current = isExpandableInsideWalk;
+  const autoRotateRef = useRef(autoRotate);
+  autoRotateRef.current = autoRotate;
+  const activeRoomIdRef = useRef(activeRoomId);
+  activeRoomIdRef.current = activeRoomId;
+  const pendingWaypointIdRef = useRef<string | null>(null);
+  const pressedKeysRef = useRef<Set<string>>(new Set());
+  const padActionRef = useRef<WalkPadAction>(null);
+
+  const applyWaypointTarget = useCallback((wp: ExpandableRoomWaypoint) => {
+    setActiveRoomId(wp.id);
+    activeRoomIdRef.current = wp.id;
+    targetCamPosRef.current.set(wp.pos[0], wp.pos[1], wp.pos[2]);
+    _desiredDir
+      .set(wp.lookAt[0] - wp.pos[0], wp.lookAt[1] - wp.pos[1], wp.lookAt[2] - wp.pos[2])
+      .normalize();
+    targetLookAtRef.current
+      .copy(targetCamPosRef.current)
+      .addScaledVector(_desiredDir, 0.25);
+    isTransitioningRef.current = true;
+  }, []);
+
+  const flyToRoomWaypoint = useCallback(
+    (wp: ExpandableRoomWaypoint) => {
+      if (state.isFoldedTransportMode && onStateChange) {
+        pendingWaypointIdRef.current = wp.id;
+        onStateChange((prev) => ({ ...prev, isFoldedTransportMode: false }));
+        if (!isInsidePerspective) {
+          onPerspectiveChange('interior-walkthrough');
+        }
+        return;
+      }
+      if (!isInsidePerspective) {
+        pendingWaypointIdRef.current = wp.id;
+        onPerspectiveChange('interior-walkthrough');
+        return;
+      }
+      applyWaypointTarget(wp);
+    },
+    [state.isFoldedTransportMode, onStateChange, isInsidePerspective, onPerspectiveChange, applyWaypointTarget]
+  );
+
+  const handleStepRoom = useCallback(
+    (dir: -1 | 1) => {
+      const wps = expandableMeta.waypoints;
+      if (!wps.length) return;
+      const curIdx = Math.max(0, wps.findIndex((w) => w.id === activeRoomId));
+      const nextIdx = (curIdx + dir + wps.length) % wps.length;
+      flyToRoomWaypoint(wps[nextIdx]);
+    },
+    [expandableMeta.waypoints, activeRoomId, flyToRoomWaypoint]
+  );
+
+  // Update target camera based on perspective, model, and floor plan
   useEffect(() => {
     isTransitioningRef.current = true;
     let length = 5.8;
@@ -181,6 +279,28 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
     if (state.modelId === 'studio' && currentPerspective === 'living-lounge') {
       onPerspectiveChange('bedroom-suite');
       return;
+    }
+
+    const expDims = getExpandableDimensions(state.modelId);
+
+    // Seamless Expandable Inside Room Camera Routing
+    if (expDims.isExpandable && !state.isFoldedTransportMode && isInsidePerspective) {
+      const wps = expandableMeta.waypoints;
+      if (wps.length > 0) {
+        let chosen: ExpandableRoomWaypoint | undefined;
+        if (pendingWaypointIdRef.current) {
+          chosen = wps.find((w) => w.id === pendingWaypointIdRef.current);
+          pendingWaypointIdRef.current = null;
+        }
+        if (!chosen && currentPerspective === 'bedroom-suite') {
+          chosen = wps.find((w) => w.category === 'bedroom');
+        } else if (!chosen && currentPerspective === 'living-lounge') {
+          chosen = wps.find((w) => w.category === 'living') || wps.find((w) => w.category === 'kitchen');
+        }
+        const finalWp = chosen || wps[0];
+        applyWaypointTarget(finalWp);
+        return;
+      }
     }
 
     switch (currentPerspective) {
@@ -203,17 +323,16 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
         targetLookAtRef.current.set(0, 0, 0);
         break;
       case 'floor-inspection': {
-        const isExp = state.modelId.includes('expandable');
-        const expD = state.modelId.includes('20ft') ? 6.4 : (state.modelId.includes('30ft') ? 9.0 : 11.8);
-        const expW = state.modelId.includes('20ft') ? 5.9 : 6.4;
+        const expD = expDims.isExpandable ? expDims.houseDepth : depth;
+        const expW = expDims.isExpandable ? expDims.deployedWidth : length;
         const distVal = Math.max(expW, expD);
         targetCamPosRef.current.set(expW * 0.72, distVal * 0.76, expD * 0.70);
         targetLookAtRef.current.set(0, 0.15, 0);
         break;
       }
       case 'interior-walkthrough': {
-        const isExp = state.modelId.includes('expandable');
-        const expD = state.modelId.includes('20ft') ? 6.4 : (state.modelId.includes('30ft') ? 9.0 : 11.8);
+        const isExp = expDims.isExpandable;
+        const expD = expDims.houseDepth;
         targetCamPosRef.current.set(
           isExp ? 0.0 : (state.modelId === 'studio' ? 0.6 : (state.modelId === 'one-bedroom' ? 0.8 : 1.1)),
           1.42,
@@ -231,9 +350,8 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
         targetLookAtRef.current.set(0, 0.8, 0);
         break;
       case 'front-elevation': {
-        const isExp = state.modelId.includes('expandable');
-        const expD = state.modelId.includes('20ft') ? 6.4 : (state.modelId.includes('30ft') ? 9.0 : 11.8);
-        const frontZVal = isExp ? expD / 2 : depth / 2;
+        const isExp = expDims.isExpandable;
+        const frontZVal = isExp ? expDims.houseDepth / 2 : depth / 2;
         // Eye-level close-up perspective framing the entrance door and wing windows in crisp detail
         targetCamPosRef.current.set(0, 1.45, frontZVal + 4.6);
         targetLookAtRef.current.set(0, 1.35, frontZVal);
@@ -241,10 +359,10 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
       }
       case 'bedroom-suite': {
         const isCapsule = state.modelId.startsWith('space-capsule');
-        const isExp = state.modelId.includes('expandable');
+        const isExp = expDims.isExpandable;
         const isDuplex = state.modelId === 'apple-cabin-ad01' || state.modelId === 'apple-cabin-ad03';
-        const expW = state.modelId.includes('20ft') ? 5.9 : 6.4;
-        const expD = state.modelId.includes('20ft') ? 6.4 : (state.modelId.includes('30ft') ? 9.0 : 11.8);
+        const expW = expDims.deployedWidth;
+        const expD = expDims.houseDepth;
         const targetBedX = isDuplex ? 1.0 : (isCapsule ? length / 2 - 1.45 : (isExp ? (2.2 / 2 + (expW - 2.2) / 4) : length / 2 - 1.5));
         const targetBedZ = isDuplex ? 0 : (isCapsule ? 0 : (isExp ? -expD / 2 + 1.1 : (depth > 4 ? 0.4 : -depth / 4)));
         const targetBedY = isDuplex ? 2.48 + 0.5 : 0.85;
@@ -261,9 +379,9 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
         break;
       }
       case 'living-lounge': {
-        const isExp = state.modelId.includes('expandable');
-        const is40 = state.modelId.includes('40ft');
-        const expD = state.modelId.includes('20ft') ? 6.4 : (state.modelId.includes('30ft') ? 9.0 : 11.8);
+        const isExp = expDims.isExpandable;
+        const is40 = expDims.is40ft;
+        const expD = expDims.houseDepth;
         targetCamPosRef.current.set(
           isExp ? 0.35 : 1.6,
           1.40,
@@ -292,7 +410,7 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
         break;
       }
     }
-  }, [currentPerspective, state.modelId]);
+  }, [currentPerspective, state.modelId, state.floorPlan, state.isFoldedTransportMode, expandableMeta.waypoints, isInsidePerspective, applyWaypointTarget]);
 
   // Handle Fullscreen
   const toggleFullscreen = useCallback(() => {
@@ -417,20 +535,96 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
       const delta = Math.min((now - lastTime) / 1000, 0.1);
       lastTime = now;
 
-      // Smooth camera interpolation towards target perspective
+      const insideActive = isExpandableInsideWalkRef.current;
+
+      // Smoothly damp lens FOV (wider natural interior view vs exterior architectural lens)
+      const targetFov = insideActive ? 62 : 42;
+      if (Math.abs(camera.fov - targetFov) > 0.05) {
+        camera.fov = THREE.MathUtils.damp(camera.fov, targetFov, 7, delta);
+        camera.updateProjectionMatrix();
+      }
+
+      // Smooth camera interpolation towards target perspective or room waypoint
       if (isTransitioningRef.current) {
-        camera.position.lerp(targetCamPosRef.current, 0.06);
-        controls.target.lerp(targetLookAtRef.current, 0.06);
-        
+        const lerpAlpha = 1 - Math.exp(-7.5 * delta);
+        camera.position.lerp(targetCamPosRef.current, lerpAlpha);
+        controls.target.lerp(targetLookAtRef.current, lerpAlpha);
+
         if (
-          camera.position.distanceTo(targetCamPosRef.current) < 0.05 &&
-          controls.target.distanceTo(targetLookAtRef.current) < 0.05
+          camera.position.distanceTo(targetCamPosRef.current) < 0.02 &&
+          controls.target.distanceTo(targetLookAtRef.current) < 0.02
         ) {
+          camera.position.copy(targetCamPosRef.current);
+          controls.target.copy(targetLookAtRef.current);
           isTransitioningRef.current = false;
         }
       }
 
-      controls.autoRotate = autoRotate;
+      // Continuous WASD / Arrow / On-Screen Walk Pad movement inside expandable homes
+      if (insideActive) {
+        const keys = pressedKeysRef.current;
+        const pad = padActionRef.current;
+        const moveF =
+          (keys.has('KeyW') || keys.has('ArrowUp') || pad === 'forward' ? 1 : 0) -
+          (keys.has('KeyS') || keys.has('ArrowDown') || pad === 'backward' ? 1 : 0);
+        const moveR =
+          (keys.has('KeyD') || pad === 'right' ? 1 : 0) -
+          (keys.has('KeyA') || pad === 'left' ? 1 : 0);
+        const turnDir =
+          (keys.has('ArrowLeft') || pad === 'turnLeft' ? 1 : 0) -
+          (keys.has('ArrowRight') || pad === 'turnRight' ? 1 : 0);
+
+        if (turnDir !== 0) {
+          isTransitioningRef.current = false;
+          const turnAngle = turnDir * 1.85 * delta;
+          _lookOffset.copy(controls.target).sub(camera.position).applyAxisAngle(_yAxis, turnAngle);
+          controls.target.copy(camera.position).add(_lookOffset);
+          targetLookAtRef.current.copy(controls.target);
+        }
+
+        if (moveF !== 0 || moveR !== 0) {
+          isTransitioningRef.current = false;
+          _walkForward.copy(controls.target).sub(camera.position);
+          _walkForward.y = 0;
+          if (_walkForward.lengthSq() < 1e-5) {
+            _walkForward.set(0, 0, -1);
+          } else {
+            _walkForward.normalize();
+          }
+          _walkRight.crossVectors(_walkForward, _yAxis).normalize();
+
+          _walkDelta
+            .set(0, 0, 0)
+            .addScaledVector(_walkForward, moveF)
+            .addScaledVector(_walkRight, moveR);
+
+          if (_walkDelta.lengthSq() > 0) {
+            _walkDelta.normalize().multiplyScalar(2.6 * delta);
+            const prevX = camera.position.x;
+            const prevZ = camera.position.z;
+            camera.position.add(_walkDelta);
+            clampToExpandableInterior(camera.position, expandableMetaRef.current.bounds);
+
+            const appliedDx = camera.position.x - prevX;
+            const appliedDz = camera.position.z - prevZ;
+            controls.target.x += appliedDx;
+            controls.target.z += appliedDz;
+            targetCamPosRef.current.copy(camera.position);
+            targetLookAtRef.current.copy(controls.target);
+
+            const nearestId = findNearestWaypointId(
+              camera.position,
+              expandableMetaRef.current.waypoints
+            );
+            if (nearestId && nearestId !== activeRoomIdRef.current) {
+              activeRoomIdRef.current = nearestId;
+              setActiveRoomId(nearestId);
+            }
+          }
+        }
+      }
+
+      controls.autoRotate = !insideActive && autoRotateRef.current;
       controls.autoRotateSpeed = 1.0;
       controls.update();
 
@@ -453,16 +647,108 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
     resizeObserver.observe(container);
     const initialResizeRaf = requestAnimationFrame(handleResize);
 
-    const handlePointerDown = () => {
+    let downX = 0;
+    let downY = 0;
+    const handlePointerDown = (e: PointerEvent) => {
+      downX = e.clientX;
+      downY = e.clientY;
       isTransitioningRef.current = false;
     };
+
+    // Click/tap anywhere on interior floor to glide smoothly to that spot
+    const handlePointerUp = (e: PointerEvent) => {
+      if (!isExpandableInsideWalkRef.current || e.button !== 0) return;
+      const moveDist = Math.hypot(e.clientX - downX, e.clientY - downY);
+      if (moveDist > 6) return;
+
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      _pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      _pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      _floorRaycaster.setFromCamera(_pointerNdc, camera);
+      if (_floorRaycaster.ray.direction.y >= -0.05) return; // Ignore clicks aimed above horizon
+      const hit = _floorRaycaster.ray.intersectPlane(_floorPlane, _floorHit);
+      if (!hit) return;
+
+      const { bounds, waypoints } = expandableMetaRef.current;
+      if (
+        hit.x < bounds.minX - 0.15 ||
+        hit.x > bounds.maxX + 0.15 ||
+        hit.z < bounds.minZ - 0.15 ||
+        hit.z > bounds.maxZ + 0.15
+      ) {
+        return;
+      }
+
+      const distFromCam = Math.hypot(hit.x - camera.position.x, hit.z - camera.position.z);
+      if (distFromCam < 0.35 || distFromCam > 14) return;
+
+      targetCamPosRef.current.set(hit.x, bounds.eyeY, hit.z);
+      clampToExpandableInterior(targetCamPosRef.current, bounds);
+
+      _lookOffset.copy(controls.target).sub(camera.position);
+      if (_lookOffset.lengthSq() < 1e-5) {
+        _lookOffset.set(0, 0, -0.25);
+      } else {
+        _lookOffset.normalize().multiplyScalar(0.25);
+      }
+      targetLookAtRef.current.copy(targetCamPosRef.current).add(_lookOffset);
+      isTransitioningRef.current = true;
+
+      const nearestId = findNearestWaypointId(targetCamPosRef.current, waypoints);
+      if (nearestId && nearestId !== activeRoomIdRef.current) {
+        activeRoomIdRef.current = nearestId;
+        setActiveRoomId(nearestId);
+      }
+    };
+
+    // Mouse-wheel smooth walk forward/backward while inside expandable houses
+    const handleWheel = (e: WheelEvent) => {
+      if (!isExpandableInsideWalkRef.current) return;
+      e.preventDefault();
+      isTransitioningRef.current = false;
+
+      _walkForward.copy(controls.target).sub(camera.position);
+      _walkForward.y = 0;
+      if (_walkForward.lengthSq() < 1e-5) {
+        _walkForward.set(0, 0, -1);
+      } else {
+        _walkForward.normalize();
+      }
+
+      const step = -Math.sign(e.deltaY) * 0.42;
+      const prevX = camera.position.x;
+      const prevZ = camera.position.z;
+      camera.position.addScaledVector(_walkForward, step);
+      clampToExpandableInterior(camera.position, expandableMetaRef.current.bounds);
+
+      controls.target.x += camera.position.x - prevX;
+      controls.target.z += camera.position.z - prevZ;
+      targetCamPosRef.current.copy(camera.position);
+      targetLookAtRef.current.copy(controls.target);
+
+      const nearestId = findNearestWaypointId(
+        camera.position,
+        expandableMetaRef.current.waypoints
+      );
+      if (nearestId && nearestId !== activeRoomIdRef.current) {
+        activeRoomIdRef.current = nearestId;
+        setActiveRoomId(nearestId);
+      }
+    };
+
     canvas.addEventListener('pointerdown', handlePointerDown);
+    canvas.addEventListener('pointerup', handlePointerUp);
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
 
     return () => {
       cancelAnimationFrame(initialResizeRaf);
       if (reqIdRef.current) cancelAnimationFrame(reqIdRef.current);
       resizeObserver.disconnect();
       canvas.removeEventListener('pointerdown', handlePointerDown);
+      canvas.removeEventListener('pointerup', handlePointerUp);
+      canvas.removeEventListener('wheel', handleWheel);
       controls.dispose();
       renderer.dispose();
       sceneRef.current = null;
@@ -472,6 +758,87 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
       homeModelRef.current = null;
     };
   }, []);
+
+  // Configure OrbitControls tuning dynamically for close-pivot 360 interior look vs exterior orbit
+  useEffect(() => {
+    const controls = controlsRef.current;
+    const camera = cameraRef.current;
+    if (!controls || !camera) return;
+
+    if (isExpandableInsideWalk) {
+      controls.enablePan = false;
+      controls.enableZoom = false;
+      controls.minDistance = 0.20;
+      controls.maxDistance = 0.30;
+      controls.rotateSpeed = 0.55;
+      controls.minPolarAngle = Math.PI * 0.18;
+      controls.maxPolarAngle = Math.PI * 0.82;
+      camera.near = 0.04;
+      camera.updateProjectionMatrix();
+    } else {
+      controls.enablePan = true;
+      controls.enableZoom = true;
+      controls.minDistance = 0.5;
+      controls.maxDistance = 25;
+      controls.rotateSpeed = 1.0;
+      controls.minPolarAngle = 0;
+      controls.maxPolarAngle = Math.PI / 2 - 0.02;
+      camera.near = 0.1;
+      camera.updateProjectionMatrix();
+    }
+  }, [isExpandableInsideWalk]);
+
+  // Keyboard WASD / Arrow walk navigation & Esc exit inside expandable homes
+  useEffect(() => {
+    if (!isExpandableInsideWalk) {
+      pressedKeysRef.current.clear();
+      padActionRef.current = null;
+      return;
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      if (e.key === 'Escape') {
+        onPerspectiveChange('exterior-iso');
+        return;
+      }
+
+      if (
+        e.code === 'KeyW' ||
+        e.code === 'KeyA' ||
+        e.code === 'KeyS' ||
+        e.code === 'KeyD' ||
+        e.code === 'ArrowUp' ||
+        e.code === 'ArrowDown' ||
+        e.code === 'ArrowLeft' ||
+        e.code === 'ArrowRight'
+      ) {
+        if (e.code.startsWith('Arrow')) e.preventDefault();
+        pressedKeysRef.current.add(e.code);
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      pressedKeysRef.current.delete(e.code);
+    };
+
+    const handleBlur = () => {
+      pressedKeysRef.current.clear();
+      padActionRef.current = null;
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
+      pressedKeysRef.current.clear();
+    };
+  }, [isExpandableInsideWalk, onPerspectiveChange]);
 
   // Update Environment Lighting when lightingMode changes
   useEffect(() => {
@@ -607,8 +974,32 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
     currentModel.isAvailable !== false && currentModel.isActive !== false;
 
   const handleZoom = (delta: number) => {
-    if (!controlsRef.current) return;
+    if (!controlsRef.current || !cameraRef.current) return;
     const controls = controlsRef.current;
+    const camera = cameraRef.current;
+
+    if (isExpandableInsideWalkRef.current) {
+      isTransitioningRef.current = false;
+      _walkForward.copy(controls.target).sub(camera.position);
+      _walkForward.y = 0;
+      if (_walkForward.lengthSq() < 1e-5) {
+        _walkForward.set(0, 0, -1);
+      } else {
+        _walkForward.normalize();
+      }
+      const step = delta > 0 ? 0.65 : -0.65;
+      const prevX = camera.position.x;
+      const prevZ = camera.position.z;
+      camera.position.addScaledVector(_walkForward, step);
+      clampToExpandableInterior(camera.position, expandableMetaRef.current.bounds);
+      controls.target.x += camera.position.x - prevX;
+      controls.target.z += camera.position.z - prevZ;
+      targetCamPosRef.current.copy(camera.position);
+      targetLookAtRef.current.copy(controls.target);
+      controls.update();
+      return;
+    }
+
     if (delta > 0) {
       controls.dollyIn(1.2);
     } else {
@@ -2479,6 +2870,282 @@ export const ThreeViewer: React.FC<ThreeViewerProps> = ({
           )}
         </div>
       </div>
+
+      {/* Bottom Dock: Seamless Expandable House Room Tour & Walkthrough Bar */}
+      {expandableMeta.isExpandable && (
+        <div className="relative z-20 px-2 sm:px-4 pb-2 sm:pb-3 landscape:pb-1.5 flex flex-col items-center gap-1.5 pointer-events-none">
+          {state.isFoldedTransportMode ? (
+            <div className="pointer-events-auto flex items-center gap-2 bg-zinc-950/95 text-white px-3 py-1.5 rounded-xl border border-zinc-800 shadow-lg text-xs">
+              <span className="font-medium text-zinc-300 hidden sm:inline">
+                Transport Profile (2.2m)
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onStateChange) {
+                    onStateChange((prev) => ({ ...prev, isFoldedTransportMode: false }));
+                  }
+                  onPerspectiveChange('interior-walkthrough');
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-bold transition-colors cursor-pointer"
+              >
+                <DoorOpen className="w-3.5 h-3.5" />
+                <span>Unfold &amp; Step Inside</span>
+              </button>
+            </div>
+          ) : !isExpandableInsideWalk ? (
+            <div className="pointer-events-auto flex items-center gap-1.5 bg-zinc-950/95 text-white p-1 sm:p-1.5 rounded-xl border border-zinc-800 shadow-lg text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  const entryWp = expandableMeta.waypoints[0];
+                  if (entryWp) {
+                    flyToRoomWaypoint(entryWp);
+                  } else {
+                    onPerspectiveChange('interior-walkthrough');
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 landscape:py-1 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-bold transition-colors cursor-pointer"
+              >
+                <DoorOpen className="w-3.5 h-3.5 shrink-0" />
+                <span>Step Inside</span>
+                <span className="text-[10px] font-mono text-orange-100 hidden sm:inline">
+                  · {expandableMeta.waypoints.length} Rooms
+                </span>
+              </button>
+              {expandableMeta.waypoints
+                .filter((w) => w.category === 'living' || w.category === 'bedroom')
+                .slice(0, 2)
+                .map((wp) => (
+                  <button
+                    key={wp.id}
+                    type="button"
+                    onClick={() => flyToRoomWaypoint(wp)}
+                    className="hidden sm:flex items-center px-2.5 py-1.5 rounded-lg text-zinc-200 hover:text-white hover:bg-zinc-800 font-semibold transition-colors cursor-pointer"
+                  >
+                    {wp.shortLabel}
+                  </button>
+                ))}
+            </div>
+          ) : (
+            <div className="pointer-events-auto flex flex-col items-center gap-1.5 w-full max-w-3xl">
+              {/* Collapsible Touch & Mouse Directional Walk Pad */}
+              {showWalkPad && (
+                <div className="bg-zinc-950/95 text-white px-2.5 py-2 rounded-xl border border-zinc-800 shadow-xl flex items-center gap-2 sm:gap-3">
+                  <div className="grid grid-cols-3 gap-1">
+                    <button
+                      type="button"
+                      onPointerDown={() => {
+                        padActionRef.current = 'turnLeft';
+                      }}
+                      onPointerUp={() => {
+                        padActionRef.current = null;
+                      }}
+                      onPointerLeave={() => {
+                        padActionRef.current = null;
+                      }}
+                      onPointerCancel={() => {
+                        padActionRef.current = null;
+                      }}
+                      className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 active:bg-orange-600 flex items-center justify-center cursor-pointer"
+                      title="Look Left (ArrowLeft)"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onPointerDown={() => {
+                        padActionRef.current = 'forward';
+                      }}
+                      onPointerUp={() => {
+                        padActionRef.current = null;
+                      }}
+                      onPointerLeave={() => {
+                        padActionRef.current = null;
+                      }}
+                      onPointerCancel={() => {
+                        padActionRef.current = null;
+                      }}
+                      className="w-8 h-8 rounded-lg bg-orange-600 hover:bg-orange-500 active:bg-orange-400 flex items-center justify-center cursor-pointer"
+                      title="Walk Forward (W / ArrowUp)"
+                    >
+                      <ArrowUp className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onPointerDown={() => {
+                        padActionRef.current = 'turnRight';
+                      }}
+                      onPointerUp={() => {
+                        padActionRef.current = null;
+                      }}
+                      onPointerLeave={() => {
+                        padActionRef.current = null;
+                      }}
+                      onPointerCancel={() => {
+                        padActionRef.current = null;
+                      }}
+                      className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 active:bg-orange-600 flex items-center justify-center cursor-pointer"
+                      title="Look Right (ArrowRight)"
+                    >
+                      <RotateCw className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onPointerDown={() => {
+                        padActionRef.current = 'left';
+                      }}
+                      onPointerUp={() => {
+                        padActionRef.current = null;
+                      }}
+                      onPointerLeave={() => {
+                        padActionRef.current = null;
+                      }}
+                      onPointerCancel={() => {
+                        padActionRef.current = null;
+                      }}
+                      className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 active:bg-orange-600 flex items-center justify-center cursor-pointer"
+                      title="Strafe Left (A)"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onPointerDown={() => {
+                        padActionRef.current = 'backward';
+                      }}
+                      onPointerUp={() => {
+                        padActionRef.current = null;
+                      }}
+                      onPointerLeave={() => {
+                        padActionRef.current = null;
+                      }}
+                      onPointerCancel={() => {
+                        padActionRef.current = null;
+                      }}
+                      className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 active:bg-orange-600 flex items-center justify-center cursor-pointer"
+                      title="Walk Back (S / ArrowDown)"
+                    >
+                      <ArrowDown className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onPointerDown={() => {
+                        padActionRef.current = 'right';
+                      }}
+                      onPointerUp={() => {
+                        padActionRef.current = null;
+                      }}
+                      onPointerLeave={() => {
+                        padActionRef.current = null;
+                      }}
+                      onPointerCancel={() => {
+                        padActionRef.current = null;
+                      }}
+                      className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 active:bg-orange-600 flex items-center justify-center cursor-pointer"
+                      title="Strafe Right (D)"
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="hidden sm:flex flex-col text-[10px] text-zinc-400 leading-snug pr-1">
+                    <span className="font-bold text-zinc-200">Walk Controls</span>
+                    <span>Hold arrows to move</span>
+                    <span>Drag canvas to look 360°</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Room-to-Room Tour Dock */}
+              <div className="w-full bg-zinc-950/95 text-white p-1 sm:p-1.5 rounded-xl border border-zinc-800 shadow-xl flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleStepRoom(-1)}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+                  title="Previous Room"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div className="flex-1 flex items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden touch-pan-x px-0.5">
+                  {expandableMeta.waypoints.map((wp) => {
+                    const isActive = wp.id === activeRoomId;
+                    return (
+                      <button
+                        key={wp.id}
+                        type="button"
+                        onClick={() => flyToRoomWaypoint(wp)}
+                        className={`px-2.5 py-1.5 landscape:py-1 rounded-lg text-[11px] sm:text-xs font-bold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                          isActive
+                            ? 'bg-orange-600 text-white shadow-xs'
+                            : 'text-zinc-300 hover:text-white hover:bg-zinc-800'
+                        }`}
+                        title={wp.label}
+                      >
+                        {wp.shortLabel}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleStepRoom(1)}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+                  title="Next Room"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+
+                <div className="w-px h-5 bg-zinc-800 mx-0.5 shrink-0" />
+
+                <button
+                  type="button"
+                  onClick={() => setShowWalkPad((prev) => !prev)}
+                  className={`h-7 sm:h-8 px-2 rounded-lg text-[11px] font-bold flex items-center gap-1 shrink-0 cursor-pointer transition-colors ${
+                    showWalkPad
+                      ? 'bg-orange-600 text-white'
+                      : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-200'
+                  }`}
+                  title="Toggle Walk & Look Pad"
+                >
+                  <Footprints className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Walk</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleToggleRoof}
+                  className={`h-7 sm:h-8 px-2 rounded-lg text-[11px] font-bold flex items-center gap-1 shrink-0 cursor-pointer transition-colors ${
+                    isRoofRemoved
+                      ? 'bg-orange-600 text-white'
+                      : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-200'
+                  }`}
+                  title={isRoofRemoved ? 'Put Roof Back' : 'Open Roof for Dollhouse View'}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">{isRoofRemoved ? 'Roof On' : 'Open Roof'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onPerspectiveChange('exterior-iso')}
+                  className="h-7 sm:h-8 px-2.5 rounded-lg bg-white text-zinc-950 hover:bg-zinc-200 text-[11px] font-extrabold shrink-0 cursor-pointer transition-colors"
+                  title="Return to Exterior View (Esc)"
+                >
+                  Outside
+                </button>
+              </div>
+
+              {!showWalkPad && (
+                <div className="hidden md:block text-[10px] font-medium text-zinc-700 bg-white/95 px-2.5 py-0.5 rounded-md border border-zinc-200/80 shadow-xs">
+                  Drag to look 360° · Click floor or scroll to walk · WASD / Arrows to move · Esc to exit
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

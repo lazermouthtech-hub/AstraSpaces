@@ -39,6 +39,7 @@ import {
   Clock,
   Truck,
   Percent,
+  Bed,
 } from 'lucide-react';
 import { BASE_MODELS } from '../data/models';
 import {
@@ -52,9 +53,12 @@ import {
   ROOF_OPTIONS,
   CABINETRY_OPTIONS,
   MODULAR_ADDONS,
+  FLOOR_PLAN_OPTIONS,
 } from '../data/options';
 import { OrderManagement } from '../components/dashboard/OrderManagement';
 import { PricingSpreadsheetManager } from '../components/dashboard/PricingSpreadsheetManager';
+import { BedroomsPricingManager } from '../components/dashboard/BedroomsPricingManager';
+import { ModelPhotosManager } from '../components/dashboard/ModelPhotosManager';
 import { SpreadsheetUploadModal } from '../components/dashboard/SpreadsheetUploadModal';
 import { downloadPricingSpreadsheet } from '../utils/pricingSpreadsheet';
 import { getOrders, subscribeToOrders, syncOrdersCurrency } from '../utils/orderManager';
@@ -85,6 +89,7 @@ import {
 type DashboardTab =
   | 'orders'
   | 'models'
+  | 'bedrooms'
   | 'walls'
   | 'glazing'
   | 'lighting'
@@ -104,7 +109,7 @@ export default function Dashboard() {
     try {
       const tabParam = new URLSearchParams(window.location.search).get('tab') as DashboardTab | null;
       const validTabs: DashboardTab[] = [
-        'orders', 'models', 'walls', 'glazing', 'lighting',
+        'orders', 'models', 'bedrooms', 'walls', 'glazing', 'lighting',
         'flooring', 'cabinetry', 'roof', 'addons', 'pricing', 'branding', 'viewer',
       ];
       if (tabParam && validTabs.includes(tabParam)) return tabParam;
@@ -127,6 +132,7 @@ export default function Dashboard() {
       if (updatedConfig.cabinetryOptions) setCabinetryOptions(updatedConfig.cabinetryOptions);
       if (updatedConfig.roofOptions) setRoofOptions(updatedConfig.roofOptions);
       if (updatedConfig.addons) setAddons(updatedConfig.addons);
+      if (updatedConfig.floorPlanOptions) setFloorPlanOptions(updatedConfig.floorPlanOptions);
       if (updatedConfig.currency) setBaseCurrency(updatedConfig.currency);
       if (updatedConfig.logistics) setLogistics(updatedConfig.logistics);
       if (updatedConfig.branding) setBranding(updatedConfig.branding);
@@ -162,6 +168,9 @@ export default function Dashboard() {
   const [cabinetryOptions, setCabinetryOptions] = useState(config.cabinetryOptions?.length ? config.cabinetryOptions : CABINETRY_OPTIONS);
   const [roofOptions, setRoofOptions] = useState(config.roofOptions?.length ? config.roofOptions : ROOF_OPTIONS);
   const [addons, setAddons] = useState(config.addons?.length ? config.addons : MODULAR_ADDONS);
+  const [floorPlanOptions, setFloorPlanOptions] = useState(
+    config.floorPlanOptions?.length ? config.floorPlanOptions : FLOOR_PLAN_OPTIONS
+  );
   const [baseCurrency, setBaseCurrency] = useState(config.currency || 'USD');
 
   // Synchronize local states when global config updates (e.g. spreadsheet upload or reset)
@@ -177,6 +186,7 @@ export default function Dashboard() {
     if (config.cabinetryOptions) setCabinetryOptions(config.cabinetryOptions);
     if (config.roofOptions) setRoofOptions(config.roofOptions);
     if (config.addons) setAddons(config.addons);
+    if (config.floorPlanOptions) setFloorPlanOptions(config.floorPlanOptions);
     if (config.currency) setBaseCurrency(config.currency);
     if (config.logistics) setLogistics(config.logistics);
     if (config.branding) setBranding(config.branding);
@@ -603,6 +613,7 @@ export default function Dashboard() {
       cabinetryOptions,
       roofOptions,
       addons,
+      floorPlanOptions,
       currency: baseCurrency,
       exchangeRates,
       customCurrencies,
@@ -629,6 +640,7 @@ export default function Dashboard() {
       setCabinetryOptions(CABINETRY_OPTIONS);
       setRoofOptions(ROOF_OPTIONS);
       setAddons(MODULAR_ADDONS);
+      setFloorPlanOptions(FLOOR_PLAN_OPTIONS);
       setBaseCurrency('USD');
       setExchangeRates(DEFAULT_EXCHANGE_RATES);
       setCustomCurrencies([]);
@@ -645,6 +657,7 @@ export default function Dashboard() {
         roofOptions: ROOF_OPTIONS,
         cabinetryOptions: CABINETRY_OPTIONS,
         addons: MODULAR_ADDONS,
+        floorPlanOptions: FLOOR_PLAN_OPTIONS,
         currency: 'USD',
         exchangeRates: DEFAULT_EXCHANGE_RATES,
         customCurrencies: [],
@@ -928,6 +941,21 @@ export default function Dashboard() {
             </div>
             <div className="space-y-0.5 mt-1">
               <button
+                onClick={() => setActiveTab('bedrooms')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                  activeTab === 'bedrooms' ? 'bg-orange-50 text-orange-700 font-bold' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Bed className={`w-4 h-4 ${activeTab === 'bedrooms' ? 'text-orange-600' : 'text-gray-400'}`} />
+                  <span>Bedrooms &amp; Floor Plans</span>
+                </div>
+                <span className="text-[10px] font-mono bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded-full">
+                  {floorPlanOptions.length}
+                </span>
+              </button>
+
+              <button
                 onClick={() => setActiveTab('walls')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
                   activeTab === 'walls' ? 'bg-orange-50 text-orange-700 font-bold' : 'text-gray-600 hover:bg-gray-50'
@@ -1114,6 +1142,7 @@ export default function Dashboard() {
               <h2 className="text-lg sm:text-xl font-bold text-gray-900 capitalize">
                 {activeTab === 'orders' && 'Customer Orders & Production Queue'}
                 {activeTab === 'models' && 'Properties & Cabin Sizes'}
+                {activeTab === 'bedrooms' && 'Bedrooms Addition & Expandable Pricing'}
                 {activeTab === 'walls' && 'Wall Panels & Cladding Finishes'}
                 {activeTab === 'glazing' && 'Windows & Doors Customization'}
                 {activeTab === 'lighting' && 'Lighting & Electrical Infrastructure'}
@@ -1862,11 +1891,65 @@ export default function Dashboard() {
                             </div>
                           </div>
                         </div>
+
+                        {/* House Photos & Gallery Management */}
+                        <ModelPhotosManager
+                          modelId={model.id}
+                          modelName={model.name}
+                          image={model.image}
+                          gallery={model.gallery}
+                          onChangePhotos={(nextImage, nextGallery) => {
+                            if (modelIndex === -1) return false;
+                            const updated = models.map((m: any, idx: number) =>
+                              idx === modelIndex
+                                ? { ...m, image: nextImage, gallery: nextGallery }
+                                : m
+                            );
+                            const ok = updateConfig({
+                              ...config,
+                              models: updated,
+                            });
+                            if (ok === false) return false;
+                            setModels(updated);
+                            return true;
+                          }}
+                        />
                       </div>
                     );
                   })}
                 </div>
               </div>
+            )}
+
+            {/* 1B. BEDROOMS ADDITION & EXPANDABLE FLOOR PLANS */}
+            {activeTab === 'bedrooms' && (
+              <BedroomsPricingManager
+                floorPlanOptions={floorPlanOptions}
+                setFloorPlanOptions={setFloorPlanOptions}
+                models={models}
+                baseCurrency={baseCurrency}
+                exchangeRates={exchangeRates}
+                markup={markup}
+                toDisplayPrice={toDisplayPrice}
+                toStoredUsdPrice={toStoredUsdPrice}
+                onSaveLive={(updatedPlans) => {
+                  updateConfig({
+                    ...config,
+                    floorPlanOptions: updatedPlans,
+                  });
+                  setSavedToast(true);
+                  setTimeout(() => setSavedToast(false), 3000);
+                }}
+                onResetDefaults={() => {
+                  setFloorPlanOptions(FLOOR_PLAN_OPTIONS);
+                  updateConfig({
+                    ...config,
+                    floorPlanOptions: FLOOR_PLAN_OPTIONS,
+                  });
+                  setSavedToast(true);
+                  setTimeout(() => setSavedToast(false), 3000);
+                }}
+              />
             )}
 
             {/* 2. WALL PANELS & CLADDING */}

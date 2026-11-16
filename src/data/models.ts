@@ -49,7 +49,7 @@ const RAW_MODELS: ModelSpecification[] = [
     id: 'expandable-20ft',
     name: '20FT Double-Wing Expandable House',
     series: 'expandable',
-    tagline: 'Dual-Wing Assisted Deployment · Instant Living Space',
+    tagline: 'Dual-Wing Assisted Deployment · Customizable 1–4 Bedrooms',
     sqft: 409,
     areaM2: 38,
     weightKg: 3000,
@@ -64,8 +64,9 @@ const RAW_MODELS: ModelSpecification[] = [
     bedrooms: 2,
     bathrooms: 1,
     description:
-      'Double your floor area in minutes. Heavy-duty Q235 galvanized steel chassis with dual fold-out wing assemblies. Includes 75mm bamboo-wood-fiber insulated wall panels, double-glazed patio entrance door (1880×2220mm), 4x sliding windows, and pre-wired factory electrical center.',
+      'Double your floor area in minutes with flexible 1, 2, 3, or 4 bedroom customizable interior layouts. Heavy-duty Q235 galvanized steel chassis with dual fold-out wing assemblies, 75mm bamboo-wood-fiber insulated wall panels, double-glazed patio entrance door (1880×2220mm), 4x sliding windows, and pre-wired electrical center.',
     includedFeatures: [
+      'Customizable 1, 2, 3, or 4-bedroom interior floor plan layouts',
       'Heavy-duty Q235 galvanized steel frame (80×140×3.5mm top beam)',
       'Double-wing fold-out mechanical assisted deployment',
       '75mm bamboo-wood-fiber fireproof insulation board',
@@ -86,7 +87,7 @@ const RAW_MODELS: ModelSpecification[] = [
     id: 'expandable-30ft',
     name: '30FT Double-Wing Expandable House',
     series: 'expandable',
-    tagline: 'Expanded 3-Bedroom Family Living with Central Great Room',
+    tagline: 'Expanded Family Living · Customizable 1–4 Bedrooms',
     sqft: 624,
     areaM2: 58,
     weightKg: 4500,
@@ -101,10 +102,10 @@ const RAW_MODELS: ModelSpecification[] = [
     bedrooms: 3,
     bathrooms: 1,
     description:
-      'High-capacity expandable floorplan offering a spacious living/dining lounge flanked by up to three private bedrooms. Ships in a compact 2.2m transport profile and unfolds on foundation in under 30 minutes.',
+      'High-capacity expandable floorplan customizable across 1, 2, 3, or 4 private bedroom layouts with a central living/dining lounge. Ships in a compact 2.2m transport profile and unfolds on foundation in under 30 minutes.',
     includedFeatures: [
+      'Customizable 1, 2, 3, or 4-bedroom, 1-bath & living layout',
       'Heavy-duty interlocking triple-section chassis',
-      'Spacious 3-bedroom, 1-bath, and living room layout',
       '75mm high-efficiency thermal insulation envelope',
       'Pre-plumbed sanitary ports for turn-key bath and kitchen hookups',
       'Thermal-break aluminum sliding windows with mosquito mesh',
@@ -123,7 +124,7 @@ const RAW_MODELS: ModelSpecification[] = [
     id: 'expandable-40ft',
     name: '40FT Flagship Expandable Residence',
     series: 'expandable',
-    tagline: 'Four-Bedroom Grand Villa · Commercial Camp or Luxury Estate',
+    tagline: 'Grand Flagship Residence · Customizable 1–4 Bedrooms',
     sqft: 807,
     areaM2: 75,
     weightKg: 6000,
@@ -138,10 +139,10 @@ const RAW_MODELS: ModelSpecification[] = [
     bedrooms: 4,
     bathrooms: 2,
     description:
-      'The largest single-shipment modular home on the market. Over 800 sq ft of interior conditioned space with capacity for up to 4 bedrooms, dual bathrooms, expansive dining area, and full open kitchen.',
+      'The largest single-shipment modular home on the market. Over 800 sq ft of interior conditioned space customizable to 1, 2, 3, or 4 private bedrooms, dual bathrooms, expansive dining area, and full open kitchen.',
     includedFeatures: [
+      'Customizable 1, 2, 3, or 4 private bedroom layouts',
       'Maximum volume fold-flat chassis with dual mechanical wings',
-      'Multi-room customizable layout (up to 4 private bedrooms)',
       'Enhanced R-32 thermal envelope for extreme climates',
       'Dual exterior egress safety doors with commercial locks',
       'Full factory interior electrical pre-wire and PEX manifold',

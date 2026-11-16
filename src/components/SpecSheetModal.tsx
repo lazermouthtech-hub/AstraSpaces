@@ -112,9 +112,16 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
   const is20ft = isExpandableHouse && !is30ft && !is40ft && !is10ft;
 
   // Selected floor plan resolution
+  const floorPlanList =
+    config.floorPlanOptions && config.floorPlanOptions.length > 0
+      ? config.floorPlanOptions
+      : FLOOR_PLAN_OPTIONS;
   const floorPlanOpt = isExpandableHouse
-    ? FLOOR_PLAN_OPTIONS.find((f) => f.id === state.floorPlan) || FLOOR_PLAN_OPTIONS[0]
+    ? floorPlanList.find((f: any) => f.id === state.floorPlan) || floorPlanList[0]
     : null;
+  const floorPlanPrice = floorPlanOpt
+    ? getItemPriceForModel(floorPlanOpt, state.modelId, config.models)
+    : 0;
 
   const wallOpt =
     config.wallOptions?.find((o: any) => o.id === state.wallCladding) ||
@@ -308,7 +315,7 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
                     Conditioned Space: {currentModel.sqft} sq ft ({currentModel.areaM2 || Math.round(currentModel.sqft * 0.0929)} m²)
                   </div>
                   <div className="text-[10px] text-blue-700 font-medium font-mono">
-                    {floorPlanOpt.price === 0 ? 'Standard Included Floor Plan' : `Factory Plan Option (+${formatCurrency(floorPlanOpt.price * markupFactor, config.currency, { ratesMap: config.exchangeRates })})`}
+                    {floorPlanPrice === 0 ? 'Standard Included Floor Plan' : `Factory Plan Option (+${formatCurrency(floorPlanPrice * markupFactor, config.currency, { ratesMap: config.exchangeRates })})`}
                   </div>
                 </div>
               </div>
@@ -811,9 +818,9 @@ export const SpecSheetModal: React.FC<SpecSheetModalProps> = ({
                     </div>
                   </div>
                   <span className="font-mono font-bold text-blue-950 shrink-0 ml-4">
-                    {floorPlanOpt.price === 0
+                    {floorPlanPrice === 0
                       ? 'Included'
-                      : formatCurrency(floorPlanOpt.price * markupFactor, config.currency, { showPlus: true })}
+                      : formatCurrency(floorPlanPrice * markupFactor, config.currency, { showPlus: true })}
                   </span>
                 </div>
               )}

@@ -1021,9 +1021,9 @@ export default function UserDashboard() {
                         <div>
                           {/* Image Preview Container */}
                           <div className="relative aspect-16/10 bg-gray-100 overflow-hidden border-b border-gray-100">
-                            {model.image ? (
+                            {(model.image || model.gallery?.[0]) ? (
                               <img
-                                src={model.image}
+                                src={model.image || model.gallery?.[0]}
                                 alt={model.name}
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                 onError={(e) => {

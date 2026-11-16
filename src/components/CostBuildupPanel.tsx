@@ -134,8 +134,12 @@ export const CostBuildupPanel: React.FC<CostBuildupPanelProps> = ({
     state.modelId.includes('40ft') ||
     currentModel?.series === 'expandable';
 
+  const floorPlanList =
+    config.floorPlanOptions && config.floorPlanOptions.length > 0
+      ? config.floorPlanOptions
+      : FLOOR_PLAN_OPTIONS;
   const floorPlanOpt = isExpandableHouse && state.floorPlan
-    ? FLOOR_PLAN_OPTIONS.find((f) => f.id === state.floorPlan)
+    ? floorPlanList.find((f: any) => f.id === state.floorPlan)
     : null;
   const floorPlanPrice = floorPlanOpt ? getItemPriceForModel(floorPlanOpt, state.modelId, config.models) : 0;
 

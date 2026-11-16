@@ -2188,6 +2188,13 @@ export const FLOOR_PLAN_OPTIONS: FloorPlanOption[] = [
     description:
       'Engineered exclusively for the 10FT Double-Wing Expandable House (195 sq ft / 18 m²). Features a private master bedroom in the right wing, central open entryway with optional plumbed bath pod, and an optional L-shaped gourmet kitchenette with dining area in the left wing. Non-configurable to preserve open living comfort.',
     price: 0,
+    isAvailable: true,
+    isActive: true,
+    availableModels: ['expandable-10ft'],
+    priceByModel: {
+      'expandable-10ft': 0,
+      '10ft': 0,
+    },
     badge: '10FT Dedicated (Fixed 1-Bed)',
     recommendedFor: 'Backyard ADU, guest suite, home studio office, rental property, and micro-living',
     features: [
@@ -2208,6 +2215,17 @@ export const FLOOR_PLAN_OPTIONS: FloorPlanOption[] = [
     description:
       'Two private bedrooms along the right wing with a full left-wing living lounge featuring a 3-seater sofa, coffee table, rug, media console, and corner kitchenette.',
     price: 0,
+    isAvailable: true,
+    isActive: true,
+    availableModels: ['expandable-20ft', 'expandable-30ft', 'expandable-40ft'],
+    priceByModel: {
+      'expandable-20ft': 0,
+      '20ft': 0,
+      'expandable-30ft': 0,
+      '30ft': 0,
+      'expandable-40ft': 0,
+      '40ft': 0,
+    },
     badge: 'Standard Included',
     recommendedFor: 'Couples, small families, and vacation guest houses',
     features: [
@@ -2228,6 +2246,17 @@ export const FLOOR_PLAN_OPTIONS: FloorPlanOption[] = [
     description:
       'Three private bedrooms with dedicated doors and windows. On 40ft models, all three bedrooms are arranged along the right wing (one per side window bay), leaving an expansive 11.8m Great Room on the left.',
     price: 1200,
+    isAvailable: true,
+    isActive: true,
+    availableModels: ['expandable-20ft', 'expandable-30ft', 'expandable-40ft'],
+    priceByModel: {
+      'expandable-20ft': 1200,
+      '20ft': 1200,
+      'expandable-30ft': 1200,
+      '30ft': 1200,
+      'expandable-40ft': 1200,
+      '40ft': 1200,
+    },
     badge: 'Popular 3-Bed',
     recommendedFor: 'Families with children, co-living, and rental properties',
     features: [
@@ -2248,6 +2277,17 @@ export const FLOOR_PLAN_OPTIONS: FloorPlanOption[] = [
     description:
       'Three bedrooms with an architectural kitchen counter divider creating an intimate front living room lounge. On 40ft models, features a rear master suite, two guest wings, and full peninsula bar.',
     price: 1400,
+    isAvailable: true,
+    isActive: true,
+    availableModels: ['expandable-20ft', 'expandable-30ft', 'expandable-40ft'],
+    priceByModel: {
+      'expandable-20ft': 1400,
+      '20ft': 1400,
+      'expandable-30ft': 1400,
+      '30ft': 1400,
+      'expandable-40ft': 1400,
+      '40ft': 1400,
+    },
     badge: 'Architectural Split',
     recommendedFor: 'Modern family living with dedicated socializing space',
     features: [
@@ -2268,6 +2308,17 @@ export const FLOOR_PLAN_OPTIONS: FloorPlanOption[] = [
     description:
       'A luxurious open-concept layout with a single expansive master bedroom suite at rear-right, dedicating the entire core and left wing to an 8-person banquet dining table and entertaining lounge.',
     price: 850,
+    isAvailable: true,
+    isActive: true,
+    availableModels: ['expandable-20ft', 'expandable-30ft', 'expandable-40ft'],
+    priceByModel: {
+      'expandable-20ft': 850,
+      '20ft': 850,
+      'expandable-30ft': 850,
+      '30ft': 850,
+      'expandable-40ft': 850,
+      '40ft': 850,
+    },
     badge: 'Entertainer Suite',
     recommendedFor: 'Hosts, executive retreats, clubhouses, and luxury singles/couples',
     features: [
@@ -2288,6 +2339,17 @@ export const FLOOR_PLAN_OPTIONS: FloorPlanOption[] = [
     description:
       "Generous master bedroom occupying the right wing with private study desk and wardrobe, paired with a full chef's kitchen at top-left, 4-person dining table, and cozy living zone.",
     price: 650,
+    isAvailable: true,
+    isActive: true,
+    availableModels: ['expandable-20ft', 'expandable-30ft', 'expandable-40ft'],
+    priceByModel: {
+      'expandable-20ft': 650,
+      '20ft': 650,
+      'expandable-30ft': 650,
+      '30ft': 650,
+      'expandable-40ft': 650,
+      '40ft': 650,
+    },
     badge: 'Executive Worksuite',
     recommendedFor: 'Remote professionals, long-term residential living, and studio creators',
     features: [
@@ -2308,6 +2370,17 @@ export const FLOOR_PLAN_OPTIONS: FloorPlanOption[] = [
     description:
       'Four private enclosed bedrooms. On 40ft models, three private bedroom suites span the right wing (one per side window bay) and a fourth private bedroom suite occupies the front-left bay, paired with a full living room lounge, chef\'s kitchen, and dining area. On 20ft models, 4 symmetrical private rooms flank the central hallway.',
     price: 1800,
+    isAvailable: true,
+    isActive: true,
+    availableModels: ['expandable-20ft', 'expandable-30ft', 'expandable-40ft'],
+    priceByModel: {
+      'expandable-20ft': 1800,
+      '20ft': 1800,
+      'expandable-30ft': 1800,
+      '30ft': 1800,
+      'expandable-40ft': 1800,
+      '40ft': 1800,
+    },
     badge: 'Max Occupancy (4 Bed)',
     recommendedFor: 'Workforce accommodation, large families, glamping retreats, and rental yield',
     features: [
